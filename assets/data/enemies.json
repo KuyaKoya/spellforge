@@ -1,0 +1,68 @@
+{
+  "enemies": [
+    {
+      "id": "fireImp",
+      "name": "Fire Imp",
+      "element": "fire",
+      "maxHP": 15,
+      "attackDamage": 4,
+      "armorGain": 3
+    },
+    {
+      "id": "flameSerpent",
+      "name": "Flame Serpent",
+      "element": "fire",
+      "maxHP": 25,
+      "attackDamage": 6,
+      "armorGain": 4
+    },
+    {
+      "id": "waterSprite",
+      "name": "Water Sprite",
+      "element": "water",
+      "maxHP": 12,
+      "attackDamage": 3,
+      "armorGain": 5
+    },
+    {
+      "id": "seaStalker",
+      "name": "Sea Stalker",
+      "element": "water",
+      "maxHP": 22,
+      "attackDamage": 5,
+      "armorGain": 6
+    },
+    {
+      "id": "earthGolem",
+      "name": "Earth Golem",
+      "element": "earth",
+      "maxHP": 30,
+      "attackDamage": 5,
+      "armorGain": 8
+    },
+    {
+      "id": "mudCrawler",
+      "name": "Mud Crawler",
+      "element": "earth",
+      "maxHP": 18,
+      "attackDamage": 4,
+      "armorGain": 5
+    },
+    {
+      "id": "windWisp",
+      "name": "Wind Wisp",
+      "element": "air",
+      "maxHP": 10,
+      "attackDamage": 5,
+      "armorGain": 2
+    },
+    {
+      "id": "stormHawk",
+      "name": "Storm Hawk",
+      "element": "air",
+      "maxHP": 20,
+      "attackDamage": 7,
+      "armorGain": 3
+    }
+  ]
+}

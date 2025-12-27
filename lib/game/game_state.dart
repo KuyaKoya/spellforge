@@ -5,7 +5,7 @@ import '../domain/mage.dart';
 import '../domain/spell.dart';
 import '../domain/effect.dart';
 import '../systems/combat_system.dart';
-import '../systems/node_map_system.dart';
+import '../nodes/nodes.dart';
 import '../systems/node_resolver.dart';
 import '../systems/progression_system.dart';
 import '../systems/shop_system.dart';

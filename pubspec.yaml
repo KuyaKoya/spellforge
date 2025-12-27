@@ -1,6 +1,6 @@
 name: spellforge
 description: "A text-based turn-based roguelike where a player controls a mage, casts spells, and progresses through nodes."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0
 
 environment:
@@ -20,3 +20,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/data/

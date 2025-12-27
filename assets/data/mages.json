@@ -1,0 +1,40 @@
+{
+    "mages": [
+        {
+            "id": "pyromancer",
+            "name": "Pyromancer",
+            "primaryElement": "fire",
+            "passiveDescription": "Burns deal 1 extra damage.",
+            "maxHP": 50,
+            "maxMana": 10,
+            "actionsPerTurn": 1
+        },
+        {
+            "id": "hydromancer",
+            "name": "Hydromancer",
+            "primaryElement": "water",
+            "passiveDescription": "Healing effects are 25% more effective.",
+            "maxHP": 55,
+            "maxMana": 12,
+            "actionsPerTurn": 1
+        },
+        {
+            "id": "geomancer",
+            "name": "Geomancer",
+            "primaryElement": "earth",
+            "passiveDescription": "Armor effects last 1 extra turn.",
+            "maxHP": 60,
+            "maxMana": 8,
+            "actionsPerTurn": 1
+        },
+        {
+            "id": "aeromancer",
+            "name": "Aeromancer",
+            "primaryElement": "air",
+            "passiveDescription": "Start each combat with +1 action.",
+            "maxHP": 45,
+            "maxMana": 11,
+            "actionsPerTurn": 1
+        }
+    ]
+}

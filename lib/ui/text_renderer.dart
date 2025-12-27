@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../game/spellforge_game.dart';
 import '../game/game_state.dart';
-import '../systems/node_map_system.dart';
+import '../nodes/nodes.dart';
 
 /// A text-based UI renderer for the game.
 /// Displays the game log and handles keyboard input.
