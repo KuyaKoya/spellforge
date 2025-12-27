@@ -108,6 +108,12 @@ class ProgressionSystem {
     await _saveData();
   }
 
+  /// Adds crystals.
+  Future<void> addCrystals(int amount) async {
+    _spellCrystals += amount;
+    await _saveData();
+  }
+
   /// Calculates fragments earned for a combat victory.
   int calculateCombatReward(int nodeIndex, int enemiesDefeated) {
     final baseReward = 10;

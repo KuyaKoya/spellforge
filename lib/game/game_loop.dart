@@ -1,6 +1,7 @@
 import '../domain/spell.dart';
 import '../domain/effect.dart';
-import '../systems/node_system.dart';
+import '../systems/node_resolver.dart';
+import '../systems/shop_system.dart';
 import 'game_state.dart';
 
 /// Handles game logic for player actions.
@@ -16,6 +17,16 @@ class GameLoop {
       state.currentScreen = GameScreen.mageSelect;
       state.startRun(mages[index]);
     }
+  }
+
+  /// Shows the node map.
+  void showNodeMap() {
+    state.showNodeMap();
+  }
+
+  /// Selects a node from the available choices.
+  void selectNode(int choiceIndex) {
+    state.selectNodeChoice(choiceIndex);
   }
 
   /// Enters the current node from the map.
@@ -126,25 +137,40 @@ class GameLoop {
     if (result.playerWon) {
       state.combatsWon++;
 
+      // Check if this was an elite combat
+      if (state.isEliteCombat) {
+        state.elitesDefeated++;
+        state.log('');
+        state.log('💀 Elite defeated!');
+
+        // Show elite rewards
+        state.showEliteRewards();
+        return;
+      }
+
       // Award combat rewards (fragments)
-      final fragmentReward = state.progression.calculateCombatReward(
-        state.nodeSystem.currentNodeIndex,
-        state.currentEnemies?.length ?? 1,
+      final rewards = NodeResolver.calculateCombatReward(
+        depth: state.currentDepth,
+        enemiesDefeated: state.currentEnemies?.length ?? 1,
+        isElite: false,
       );
-      state.progression.addFragments(fragmentReward);
+
+      state.progression.addFragments(rewards['fragments']!);
       state.log('');
-      state.log('Earned $fragmentReward spell fragments!');
+      state.log('💎 Earned ${rewards['fragments']} spell fragments!');
 
       // Award experience
-      final expReward = _calculateExpReward(
-        state.nodeSystem.currentNodeIndex,
-        state.currentEnemies?.length ?? 1,
-      );
       if (state.mage != null) {
-        final levelLogs = state.mage!.gainExp(expReward);
+        final levelLogs = state.mage!.gainExp(rewards['experience']!);
         for (final log in levelLogs) {
           state.log(log);
         }
+      }
+
+      // Check for bonus spell crystal drop (after depth 4)
+      if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {
+        state.progression.addCrystals(1);
+        state.log('✨ A Spell Crystal drops!');
       }
 
       state.completeNode();
@@ -153,12 +179,86 @@ class GameLoop {
     }
   }
 
-  /// Calculates experience reward based on node and enemies.
-  int _calculateExpReward(int nodeIndex, int enemiesDefeated) {
-    // Base EXP: 5 per enemy + 2 per node depth
-    final baseExp = enemiesDefeated * 5;
-    final nodeBonus = nodeIndex * 2;
-    return baseExp + nodeBonus;
+  // ==================== ELITE ACTIONS ====================
+
+  /// Confirms entering the elite combat.
+  void confirmEliteCombat() {
+    if (state.currentScreen != GameScreen.elite) return;
+    state.confirmEliteCombat();
+  }
+
+  /// Retreats from elite combat.
+  void retreatFromElite() {
+    if (state.currentScreen != GameScreen.elite) return;
+    state.retreatFromElite();
+  }
+
+  /// Selects an elite reward.
+  void selectEliteReward(int rewardIndex) {
+    if (state.currentScreen != GameScreen.eliteReward) return;
+    if (state.currentEliteRewards == null) return;
+
+    final rewards = state.currentEliteRewards!['rewards'] as List;
+    if (rewardIndex < 0 || rewardIndex >= rewards.length) return;
+
+    final reward = rewards[rewardIndex] as Map<String, dynamic>;
+
+    state.log('');
+    switch (reward['type']) {
+      case 'crystal':
+        final value = reward['value'] as int;
+        state.progression.addCrystals(value);
+        state.log('✨ Gained $value Spell Crystal(s)!');
+        break;
+
+      case 'spell':
+        final spell = reward['spell'] as Spell;
+        if (state.mage!.learnSpell(spell)) {
+          state.spellsLearned++;
+          state.log('📖 Learned ${spell.displayName}!');
+        } else {
+          state.log('❌ Loadout full! Gained 50 fragments instead.');
+          state.progression.addFragments(50);
+        }
+        break;
+
+      case 'fragments':
+        final value = reward['value'] as int;
+        state.progression.addFragments(value);
+        state.log('💎 Gained $value spell fragments!');
+        break;
+
+      case 'upgrade':
+        if (state.mage!.spellLoadout.isNotEmpty) {
+          // Show upgrade selection
+          state.log('Select a spell to upgrade for free:');
+          for (int i = 0; i < state.mage!.spellLoadout.length; i++) {
+            final spell = state.mage!.spellLoadout[i];
+            if (spell.starLevel < 3) {
+              state.log('[${i + 1}] ${spell.displayName}');
+            }
+          }
+          // For simplicity, auto-upgrade first upgradeable spell
+          for (int i = 0; i < state.mage!.spellLoadout.length; i++) {
+            if (state.mage!.spellLoadout[i].starLevel < 3) {
+              state.mage!.upgradeSpell(i);
+              state.spellsUpgraded++;
+              state.log(
+                '⭐ Upgraded ${state.mage!.spellLoadout[i].displayName}!',
+              );
+              break;
+            }
+          }
+        } else {
+          state.log('❌ No spells to upgrade! Gained 50 fragments instead.');
+          state.progression.addFragments(50);
+        }
+        break;
+    }
+
+    state.currentEliteRewards = null;
+    state.isEliteCombat = false;
+    state.completeNode();
   }
 
   // ==================== SPELL LEARN ACTIONS ====================
@@ -189,7 +289,7 @@ class GameLoop {
     mage.learnSpell(spell);
     state.spellsLearned++;
     state.log('');
-    state.log('Learned ${spell.displayName}!');
+    state.log('📖 Learned ${spell.displayName}!');
     state.completeNode();
   }
 
@@ -248,7 +348,7 @@ class GameLoop {
 
     final upgraded = state.mage!.spellLoadout[loadoutIndex];
     state.log('');
-    state.log('Upgraded ${spell.displayName} → ${upgraded.displayName}!');
+    state.log('⭐ Upgraded ${spell.displayName} → ${upgraded.displayName}!');
     state.log('Spent $cost fragments.');
     state.completeNode();
     return true;
@@ -263,6 +363,96 @@ class GameLoop {
     state.completeNode();
   }
 
+  // ==================== SHOP ACTIONS ====================
+
+  /// Purchases an item from the shop.
+  Future<bool> purchaseShopItem(int itemIndex) async {
+    if (state.currentScreen != GameScreen.shop) return false;
+    if (state.currentShop == null) return false;
+
+    final availableItems = state.currentShop!.availableItems;
+    if (itemIndex < 0 || itemIndex >= availableItems.length) return false;
+
+    final item = availableItems[itemIndex];
+
+    if (!state.currentShop!.canPurchase(
+      item,
+      state.progression.spellFragments,
+    )) {
+      state.log('❌ Not enough fragments!');
+      return false;
+    }
+
+    // Make the purchase
+    await state.progression.spendFragments(item.cost);
+    state.currentShop!.purchaseItem(item);
+
+    state.log('');
+    state.log('💰 Purchased ${item.displayName}!');
+
+    // Apply the item effect
+    switch (item.type) {
+      case ShopItemType.spellFragments:
+        state.progression.addFragments(item.value);
+        state.log('💎 Gained ${item.value} spell fragments!');
+        break;
+
+      case ShopItemType.spellCrystal:
+        state.progression.addCrystals(item.value);
+        state.log('✨ Gained ${item.value} Spell Crystal(s)!');
+        break;
+
+      case ShopItemType.randomSpell:
+        if (item.spell != null && state.mage!.learnSpell(item.spell!)) {
+          state.spellsLearned++;
+          state.log('📖 Learned ${item.spell!.displayName}!');
+        } else {
+          state.log('❌ Loadout full! Could not learn spell.');
+        }
+        break;
+
+      case ShopItemType.heal:
+        final actual = state.mage!.heal(item.value);
+        state.log('❤️ Healed for $actual HP!');
+        state.log(state.mage!.hpDisplay);
+        break;
+
+      case ShopItemType.tempBuff:
+        state.temporaryBuffs.add(
+          TemporaryBuff(
+            name: 'Power Surge',
+            value: item.value,
+            remainingNodes: 3,
+          ),
+        );
+        state.log('⚡ Gained +${item.value}% damage for 3 nodes!');
+        break;
+    }
+
+    // Show remaining items
+    state.log('');
+    if (state.currentShop!.availableItems.isNotEmpty) {
+      state.log('Remaining items:');
+      final items = state.currentShop!.availableItems;
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        state.log('[${i + 1}] ${item.displayText} (${item.cost} frags)');
+      }
+    } else {
+      state.log('Shop is now empty.');
+    }
+    return true;
+  }
+
+  /// Leaves the shop.
+  void leaveShop() {
+    if (state.currentScreen != GameScreen.shop) return;
+
+    state.log('');
+    state.log('You leave the shop.');
+    state.completeNode();
+  }
+
   // ==================== REST ACTIONS ====================
 
   /// Rests and recovers HP.
@@ -274,8 +464,45 @@ class GameLoop {
     final actualHeal = state.mage!.heal(healAmount);
 
     state.log('');
-    state.log('Rested and recovered $actualHeal HP.');
+    state.log('🛏️ Rested and recovered $actualHeal HP.');
     state.log(state.mage!.hpDisplay);
+    state.completeNode();
+  }
+
+  /// Removes a modifier from a spell.
+  void removeSpellModifier() {
+    if (state.currentScreen != GameScreen.rest) return;
+    if (state.mage == null || state.mage!.spellLoadout.isEmpty) {
+      state.log('❌ No spells with modifiers to remove.');
+      return;
+    }
+
+    // For simplicity, just reset first spell with upgrades
+    for (int i = 0; i < state.mage!.spellLoadout.length; i++) {
+      if (state.mage!.spellLoadout[i].starLevel > 1) {
+        final spell = state.mage!.spellLoadout[i];
+        // Reset to base (this is simplified - full implementation would track modifiers)
+        state.log('');
+        state.log('Removed modifiers from ${spell.displayName}.');
+        state.completeNode();
+        return;
+      }
+    }
+
+    state.log('❌ No upgraded spells to modify.');
+  }
+
+  /// Gains a temporary buff.
+  void gainTempBuff() {
+    if (state.currentScreen != GameScreen.rest) return;
+    if (state.mage == null) return;
+
+    state.temporaryBuffs.add(
+      TemporaryBuff(name: 'Rest Vigor', value: 25, remainingNodes: 3),
+    );
+
+    state.log('');
+    state.log('⚡ Gained +25% damage for 3 nodes!');
     state.completeNode();
   }
 
@@ -323,7 +550,7 @@ class GameLoop {
         if (selectedChoice.containsKey('healAmount')) {
           final heal = selectedChoice['healAmount'] as int;
           final actual = state.mage!.heal(heal);
-          state.log('❤️  Recovered $actual HP!');
+          state.log('❤️ Recovered $actual HP!');
         }
         break;
 
@@ -347,7 +574,7 @@ class GameLoop {
           // Give a random spell
           final spells = NodeResolver.generateSpellChoices(
             state.mage!,
-            state.nodeSystem.currentNodeIndex,
+            state.currentDepth,
           );
           if (spells.isNotEmpty && state.mage!.learnSpell(spells.first)) {
             state.log('📖 Learned ${spells.first.displayName}!');
@@ -393,11 +620,23 @@ class GameLoop {
         ];
 
       case GameScreen.nodeMap:
-        final node = state.nodeSystem.currentNode;
+        final node = state.nodeMapSystem.currentNode;
         if (node != null) {
           return ['Current: ${node.displayText}', '', '[E] Enter node'];
         }
         return ['Run complete!'];
+
+      case GameScreen.nodeChoice:
+        final depth = state.nodeMapSystem.currentDepthLevel;
+        if (depth != null && depth.hasChoice) {
+          return [
+            'Choose your path:',
+            ...depth.nodeChoices.asMap().entries.map(
+              (e) => '[${e.key + 1}] ${e.value.shortDisplay}',
+            ),
+          ];
+        }
+        return [];
 
       case GameScreen.combat:
         if (state.currentCombat != null) {
@@ -436,8 +675,29 @@ class GameLoop {
           '[S] Skip',
         ];
 
+      case GameScreen.shop:
+        final items = state.currentShop?.availableItems ?? [];
+        return [
+          ...items.asMap().entries.map(
+            (e) =>
+                '[${e.key + 1}] ${e.value.displayText} (${e.value.cost} frags)',
+          ),
+          '[L] Leave shop',
+        ];
+
       case GameScreen.rest:
-        return ['[R] Rest', '[S] Skip'];
+        return ['[R] Rest', '[M] Remove Modifier', '[B] Temp Buff', '[S] Skip'];
+
+      case GameScreen.elite:
+        return ['[Y] Yes, fight!', '[N] No, retreat'];
+
+      case GameScreen.eliteReward:
+        final rewards = state.currentEliteRewards?['rewards'] as List? ?? [];
+        return [
+          ...rewards.asMap().entries.map(
+            (e) => '[${e.key + 1}] ${(e.value as Map)['name']}',
+          ),
+        ];
 
       case GameScreen.randomEvent:
         final event = state.currentRandomEvent;

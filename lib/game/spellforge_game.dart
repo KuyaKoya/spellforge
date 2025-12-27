@@ -60,6 +60,9 @@ class SpellforgeGame extends FlameGame {
       case GameScreen.nodeMap:
         _handleNodeMapInput(upper);
         break;
+      case GameScreen.nodeChoice:
+        _handleNodeChoiceInput(upper);
+        break;
       case GameScreen.combat:
         _handleCombatInput(upper);
         break;
@@ -72,8 +75,17 @@ class SpellforgeGame extends FlameGame {
       case GameScreen.enhancementShrine:
         _handleEnhancementInput(upper);
         break;
+      case GameScreen.shop:
+        _handleShopInput(upper);
+        break;
       case GameScreen.rest:
         _handleRestInput(upper);
+        break;
+      case GameScreen.elite:
+        _handleEliteInput(upper);
+        break;
+      case GameScreen.eliteReward:
+        _handleEliteRewardInput(upper);
         break;
       case GameScreen.randomEvent:
         _handleRandomEventInput(upper);
@@ -113,6 +125,13 @@ class SpellforgeGame extends FlameGame {
   void _handleNodeMapInput(String input) {
     if (input == 'E') {
       gameLoop.enterNode();
+    }
+  }
+
+  void _handleNodeChoiceInput(String input) {
+    final index = int.tryParse(input);
+    if (index != null && index >= 1 && index <= 2) {
+      gameLoop.selectNode(index - 1);
     }
   }
 
@@ -164,11 +183,41 @@ class SpellforgeGame extends FlameGame {
     }
   }
 
+  void _handleShopInput(String input) {
+    if (input == 'L') {
+      gameLoop.leaveShop();
+    } else {
+      final index = int.tryParse(input);
+      if (index != null && index >= 1) {
+        gameLoop.purchaseShopItem(index - 1);
+      }
+    }
+  }
+
   void _handleRestInput(String input) {
     if (input == 'R') {
       gameLoop.rest();
     } else if (input == 'S') {
       gameLoop.skipRest();
+    } else if (input == 'M') {
+      gameLoop.removeSpellModifier();
+    } else if (input == 'B') {
+      gameLoop.gainTempBuff();
+    }
+  }
+
+  void _handleEliteInput(String input) {
+    if (input == 'Y') {
+      gameLoop.confirmEliteCombat();
+    } else if (input == 'N') {
+      gameLoop.retreatFromElite();
+    }
+  }
+
+  void _handleEliteRewardInput(String input) {
+    final index = int.tryParse(input);
+    if (index != null && index >= 1 && index <= 3) {
+      gameLoop.selectEliteReward(index - 1);
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../game/spellforge_game.dart';
 import '../game/game_state.dart';
+import '../systems/node_map_system.dart';
 
 /// A text-based UI renderer for the game.
 /// Displays the game log and handles keyboard input.
@@ -81,6 +82,12 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         input = 'C';
       } else if (key == LogicalKeyboardKey.keyQ) {
         input = 'Q';
+      } else if (key == LogicalKeyboardKey.keyY) {
+        input = 'Y';
+      } else if (key == LogicalKeyboardKey.keyL) {
+        input = 'L';
+      } else if (key == LogicalKeyboardKey.keyB) {
+        input = 'B';
       }
 
       if (input != null) {
@@ -151,8 +158,13 @@ class _TextGameWidgetState extends State<TextGameWidget> {
             _buildStatusChip(mage.manaDisplay, Colors.blue.shade400),
             const SizedBox(width: 8),
             _buildStatusChip(
-              'Node ${widget.game.gameState.nodeSystem.currentNodeIndex + 1}/${widget.game.gameState.nodeSystem.totalNodes}',
+              'Depth ${widget.game.gameState.currentDepth}/${widget.game.gameState.nodeMapSystem.totalDepths}',
               Colors.green.shade400,
+            ),
+            const SizedBox(width: 8),
+            _buildStatusChip(
+              '💎 ${widget.game.progressionSystem.spellFragments}',
+              Colors.teal.shade400,
             ),
           ],
 
@@ -242,6 +254,16 @@ class _TextGameWidgetState extends State<TextGameWidget> {
               letterSpacing: 2,
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Phase 2: Node Progression & Elite Encounters',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 14,
+              color: Colors.amber.shade600,
+              letterSpacing: 1,
+            ),
+          ),
           const SizedBox(height: 48),
           Text(
             'Press [N] to start a new run',
@@ -299,8 +321,10 @@ class _TextGameWidgetState extends State<TextGameWidget> {
               _buildResourceItem(
                 '🏆',
                 '${progression.bestNodeReached}',
-                'Best Node',
+                'Best Depth',
               ),
+              const SizedBox(width: 24),
+              _buildResourceItem('📊', '${progression.totalRuns}', 'Runs'),
             ],
           ),
         ],
@@ -339,22 +363,34 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     FontWeight weight = FontWeight.normal;
 
     // Style based on content
-    if (line.startsWith('===')) {
+    if (line.startsWith('===') ||
+        line.startsWith('╔') ||
+        line.startsWith('║') ||
+        line.startsWith('╚')) {
       color = Colors.amber.shade400;
       weight = FontWeight.bold;
-    } else if (line.startsWith('---')) {
-      color = Colors.grey.shade500;
+    } else if (line.startsWith('---') ||
+        line.startsWith('───') ||
+        line.startsWith('┌') ||
+        line.startsWith('└') ||
+        line.startsWith('│')) {
+      color = Colors.grey.shade400;
     } else if (line.contains('VICTORY')) {
       color = Colors.green.shade400;
       weight = FontWeight.bold;
     } else if (line.contains('DEFEAT') || line.contains('fallen')) {
       color = Colors.red.shade400;
       weight = FontWeight.bold;
+    } else if (line.contains('ELITE') || line.contains('💀')) {
+      color = Colors.purple.shade300;
+      weight = FontWeight.bold;
+    } else if (line.contains('⚠️') || line.contains('WARNING')) {
+      color = Colors.orange.shade400;
     } else if (line.contains('Damage:')) {
       color = Colors.orange.shade400;
-    } else if (line.contains('Strong effectiveness')) {
+    } else if (line.contains('Strong effectiveness') || line.contains('✅')) {
       color = Colors.green.shade400;
-    } else if (line.contains('Weak effectiveness')) {
+    } else if (line.contains('Weak effectiveness') || line.contains('❌')) {
       color = Colors.red.shade400;
     } else if (line.startsWith('[')) {
       color = Colors.cyan.shade400;
@@ -364,8 +400,16 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         line.contains('Burn') ||
         line.contains('Slow')) {
       color = Colors.purple.shade300;
-    } else if (line.contains('fragments') || line.contains('Earned')) {
+    } else if (line.contains('fragments') ||
+        line.contains('Earned') ||
+        line.contains('💎')) {
       color = Colors.teal.shade400;
+    } else if (line.contains('✨') || line.contains('Crystal')) {
+      color = Colors.cyan.shade300;
+    } else if (line.contains('📖') || line.contains('Learned')) {
+      color = Colors.blue.shade400;
+    } else if (line.contains('🏆') || line.contains('REWARD')) {
+      color = Colors.amber.shade300;
     }
 
     return Padding(
@@ -426,6 +470,31 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [_buildButton('E', 'Enter Node', Colors.green)],
         );
+
+      case GameScreen.nodeChoice:
+        final depth = widget.game.gameState.nodeMapSystem.currentDepthLevel;
+        if (depth != null) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                ...depth.nodeChoices.asMap().entries.map((e) {
+                  Color color = Colors.blue;
+                  if (e.value.type.isCombat) color = Colors.red;
+                  if (e.value.type == NodeType.elite) color = Colors.purple;
+                  if (e.value.type == NodeType.shop) color = Colors.green;
+                  if (e.value.type == NodeType.rest) color = Colors.teal;
+                  return _buildButton(
+                    '${e.key + 1}',
+                    e.value.type.displayName,
+                    color,
+                  );
+                }),
+              ],
+            ),
+          );
+        }
+        return const SizedBox.shrink();
 
       case GameScreen.combat:
         final mage = widget.game.gameState.mage;
@@ -503,13 +572,65 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           ),
         );
 
+      case GameScreen.shop:
+        final items = widget.game.gameState.currentShop?.availableItems ?? [];
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              ...items.asMap().entries.map((e) {
+                final canAfford =
+                    widget.game.progressionSystem.spellFragments >=
+                    e.value.cost;
+                return _buildButton(
+                  '${e.key + 1}',
+                  e.value.type.displayName,
+                  canAfford ? Colors.green : Colors.grey,
+                  enabled: canAfford,
+                );
+              }),
+              _buildButton('L', 'Leave', Colors.grey),
+            ],
+          ),
+        );
+
       case GameScreen.rest:
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildButton('R', 'Rest', Colors.green),
+              _buildButton('M', 'Remove Mod', Colors.orange),
+              _buildButton('B', 'Temp Buff', Colors.purple),
+              _buildButton('S', 'Skip', Colors.grey),
+            ],
+          ),
+        );
+
+      case GameScreen.elite:
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildButton('R', 'Rest', Colors.green),
-            _buildButton('S', 'Skip', Colors.grey),
+            _buildButton('Y', 'Fight!', Colors.red),
+            _buildButton('N', 'Retreat', Colors.grey),
           ],
+        );
+
+      case GameScreen.eliteReward:
+        final rewards =
+            widget.game.gameState.currentEliteRewards?['rewards'] as List? ??
+            [];
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: rewards.asMap().entries.map((e) {
+              return _buildButton(
+                '${e.key + 1}',
+                (e.value as Map)['name'],
+                Colors.amber,
+              );
+            }).toList(),
+          ),
         );
 
       case GameScreen.randomEvent:
@@ -604,6 +725,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         return Colors.purple;
       case GameScreen.nodeMap:
         return Colors.green;
+      case GameScreen.nodeChoice:
+        return Colors.blue;
       case GameScreen.combat:
         return Colors.red;
       case GameScreen.targetSelect:
@@ -612,8 +735,14 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         return Colors.blue;
       case GameScreen.enhancementShrine:
         return Colors.amber;
+      case GameScreen.shop:
+        return Colors.green;
       case GameScreen.rest:
         return Colors.teal;
+      case GameScreen.elite:
+        return Colors.purple;
+      case GameScreen.eliteReward:
+        return Colors.amber;
       case GameScreen.randomEvent:
         return Colors.purple;
       case GameScreen.runEnd:
@@ -629,6 +758,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         return 'SELECT MAGE';
       case GameScreen.nodeMap:
         return 'NODE MAP';
+      case GameScreen.nodeChoice:
+        return 'CHOOSE PATH';
       case GameScreen.combat:
         return 'COMBAT';
       case GameScreen.targetSelect:
@@ -637,8 +768,14 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         return 'LEARN SPELL';
       case GameScreen.enhancementShrine:
         return 'ENHANCE';
+      case GameScreen.shop:
+        return 'SHOP';
       case GameScreen.rest:
         return 'REST';
+      case GameScreen.elite:
+        return 'ELITE';
+      case GameScreen.eliteReward:
+        return 'ELITE REWARD';
       case GameScreen.randomEvent:
         return 'RANDOM EVENT';
       case GameScreen.runEnd:

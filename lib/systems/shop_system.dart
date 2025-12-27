@@ -1,0 +1,241 @@
+import 'dart:math';
+import '../domain/spell.dart';
+import '../data/spell_definitions.dart';
+
+/// Types of items available in the shop.
+enum ShopItemType {
+  spellFragments,
+  spellCrystal,
+  randomSpell,
+  heal,
+  tempBuff;
+
+  String get displayName {
+    switch (this) {
+      case ShopItemType.spellFragments:
+        return 'Spell Fragments';
+      case ShopItemType.spellCrystal:
+        return 'Spell Crystal';
+      case ShopItemType.randomSpell:
+        return 'Random Spell';
+      case ShopItemType.heal:
+        return 'Health Potion';
+      case ShopItemType.tempBuff:
+        return 'Power Surge';
+    }
+  }
+
+  String get icon {
+    switch (this) {
+      case ShopItemType.spellFragments:
+        return '💎';
+      case ShopItemType.spellCrystal:
+        return '✨';
+      case ShopItemType.randomSpell:
+        return '📜';
+      case ShopItemType.heal:
+        return '❤️';
+      case ShopItemType.tempBuff:
+        return '⚡';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case ShopItemType.spellFragments:
+        return 'A bundle of spell fragments for upgrading.';
+      case ShopItemType.spellCrystal:
+        return 'A rare crystal with immense magical power.';
+      case ShopItemType.randomSpell:
+        return 'Learn a random spell (rarity based on depth).';
+      case ShopItemType.heal:
+        return 'Restores a portion of your HP.';
+      case ShopItemType.tempBuff:
+        return 'Gain a temporary damage boost for 3 nodes.';
+    }
+  }
+}
+
+/// Represents a purchasable item in the shop.
+class ShopItem {
+  final ShopItemType type;
+  final int cost;
+  final int value; // Amount for fragments, HP for heal, etc.
+  final Spell? spell; // For random spell type
+  bool isPurchased;
+
+  ShopItem({
+    required this.type,
+    required this.cost,
+    required this.value,
+    this.spell,
+    this.isPurchased = false,
+  });
+
+  String get displayName => spell?.displayName ?? type.displayName;
+
+  String get displayText {
+    switch (type) {
+      case ShopItemType.spellFragments:
+        return '${type.icon} $value Fragments';
+      case ShopItemType.spellCrystal:
+        return '${type.icon} $value Crystal(s)';
+      case ShopItemType.randomSpell:
+        if (spell != null) {
+          return '${spell!.elementIcon} ${spell!.displayName} ${spell!.rarity.icon}';
+        }
+        return '${type.icon} ${type.displayName}';
+      case ShopItemType.heal:
+        return '${type.icon} Heal $value HP';
+      case ShopItemType.tempBuff:
+        return '${type.icon} +$value% Damage (3 nodes)';
+    }
+  }
+
+  String get costText => '💰 $cost fragments';
+}
+
+/// Manages the shop inventory for a shop node.
+class ShopSystem {
+  final List<ShopItem> items;
+  final int depth;
+
+  ShopSystem({required this.items, required this.depth});
+
+  /// Available items that haven't been purchased.
+  List<ShopItem> get availableItems =>
+      items.where((i) => !i.isPurchased).toList();
+
+  /// Checks if a purchase can be made.
+  bool canPurchase(ShopItem item, int playerFragments) {
+    return !item.isPurchased && playerFragments >= item.cost;
+  }
+
+  /// Marks an item as purchased.
+  void purchaseItem(ShopItem item) {
+    item.isPurchased = true;
+  }
+
+  /// Generates a shop inventory based on depth.
+  static ShopSystem generateShop({
+    required int depth,
+    List<String>? knownSpellIds,
+    int? seed,
+  }) {
+    final random = seed != null ? Random(seed) : Random();
+    final items = <ShopItem>[];
+
+    // Fragment bundle (always available)
+    final fragmentAmount = 30 + (depth * 5);
+    final fragmentCost = 20 + (depth * 3);
+    items.add(
+      ShopItem(
+        type: ShopItemType.spellFragments,
+        cost: fragmentCost,
+        value: fragmentAmount,
+      ),
+    );
+
+    // Spell Crystal (available after depth 4)
+    if (depth >= 4 && random.nextDouble() < 0.6) {
+      items.add(
+        ShopItem(
+          type: ShopItemType.spellCrystal,
+          cost: 80 + (depth * 10),
+          value: 1,
+        ),
+      );
+    }
+
+    // Random Spell (rarity based on depth)
+    SpellRarity maxRarity;
+    if (depth < 4) {
+      maxRarity = SpellRarity.common;
+    } else if (depth < 7) {
+      maxRarity = SpellRarity.uncommon;
+    } else {
+      maxRarity = SpellRarity.rare;
+    }
+
+    final availableSpells = SpellDefinitions.getRandomSelection(
+      count: 1,
+      maxRarity: maxRarity,
+      excludeIds: knownSpellIds,
+    );
+
+    if (availableSpells.isNotEmpty) {
+      final spell = availableSpells.first;
+      final spellCost = _getSpellCost(spell.rarity);
+      items.add(
+        ShopItem(
+          type: ShopItemType.randomSpell,
+          cost: spellCost,
+          value: 0,
+          spell: spell,
+        ),
+      );
+    }
+
+    // Health Potion (always available)
+    final healAmount = 15 + (depth * 2);
+    items.add(
+      ShopItem(
+        type: ShopItemType.heal,
+        cost: 15 + (depth * 2),
+        value: healAmount,
+      ),
+    );
+
+    // Power Surge (temporary buff)
+    if (random.nextDouble() < 0.5) {
+      items.add(
+        ShopItem(
+          type: ShopItemType.tempBuff,
+          cost: 25 + (depth * 5),
+          value: 25, // 25% damage boost
+        ),
+      );
+    }
+
+    return ShopSystem(items: items, depth: depth);
+  }
+
+  /// Gets the cost for a spell based on rarity.
+  static int _getSpellCost(SpellRarity rarity) {
+    switch (rarity) {
+      case SpellRarity.common:
+        return 30;
+      case SpellRarity.uncommon:
+        return 50;
+      case SpellRarity.rare:
+        return 80;
+      case SpellRarity.signature:
+        return 150;
+    }
+  }
+}
+
+/// Temporary buff that lasts for a number of nodes.
+class TemporaryBuff {
+  final String name;
+  final int value; // Percentage bonus
+  int remainingNodes;
+
+  TemporaryBuff({
+    required this.name,
+    required this.value,
+    required this.remainingNodes,
+  });
+
+  /// Whether the buff is still active.
+  bool get isActive => remainingNodes > 0;
+
+  /// Decrements the remaining nodes.
+  void tick() {
+    if (remainingNodes > 0) {
+      remainingNodes--;
+    }
+  }
+
+  String get displayText => '$name (+$value%) - $remainingNodes nodes';
+}
