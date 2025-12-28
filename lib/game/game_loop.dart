@@ -707,6 +707,9 @@ class GameLoop {
         }
         return [];
 
+      case GameScreen.exploration:
+        return ['WASD to move', 'Approach enemy to preview', 'Approach door to proceed'];
+
       case GameScreen.combat:
         if (state.currentCombat != null) {
           return state.currentCombat!.getAvailableActions();

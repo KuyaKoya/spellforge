@@ -63,6 +63,10 @@ class SpellforgeGame extends FlameGame {
       case GameScreen.nodeChoice:
         _handleNodeChoiceInput(upper);
         break;
+      case GameScreen.exploration:
+        // Exploration is handled by the ExplorationScreen widget
+        // Keyboard movement is handled there
+        break;
       case GameScreen.combat:
         _handleCombatInput(upper);
         break;

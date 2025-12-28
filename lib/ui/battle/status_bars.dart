@@ -39,67 +39,189 @@ class _EnemyStatusCard extends StatelessWidget {
 
   const _EnemyStatusCard({required this.enemy, this.isSelected = false});
 
+  Color get _elementColor {
+    switch (enemy.element.name) {
+      case 'fire':
+        return const Color(0xFFf85149);
+      case 'water':
+        return const Color(0xFF58a6ff);
+      case 'earth':
+        return const Color(0xFF7c6f4a);
+      case 'air':
+        return const Color(0xFF79c0ff);
+      default:
+        return const Color(0xFF6e7681);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 180,
-      padding: const EdgeInsets.all(8),
+      width: 200,
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161b22),
-        border: Border.all(
-          color: isSelected ? const Color(0xFFe3b341) : const Color(0xFF30363d),
-          width: isSelected ? 2 : 1,
+        // Pokémon-style gradient background
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF1a1f26),
+            const Color(0xFF161b22),
+          ],
         ),
-        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isSelected ? const Color(0xFFe3b341) : _elementColor.withValues(alpha: 0.5),
+          width: isSelected ? 3 : 2,
+        ),
+        // More rounded like Pokémon UI
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: isSelected 
+                ? const Color(0xFFe3b341).withValues(alpha: 0.3)
+                : _elementColor.withValues(alpha: 0.2),
+            blurRadius: 8,
+            spreadRadius: isSelected ? 2 : 0,
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Name and HP column
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Name
-                Text(
+          // Top row: Name + Element
+          Row(
+            children: [
+              Expanded(
+                child: Text(
                   enemy.name,
                   style: const TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFFc9d1d9),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+              ),
+              const SizedBox(width: 4),
+              _ElementIcon(element: enemy.element.name),
+            ],
+          ),
+          const SizedBox(height: 6),
 
-                // HP Bar (animated, no numbers - LOCKED)
-                _AnimatedHPBar(current: enemy.currentHP, max: enemy.maxHP),
+          // HP Bar with percentage
+          Row(
+            children: [
+              Text(
+                'HP',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _AnimatedHPBar(current: enemy.currentHP, max: enemy.maxHP),
+              ),
+              const SizedBox(width: 6),
+              // HP Percentage
+              Text(
+                '${((enemy.currentHP / enemy.maxHP) * 100).round()}%',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: _getHPColor(enemy.currentHP, enemy.maxHP),
+                ),
+              ),
+            ],
+          ),
+
+          // Status effect icons (if any)
+          if (enemy.statusEffects.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                ..._buildStatusIcons(),
+              ],
+            ),
+          ],
+
+          // Intent indicator
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF21262d),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _getIntentIcon(),
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  enemy.intent.displayName,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 9,
+                    color: _getIntentColor(),
+                  ),
+                ),
               ],
             ),
           ),
-
-          const SizedBox(width: 8),
-
-          // Element icon
-          _ElementIcon(element: enemy.element.name),
-
-          // Status effect icons
-          if (enemy.statusEffects.isNotEmpty) ...[
-            const SizedBox(width: 4),
-            ..._buildStatusIcons(),
-          ],
         ],
       ),
     );
   }
 
+  String _getIntentIcon() {
+    switch (enemy.intent) {
+      case EnemyIntent.attack:
+        return '⚔️';
+      case EnemyIntent.defend:
+        return '🛡️';
+      case EnemyIntent.debuff:
+        return '💀';
+    }
+  }
+
+  Color _getIntentColor() {
+    switch (enemy.intent) {
+      case EnemyIntent.attack:
+        return const Color(0xFFf85149);
+      case EnemyIntent.defend:
+        return const Color(0xFF58a6ff);
+      case EnemyIntent.debuff:
+        return const Color(0xFFa371f7);
+    }
+  }
+
   List<Widget> _buildStatusIcons() {
     return enemy.statusEffects.take(3).map((effect) {
       return Padding(
-        padding: const EdgeInsets.only(left: 2),
+        padding: const EdgeInsets.only(right: 4),
         child: _StatusIcon(type: effect.type),
       );
     }).toList();
+  }
+
+  Color _getHPColor(int current, int max) {
+    final percent = current / max;
+    if (percent > 0.5) {
+      return const Color(0xFF3fb950); // Green
+    } else if (percent > 0.25) {
+      return const Color(0xFFe3b341); // Yellow
+    } else {
+      return const Color(0xFFf85149); // Red
+    }
   }
 }
 

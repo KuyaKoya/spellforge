@@ -14,6 +14,7 @@ import 'status_bars.dart';
 import 'battle_action_menu.dart';
 import 'director_subtitle_overlay.dart';
 import 'floating_damage.dart';
+import 'sprite_overlay.dart';
 
 /// Main battle screen widget implementing Pokémon-inspired UI.
 ///
@@ -68,10 +69,10 @@ class _BattleScreenState extends State<BattleScreen> {
   // UI State
   BattleMenuState _menuState = BattleMenuState.root;
   Spell? _inspectedSpell;
-  bool _combatLogExpanded = false;
   String? _directorMessage;
   int? _selectedEnemyIndex;
   Spell? _pendingSpell;
+  bool _combatEnded = false; // Track when combat has ended
 
   // Combat Log
   final List<CombatLogEntry> _combatLogEntries = [];
@@ -249,6 +250,8 @@ class _BattleScreenState extends State<BattleScreen> {
     final combatOver = !widget.combat.isOngoing || allEnemiesDead || playerDead;
 
     if (combatOver) {
+      setState(() => _combatEnded = true); // Disable action buttons
+      
       final isVictory = allEnemiesDead && widget.mage.isAlive;
       if (isVictory) {
         _showDirectorMessage('"The pattern continues."');
@@ -293,10 +296,25 @@ class _BattleScreenState extends State<BattleScreen> {
       color: const Color(0xFF0d1117),
       child: Stack(
         children: [
-          // Layer 1: Flame battle scene
+          // Layer 1: Flame battle scene (background, arena)
           Positioned.fill(child: GameWidget(game: _battleScene)),
 
-          // Layer 2: Enemy status bar (top-right)
+          // Layer 2: Animated GIF enemy sprites overlay
+          // NOTE: Removed Flame enemy sprites to avoid duplication
+          // The EnemySpriteOverlay now handles all enemy rendering
+          Positioned.fill(
+            child: EnemySpriteOverlay(
+              enemies: widget.combat.livingEnemies,
+              highlightedIndex: _menuState == BattleMenuState.targetSelect
+                  ? _selectedEnemyIndex
+                  : null,
+              onTap: (_menuState == BattleMenuState.targetSelect && !_combatEnded)
+                  ? (index) => _handleTargetSelect(index)
+                  : null,
+            ),
+          ),
+
+          // Layer 3: Enemy status bar (top-right)
           Positioned(
             top: 16,
             right: 16,
@@ -306,9 +324,9 @@ class _BattleScreenState extends State<BattleScreen> {
             ),
           ),
 
-          // Layer 3: Player status bar (bottom-left)
+          // Layer 3: Player status bar (bottom-left, above bottom bar)
           Positioned(
-            bottom: 120,
+            bottom: 130, // Above the 120px bottom bar
             left: 16,
             child: PlayerStatusBar(mage: widget.mage),
           ),
@@ -329,25 +347,83 @@ class _BattleScreenState extends State<BattleScreen> {
             ),
           ),
 
-          // Layer 5: Director subtitle overlay (bottom-center)
+          // Layer 5: Director subtitle overlay (above bottom bar)
           if (_directorMessage != null)
             Positioned(
-              bottom: 130,
+              bottom: 140, // Above the 120px bottom bar
               left: 0,
               right: 0,
               child: DirectorSubtitleOverlay(message: _directorMessage!),
             ),
 
-          // Layer 6: Combat log panel (bottom, toggle)
+          // Layer 6 & 9 COMBINED: Bottom bar with Action Menu (left 3/4) and Combat Log (right 1/4)
           Positioned(
-            bottom: 100,
-            left: 16,
-            right: 200,
-            child: CombatLogPanel(
-              entries: _combatLogEntries,
-              isExpanded: _combatLogExpanded,
-              onToggle: () =>
-                  setState(() => _combatLogExpanded = !_combatLogExpanded),
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 120,
+              decoration: const BoxDecoration(
+                color: Color(0xFF161b22),
+                border: Border(
+                  top: BorderSide(color: Color(0xFF30363d), width: 1),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Left side (3/4): Action buttons
+                  Expanded(
+                    flex: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: !_combatEnded
+                          ? BattleActionMenu(
+                              state: _menuState,
+                              mage: widget.mage,
+                              enemies: widget.combat.livingEnemies,
+                              onAction: _handleMenuAction,
+                              onSpellSelect: _handleSpellSelect,
+                              onSpellLongPress: _showSpellInspection,
+                              onSpellLongPressEnd: _hideSpellInspection,
+                              onTargetSelect: _handleTargetSelect,
+                            )
+                          : Center(
+                              child: Text(
+                                _combatLogEntries.isNotEmpty && 
+                                    _combatLogEntries.last.message.contains('VICTORY')
+                                    ? '✨ VICTORY ✨'
+                                    : '💀 DEFEAT 💀',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: _combatLogEntries.isNotEmpty && 
+                                      _combatLogEntries.last.message.contains('VICTORY')
+                                      ? const Color(0xFF3fb950)
+                                      : const Color(0xFFf85149),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  // Divider
+                  Container(
+                    width: 1,
+                    color: const Color(0xFF30363d),
+                  ),
+                  // Right side (1/4): Combat log
+                  Expanded(
+                    flex: 1,
+                    child: CombatLogPanel(
+                      entries: _combatLogEntries,
+                      isExpanded: true, // Always expanded in this layout
+                      onToggle: () {}, // No toggle needed
+                      compact: true, // Use compact mode
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -361,22 +437,6 @@ class _BattleScreenState extends State<BattleScreen> {
 
           // Layer 8: Floating damage numbers
           ..._damageController.buildWidgets(),
-
-          // Layer 9: Battle action menu (bottom-right)
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: BattleActionMenu(
-              state: _menuState,
-              mage: widget.mage,
-              enemies: widget.combat.livingEnemies,
-              onAction: _handleMenuAction,
-              onSpellSelect: _handleSpellSelect,
-              onSpellLongPress: _showSpellInspection,
-              onSpellLongPressEnd: _hideSpellInspection,
-              onTargetSelect: _handleTargetSelect,
-            ),
-          ),
         ],
       ),
     );

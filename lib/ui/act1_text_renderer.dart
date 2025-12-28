@@ -646,6 +646,9 @@ class _Act1TextGameWidgetState extends State<Act1TextGameWidget> {
         }
         return const SizedBox.shrink();
 
+      case GameScreen.exploration:
+        return const SizedBox.shrink(); // Handled by ExplorationScreen
+
       case GameScreen.combat:
         final mage = widget.game.gameState.mage;
         if (mage == null) return const SizedBox.shrink();
@@ -881,6 +884,8 @@ class _Act1TextGameWidgetState extends State<Act1TextGameWidget> {
         return Colors.green;
       case GameScreen.nodeChoice:
         return Colors.blue;
+      case GameScreen.exploration:
+        return Colors.indigo;
       case GameScreen.combat:
         return Colors.red;
       case GameScreen.targetSelect:
@@ -914,6 +919,8 @@ class _Act1TextGameWidgetState extends State<Act1TextGameWidget> {
         return 'NODE MAP';
       case GameScreen.nodeChoice:
         return 'CHOOSE PATH';
+      case GameScreen.exploration:
+        return 'EXPLORATION';
       case GameScreen.combat:
         return 'COMBAT';
       case GameScreen.targetSelect:

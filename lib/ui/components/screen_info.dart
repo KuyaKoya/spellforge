@@ -19,6 +19,8 @@ class ScreenInfo {
         return ScreenInfo('NODE MAP', Colors.green);
       case GameScreen.nodeChoice:
         return ScreenInfo('CHOOSE PATH', Colors.blue);
+      case GameScreen.exploration:
+        return ScreenInfo('EXPLORATION', Colors.indigo);
       case GameScreen.combat:
         return ScreenInfo('COMBAT', Colors.red);
       case GameScreen.targetSelect:

@@ -64,6 +64,7 @@ class CombatLogPanel extends StatefulWidget {
   final List<CombatLogEntry> entries;
   final bool isExpanded;
   final VoidCallback? onToggle;
+  final bool compact; // Compact mode for side panel layout
 
   /// LOCKED: Hard cap on entries
   static const int maxEntries = 50;
@@ -73,6 +74,7 @@ class CombatLogPanel extends StatefulWidget {
     required this.entries,
     this.isExpanded = false,
     this.onToggle,
+    this.compact = false,
   });
 
   @override
@@ -107,7 +109,89 @@ class _CombatLogPanelState extends State<CombatLogPanel> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.compact) {
+      return _buildCompactView();
+    }
     return widget.isExpanded ? _buildExpandedView() : _buildCollapsedView();
+  }
+
+  /// Compact view for side-by-side layout in bottom bar
+  Widget _buildCompactView() {
+    final displayEntries = widget.entries.length > CombatLogPanel.maxEntries
+        ? widget.entries.sublist(
+            widget.entries.length - CombatLogPanel.maxEntries,
+          )
+        : widget.entries;
+
+    return Container(
+      color: const Color(0xFF0d1117),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Compact header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: const BoxDecoration(
+              color: Color(0xFF161b22),
+              border: Border(
+                bottom: BorderSide(color: Color(0xFF30363d), width: 1),
+              ),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  'LOG',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${widget.entries.length}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 9,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Compact entry list
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(6),
+              itemCount: displayEntries.length,
+              itemBuilder: (context, index) {
+                return _buildCompactEntry(displayEntries[index]);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactEntry(CombatLogEntry entry) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text(
+        '${entry.type.icon} ${entry.message}${entry.details != null ? ' ${_formatDetails(entry.details!)}' : ''}',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 9,
+          color: Colors.grey.shade400,
+          height: 1.2,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
   }
 
   Widget _buildCollapsedView() {

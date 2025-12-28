@@ -17,16 +17,16 @@
       "armorGain": 4
     },
     {
-      "id": "waterSprite",
-      "name": "Water Sprite",
+      "id": "waterSpirit",
+      "name": "Water Spirit",
       "element": "water",
       "maxHP": 12,
       "attackDamage": 3,
       "armorGain": 5
     },
     {
-      "id": "seaStalker",
-      "name": "Sea Stalker",
+      "id": "seaSerpent",
+      "name": "Sea Serpent",
       "element": "water",
       "maxHP": 22,
       "attackDamage": 5,

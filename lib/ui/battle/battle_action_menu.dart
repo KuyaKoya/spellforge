@@ -40,13 +40,9 @@ class BattleActionMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 180,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161b22),
-        border: Border.all(color: const Color(0xFF30363d)),
-        borderRadius: BorderRadius.circular(4),
-      ),
+      // Fixed width removed - adapts to parent Flex
+      padding: const EdgeInsets.all(4),
+      // Decoration removed - visually cleaner in bottom bar
       child: _buildContent(),
     );
   }
@@ -58,6 +54,7 @@ class BattleActionMenu extends StatelessWidget {
       case BattleMenuState.spellSelect:
         return _SpellSelectMenu(
           mage: mage,
+          enemies: enemies,
           onSpellSelect: onSpellSelect,
           onSpellLongPress: onSpellLongPress,
           onSpellLongPressEnd: onSpellLongPressEnd,
@@ -87,53 +84,44 @@ class _RootMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _MenuButton(
-                label: 'SPELLS',
-                icon: '✨',
-                onTap: () => onAction(BattleMenuAction.spells),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _MenuButton(
-                label: 'INSPECT',
-                icon: '🔍',
-                onTap: () => onAction(BattleMenuAction.inspect),
-              ),
-            ),
-          ],
+        Expanded(
+          child: _MenuButton(
+            label: 'SPELLS',
+            icon: '✨',
+            onTap: () => onAction(BattleMenuAction.spells),
+          ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: _MenuButton(
-                label: 'ITEMS',
-                icon: '🎒',
-                onTap: () => onAction(BattleMenuAction.items),
-                disabled: true, // Not implemented in Act 1
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _MenuButton(
-                label: 'RETREAT',
-                icon: '🚪',
-                onTap: () => onAction(BattleMenuAction.retreat),
-                color: const Color(0xFF6e7681),
-              ),
-            ),
-          ],
+        const SizedBox(width: 4),
+        Expanded(
+          child: _MenuButton(
+            label: 'INSPECT',
+            icon: '🔍',
+            onTap: () => onAction(BattleMenuAction.inspect),
+          ),
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
+        const SizedBox(width: 4),
+        Expanded(
+          child: _MenuButton(
+            label: 'ITEMS',
+            icon: '🎒',
+            onTap: () => onAction(BattleMenuAction.items),
+            disabled: true,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: _MenuButton(
+            label: 'RETREAT',
+            icon: '🚪',
+            onTap: () => onAction(BattleMenuAction.retreat),
+            color: const Color(0xFF6e7681),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 2,
           child: _MenuButton(
             label: 'END TURN',
             icon: '⏭️',
@@ -149,6 +137,7 @@ class _RootMenu extends StatelessWidget {
 /// Spell selection menu (2x2 grid).
 class _SpellSelectMenu extends StatelessWidget {
   final Mage mage;
+  final List<Enemy> enemies;
   final void Function(Spell) onSpellSelect;
   final void Function(Spell)? onSpellLongPress;
   final VoidCallback? onSpellLongPressEnd;
@@ -156,6 +145,7 @@ class _SpellSelectMenu extends StatelessWidget {
 
   const _SpellSelectMenu({
     required this.mage,
+    required this.enemies,
     required this.onSpellSelect,
     this.onSpellLongPress,
     this.onSpellLongPressEnd,
@@ -166,34 +156,40 @@ class _SpellSelectMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final spells = mage.spellLoadout;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Row(
       children: [
-        // Spell grid
-        Wrap(
-          spacing: 4,
-          runSpacing: 4,
-          children: spells.map((spell) {
-            return _SpellButton(
-              spell: spell,
-              canCast: mage.canCast(spell),
-              onTap: () => onSpellSelect(spell),
-              onLongPress: () => onSpellLongPress?.call(spell),
-              onLongPressEnd: onSpellLongPressEnd,
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 8),
         _BackButton(onTap: onBack),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: spells.map((spell) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: _SpellButton(
+                    spell: spell,
+                    canCast: mage.canCast(spell),
+                    enemies: enemies,
+                    onTap: () => onSpellSelect(spell),
+                    onLongPress: () => onSpellLongPress?.call(spell),
+                    onLongPressEnd: onSpellLongPressEnd,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-/// Spell button with element accent and mana cost.
+/// Spell button with element accent, mana cost, and effectiveness indicator.
 class _SpellButton extends StatelessWidget {
   final Spell spell;
   final bool canCast;
+  final List<Enemy> enemies;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onLongPressEnd;
@@ -201,6 +197,7 @@ class _SpellButton extends StatelessWidget {
   const _SpellButton({
     required this.spell,
     required this.canCast,
+    required this.enemies,
     required this.onTap,
     this.onLongPress,
     this.onLongPressEnd,
@@ -221,6 +218,43 @@ class _SpellButton extends StatelessWidget {
     }
   }
 
+  /// Get the best effectiveness indicator against current enemies
+  String get _effectivenessIndicator {
+    if (enemies.isEmpty) return '';
+    
+    bool hasStrong = false;
+    bool hasWeak = false;
+    
+    for (final enemy in enemies) {
+      final multiplier = spell.element.getMultiplierAgainst(enemy.element);
+      if (multiplier > 1.0) hasStrong = true;
+      if (multiplier < 1.0) hasWeak = true;
+    }
+    
+    if (hasStrong && !hasWeak) return '▲'; // All effective or mixed
+    if (hasWeak && !hasStrong) return '▼'; // All weak
+    if (hasStrong && hasWeak) return '●'; // Mixed
+    return ''; // All neutral
+  }
+
+  Color get _effectivenessColor {
+    if (enemies.isEmpty) return Colors.transparent;
+    
+    bool hasStrong = false;
+    bool hasWeak = false;
+    
+    for (final enemy in enemies) {
+      final multiplier = spell.element.getMultiplierAgainst(enemy.element);
+      if (multiplier > 1.0) hasStrong = true;
+      if (multiplier < 1.0) hasWeak = true;
+    }
+    
+    if (hasStrong && !hasWeak) return const Color(0xFF3fb950); // Green
+    if (hasWeak && !hasStrong) return const Color(0xFFf85149); // Red
+    if (hasStrong && hasWeak) return const Color(0xFFe3b341); // Yellow
+    return Colors.transparent;
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -239,8 +273,25 @@ class _SpellButton extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Icon
-            Text(spell.elementIcon, style: const TextStyle(fontSize: 16)),
+            // Icon with effectiveness indicator
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(spell.elementIcon, style: const TextStyle(fontSize: 16)),
+                if (_effectivenessIndicator.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Text(
+                      _effectivenessIndicator,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: _effectivenessColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 2),
 
             // Name (truncated)
@@ -302,34 +353,31 @@ class _TargetSelectMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
       children: [
-        Text(
-          'SELECT TARGET',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 10,
-            color: Colors.grey.shade500,
-            letterSpacing: 1,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        ...enemies.asMap().entries.map((entry) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: _MenuButton(
-              label: entry.value.name,
-              icon: entry.value.element.displayName.characters.first,
-              onTap: () => onTargetSelect?.call(entry.key),
-              color: const Color(0xFFf85149),
-            ),
-          );
-        }),
-        const SizedBox(height: 4),
         _BackButton(onTap: onBack),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: enemies.asMap().entries.map((entry) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: SizedBox(
+                    width: 120, // Specific width for target buttons
+                    child: _MenuButton(
+                      label: entry.value.name,
+                      icon: entry.value.element.displayName.characters.first,
+                      onTap: () => onTargetSelect?.call(entry.key),
+                      color: const Color(0xFFf85149),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -349,43 +397,39 @@ class _InspectMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
       children: [
-        Text(
-          'INSPECT',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 10,
-            color: Colors.grey.shade500,
-            letterSpacing: 1,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-
-        // Player section
-        _InspectItem(
-          label: mage.name,
-          detail: 'HP: ${mage.currentHP}/${mage.maxHP}',
-        ),
-
-        const SizedBox(height: 4),
-
-        // Enemy section
-        ...enemies.map((enemy) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: _InspectItem(
-              label: enemy.name,
-              detail: 'HP: ${enemy.currentHP}/${enemy.maxHP}',
-            ),
-          );
-        }),
-
-        const SizedBox(height: 8),
         _BackButton(onTap: onBack),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                // Player
+                 Container(
+                  width: 140,
+                  margin: const EdgeInsets.only(right: 4),
+                  child: _InspectItem(
+                    label: mage.name,
+                    detail: '${mage.currentHP}/${mage.maxHP} HP',
+                  ),
+                ),
+                // Enemies
+                ...enemies.map((enemy) {
+                  return Container(
+                    width: 140,
+                    margin: const EdgeInsets.only(right: 4),
+                    child: _InspectItem(
+                      label: enemy.name,
+                      detail: '${enemy.currentHP}/${enemy.maxHP} HP',
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }

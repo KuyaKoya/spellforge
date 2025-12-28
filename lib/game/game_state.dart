@@ -16,6 +16,7 @@ enum GameScreen {
   mageSelect,
   nodeMap,
   nodeChoice,
+  exploration, // NEW: Spatial exploration room before combat
   combat,
   targetSelect,
   spellLearn,

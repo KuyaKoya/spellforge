@@ -6,6 +6,8 @@ import '../game/game_state.dart';
 import '../nodes/nodes.dart';
 import '../narrative/journey_log.dart';
 import 'battle/battle.dart';
+// TODO: Enable when exploration screen is fully integrated
+// import 'exploration/exploration.dart';
 
 /// A text-based UI renderer for the game.
 /// Displays the game log and handles keyboard input.
@@ -28,6 +30,13 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     final screen = widget.game.currentScreen;
     return screen == GameScreen.combat || screen == GameScreen.targetSelect;
   }
+
+  // TODO: Enable when exploration screen is fully integrated
+  // bool get _isInExplorationMode {
+  //   if (!widget.game.isReady) return false;
+  //   final screen = widget.game.currentScreen;
+  //   return screen == GameScreen.exploration;
+  // }
 
   @override
   void initState() {
@@ -124,13 +133,14 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           // Use the game loop's proper combat end handling
           // This awards rewards and calls completeNode()
           widget.game.gameLoop.handleCombatEnd();
-          // Refresh UI
-          setState(() {});
+          // Refresh UI and scroll to bottom
+          _onGameStateChanged();
         },
         onRetreat: () {
           // Retreat = end run with defeat
           widget.game.gameState.endRun(victory: false);
-          setState(() {});
+          // Refresh UI and scroll to bottom
+          _onGameStateChanged();
         },
         onInput: (input) => widget.game.handleInput(input),
       );
@@ -526,6 +536,9 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         }
         return const SizedBox.shrink();
 
+      case GameScreen.exploration:
+        return const SizedBox.shrink(); // Handled by ExplorationScreen
+
       case GameScreen.combat:
         final mage = widget.game.gameState.mage;
         if (mage == null) return const SizedBox.shrink();
@@ -757,6 +770,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         return Colors.green;
       case GameScreen.nodeChoice:
         return Colors.blue;
+      case GameScreen.exploration:
+        return Colors.indigo;
       case GameScreen.combat:
         return Colors.red;
       case GameScreen.targetSelect:
@@ -790,6 +805,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         return 'NODE MAP';
       case GameScreen.nodeChoice:
         return 'CHOOSE PATH';
+      case GameScreen.exploration:
+        return 'EXPLORATION';
       case GameScreen.combat:
         return 'COMBAT';
       case GameScreen.targetSelect:
