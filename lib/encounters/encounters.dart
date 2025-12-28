@@ -6,8 +6,10 @@
 /// - [EncounterGenerator] - Generates encounters based on depth and type
 /// - [CombatResultDTO] - Structured combat result data
 /// - [CombatRewards] - Rewards earned from combat
+/// - [EnemyArchetype] - Enemy behavior patterns and intent systems
 library;
 
 export 'encounter.dart';
 export 'encounter_generator.dart';
 export 'combat_rewards.dart';
+export 'enemy_archetype.dart';

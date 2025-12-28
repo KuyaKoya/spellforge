@@ -4,30 +4,38 @@ import 'package:flutter/services.dart';
 import '../game/spellforge_game.dart';
 import '../game/game_state.dart';
 import '../nodes/nodes.dart';
-import '../narrative/journey_log.dart';
-import 'battle/battle.dart';
+import '../narrative/narrative.dart';
+import 'components/components.dart';
 
-/// A text-based UI renderer for the game.
-/// Displays the game log and handles keyboard input.
-class TextGameWidget extends StatefulWidget {
+/// Enhanced text-based UI renderer for Act 1 Demo (Phase 5).
+/// Includes breadcrumbs, journey log panel, and narrative overlay.
+class Act1TextGameWidget extends StatefulWidget {
   final SpellforgeGame game;
+  final JourneyLog journeyLog;
+  final int runNumber;
 
-  const TextGameWidget({super.key, required this.game});
+  const Act1TextGameWidget({
+    super.key,
+    required this.game,
+    required this.journeyLog,
+    this.runNumber = 1,
+  });
 
   @override
-  State<TextGameWidget> createState() => _TextGameWidgetState();
+  State<Act1TextGameWidget> createState() => _Act1TextGameWidgetState();
 }
 
-class _TextGameWidgetState extends State<TextGameWidget> {
+class _Act1TextGameWidgetState extends State<Act1TextGameWidget> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
-  final JourneyLog _journeyLog = JourneyLog();
 
-  bool get _isInBattleMode {
-    if (!widget.game.isReady) return false;
-    final screen = widget.game.currentScreen;
-    return screen == GameScreen.combat || screen == GameScreen.targetSelect;
-  }
+  // UI state
+  bool _showJourneyLog = false;
+  bool _combatLogExpanded = false;
+  NarrativeBlock? _currentNarrative;
+
+  // Combat log entries
+  final List<CombatLogEntry> _combatLogEntries = [];
 
   @override
   void initState() {
@@ -62,7 +70,28 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     if (event is KeyDownEvent) {
       final key = event.logicalKey;
 
-      // Map key to input string
+      // Journey log toggle (J key) - LOCKED: Pause menu only, NOT during combat
+      if (key == LogicalKeyboardKey.keyJ && !_isInCombat) {
+        setState(() => _showJourneyLog = !_showJourneyLog);
+        return;
+      }
+
+      // ESC to access pause / toggle journey log in pause
+      if (key == LogicalKeyboardKey.escape) {
+        if (_showJourneyLog) {
+          setState(() => _showJourneyLog = false);
+        } else if (!_isInCombat) {
+          setState(() => _showJourneyLog = !_showJourneyLog);
+        }
+        return;
+      }
+
+      // Dismiss narrative on any key
+      if (_currentNarrative != null) {
+        setState(() => _currentNarrative = null);
+        return;
+      }
+
       String? input;
 
       if (key == LogicalKeyboardKey.digit1 ||
@@ -105,38 +134,18 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     }
   }
 
+  /// Shows a narrative overlay.
+  void showNarrative(NarrativeBlock narrative) {
+    setState(() => _currentNarrative = narrative);
+  }
+
+  /// Dismisses the current narrative overlay.
+  void dismissNarrative() {
+    setState(() => _currentNarrative = null);
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Show battle screen during combat
-    if (_isInBattleMode &&
-        widget.game.gameState.currentCombat != null &&
-        widget.game.gameState.mage != null) {
-      return BattleScreen(
-        combat: widget.game.gameState.currentCombat!,
-        mage: widget.game.gameState.mage!,
-        enemies: widget.game.gameState.currentCombat!.enemies,
-        nodeMapSystem: widget.game.gameState.nodeMapSystem,
-        journeyLog: _journeyLog,
-        currentDepth: widget.game.gameState.currentDepth,
-        totalDepths: widget.game.gameState.nodeMapSystem.totalDepths,
-        runNumber: 1,
-        onCombatEnd: () {
-          // Use the game loop's proper combat end handling
-          // This awards rewards and calls completeNode()
-          widget.game.gameLoop.handleCombatEnd();
-          // Refresh UI
-          setState(() {});
-        },
-        onRetreat: () {
-          // Retreat = end run with defeat
-          widget.game.gameState.endRun(victory: false);
-          setState(() {});
-        },
-        onInput: (input) => widget.game.handleInput(input),
-      );
-    }
-
-    // Default text-based UI
     return KeyboardListener(
       focusNode: _focusNode,
       autofocus: true,
@@ -144,18 +153,73 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       child: GestureDetector(
         onTap: () => _focusNode.requestFocus(),
         child: Container(
+          // LOCKED: Dark background matching breadcrumb specs
           color: const Color(0xFF0d1117),
           child: SafeArea(
-            child: Column(
+            child: Stack(
               children: [
-                _buildHeader(),
-                Expanded(child: _buildLogDisplay()),
-                _buildActionBar(),
+                // Main content
+                Row(
+                  children: [
+                    // Main game area
+                    Expanded(
+                      child: Column(
+                        children: [
+                          _buildHeader(),
+                          if (_isInRun) _buildBreadcrumbs(),
+                          Expanded(child: _buildLogDisplay()),
+                          if (_isInCombat) _buildCombatLog(),
+                          _buildActionBar(),
+                        ],
+                      ),
+                    ),
+
+                    // Journey log side panel
+                    // LOCKED: Only accessible non-combat (left-edge swipe option)
+                    if (_showJourneyLog && !_isInCombat)
+                      JourneyLogPanel(
+                        journeyLog: widget.journeyLog,
+                        onClose: () => setState(() => _showJourneyLog = false),
+                      ),
+                  ],
+                ),
+
+                // Narrative overlay
+                if (_currentNarrative != null)
+                  NarrativeOverlay(
+                    narrative: _currentNarrative!,
+                    onDismiss: dismissNarrative,
+                  ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  bool get _isInRun =>
+      widget.game.gameState.mage != null &&
+      widget.game.currentScreen != GameScreen.mainMenu;
+
+  bool get _isInCombat =>
+      widget.game.currentScreen == GameScreen.combat ||
+      widget.game.currentScreen == GameScreen.targetSelect;
+
+  Widget _buildBreadcrumbs() {
+    return NodeBreadcrumbs(
+      nodeMapSystem: widget.game.gameState.nodeMapSystem,
+      currentDepth: widget.game.gameState.currentDepth,
+      totalDepths: widget.game.gameState.nodeMapSystem.totalDepths,
+      runNumber: widget.runNumber,
+    );
+  }
+
+  Widget _buildCombatLog() {
+    return CombatLogPanel(
+      entries: _combatLogEntries,
+      isExpanded: _combatLogExpanded,
+      onToggle: () => setState(() => _combatLogExpanded = !_combatLogExpanded),
     );
   }
 
@@ -175,11 +239,25 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       ),
       child: Row(
         children: [
-          // Logo
-          Image.asset(
-            'assets/spellforge_logo.png',
-            height: 32,
-            filterQuality: FilterQuality.high,
+          // Logo with Act indicator
+          Row(
+            children: [
+              Image.asset(
+                'assets/spellforge_logo.png',
+                height: 36,
+                filterQuality: FilterQuality.high,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'ACT I',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
           ),
           const Spacer(),
 
@@ -203,6 +281,34 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           ],
 
           const SizedBox(width: 16),
+
+          // Journey log toggle - LOCKED: Only accessible non-combat
+          if (!_isInCombat)
+            GestureDetector(
+              onTap: () => setState(() => _showJourneyLog = !_showJourneyLog),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _showJourneyLog
+                      ? const Color(0xFF21262d)
+                      : Colors.transparent,
+                  border: Border.all(color: const Color(0xFF30363d)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'J',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: _showJourneyLog
+                        ? Colors.grey.shade300
+                        : Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ),
+
+          const SizedBox(width: 8),
 
           // Screen indicator
           Container(
@@ -271,36 +377,43 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           // Logo
           Image.asset(
             'assets/spellforge_logo.png',
-            height: 100,
+            height: 120,
             filterQuality: FilterQuality.high,
           ),
           const SizedBox(height: 24),
           Text(
-            'A Text-Based Roguelike',
+            'ACT I: THE THRESHOLD',
             style: TextStyle(
               fontFamily: 'monospace',
               fontSize: 16,
-              color: Colors.grey.shade400,
-              letterSpacing: 2,
+              color: Colors.grey.shade500,
+              letterSpacing: 4,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Phase 5: Act I Demo',
+            'A roguelike of loops and persistence',
             style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 12,
+              fontFamily: 'Georgia',
+              fontSize: 13,
               color: Colors.grey.shade600,
-              letterSpacing: 1,
+              fontStyle: FontStyle.italic,
             ),
           ),
           const SizedBox(height: 48),
-          Text(
-            'Press [N] to start a new run',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 14,
-              color: Colors.grey.shade400,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFF30363d)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              'Press [N] to enter the Threshold',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 14,
+                color: Colors.grey.shade400,
+              ),
             ),
           ),
           const SizedBox(height: 32),
@@ -324,7 +437,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       child: Column(
         children: [
           Text(
-            'PERSISTENT RESOURCES',
+            'PERSISTENT ECHOES',
             style: TextStyle(
               fontFamily: 'monospace',
               fontSize: 12,
@@ -348,13 +461,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
                 'Crystals',
               ),
               const SizedBox(width: 24),
-              _buildResourceItem(
-                '🏆',
-                '${progression.bestNodeReached}',
-                'Best Depth',
-              ),
-              const SizedBox(width: 24),
-              _buildResourceItem('📊', '${progression.totalRuns}', 'Runs'),
+              _buildResourceItem('🔄', '${progression.totalRuns}', 'Loops'),
             ],
           ),
         ],
@@ -391,9 +498,15 @@ class _TextGameWidgetState extends State<TextGameWidget> {
   Widget _buildLogLine(String line) {
     Color color = Colors.grey.shade300;
     FontWeight weight = FontWeight.normal;
+    FontStyle fontStyle = FontStyle.normal;
 
+    // Director lines (purple, italic)
+    if (line.startsWith('"') && line.endsWith('"')) {
+      color = Colors.purple.shade300;
+      fontStyle = FontStyle.italic;
+    }
     // Style based on content
-    if (line.startsWith('===') ||
+    else if (line.startsWith('===') ||
         line.startsWith('╔') ||
         line.startsWith('║') ||
         line.startsWith('╚')) {
@@ -410,6 +523,9 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       weight = FontWeight.bold;
     } else if (line.contains('DEFEAT') || line.contains('fallen')) {
       color = Colors.red.shade400;
+      weight = FontWeight.bold;
+    } else if (line.contains('GATEKEEPER') || line.contains('👹')) {
+      color = Colors.orange.shade300;
       weight = FontWeight.bold;
     } else if (line.contains('ELITE') || line.contains('💀')) {
       color = Colors.purple.shade300;
@@ -451,6 +567,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           fontSize: 14,
           color: color,
           fontWeight: weight,
+          fontStyle: fontStyle,
           height: 1.4,
         ),
       ),
@@ -479,7 +596,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       case GameScreen.mainMenu:
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [_buildButton('N', 'New Run', Colors.green)],
+          children: [_buildButton('N', 'Enter the Threshold', Colors.amber)],
         );
 
       case GameScreen.mageSelect:
@@ -498,7 +615,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       case GameScreen.nodeMap:
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [_buildButton('E', 'Enter Node', Colors.green)],
+          children: [_buildButton('E', 'Proceed', Colors.green)],
         );
 
       case GameScreen.nodeChoice:
@@ -514,6 +631,9 @@ class _TextGameWidgetState extends State<TextGameWidget> {
                   if (e.value.type == NodeType.elite) color = Colors.purple;
                   if (e.value.type == NodeType.shop) color = Colors.green;
                   if (e.value.type == NodeType.rest) color = Colors.teal;
+                  if (e.value.type == NodeType.bossCombat) {
+                    color = Colors.orange;
+                  }
                   return _buildButton(
                     '${e.key + 1}',
                     e.value.type.displayName,
@@ -536,11 +656,15 @@ class _TextGameWidgetState extends State<TextGameWidget> {
             children: [
               ...mage.spellLoadout.asMap().entries.map((e) {
                 final canCast = mage.canCast(e.value);
-                return _buildButton(
-                  '${e.key + 1}',
-                  e.value.name,
-                  canCast ? Colors.blue : Colors.grey,
-                  enabled: canCast,
+                return SpellInspectionWrapper(
+                  spell: e.value,
+                  enabled: true,
+                  child: _buildButton(
+                    '${e.key + 1}',
+                    e.value.name,
+                    canCast ? Colors.blue : Colors.grey,
+                    enabled: canCast,
+                  ),
                 );
               }),
               _buildButton('E', 'End Turn', Colors.orange),
@@ -685,7 +809,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       case GameScreen.runEnd:
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [_buildButton('M', 'Main Menu', Colors.amber)],
+          children: [_buildButton('M', 'Return to the Loop', Colors.amber)],
         );
     }
   }
@@ -783,9 +907,9 @@ class _TextGameWidgetState extends State<TextGameWidget> {
   String _getScreenName(GameScreen screen) {
     switch (screen) {
       case GameScreen.mainMenu:
-        return 'MENU';
+        return 'THRESHOLD';
       case GameScreen.mageSelect:
-        return 'SELECT MAGE';
+        return 'SELECT PATH';
       case GameScreen.nodeMap:
         return 'NODE MAP';
       case GameScreen.nodeChoice:
@@ -795,7 +919,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       case GameScreen.targetSelect:
         return 'SELECT TARGET';
       case GameScreen.spellLearn:
-        return 'LEARN SPELL';
+        return 'SPELL SHRINE';
       case GameScreen.enhancementShrine:
         return 'ENHANCE';
       case GameScreen.shop:
@@ -805,11 +929,11 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       case GameScreen.elite:
         return 'ELITE';
       case GameScreen.eliteReward:
-        return 'ELITE REWARD';
+        return 'REWARD';
       case GameScreen.randomEvent:
-        return 'RANDOM EVENT';
+        return 'EVENT';
       case GameScreen.runEnd:
-        return 'RUN END';
+        return 'LOOP END';
     }
   }
 }

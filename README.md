@@ -157,6 +157,27 @@ lib/
  │   ├── shop_system.dart        # Shop items & purchasing
  │   ├── difficulty_scaler.dart  # Depth-based difficulty
  │   └── progression_system.dart # Persistent resources
+ ├── director/                   # Phase 4: Director System
+ │   ├── director_system.dart    # Main Director logic
+ │   ├── director_state.dart     # Pressure states (neutral/aggressive/merciful)
+ │   ├── director_rules.dart     # Adjustment rules & thresholds
+ │   ├── director_logger.dart    # Decision logging
+ │   └── pressure_metrics.dart   # Player performance metrics
+ ├── ascension/                  # Phase 4: Ascension System
+ │   └── ascension.dart          # 10 difficulty levels with modifiers
+ ├── relics/                     # Phase 4: Relic System
+ │   ├── relic.dart              # Relic definitions (18 relics)
+ │   └── relic_system.dart       # Relic management & generation
+ ├── summary/                    # Phase 4: Run Summary
+ │   ├── run_summary.dart        # Comprehensive run statistics
+ │   └── run_summary_builder.dart # Statistics tracking
+ ├── core/                       # Core utilities
+ │   └── seeded_random.dart      # Deterministic random for seeded runs
+ ├── encounters/
+ │   ├── encounter.dart          # Encounter data
+ │   ├── encounter_generator.dart # Encounter generation
+ │   ├── combat_rewards.dart     # Reward calculations
+ │   └── enemy_archetype.dart    # Enemy behavior patterns
  ├── ui/
  │   └── text_renderer.dart      # Text UI widget
  ├── data/
@@ -261,19 +282,138 @@ flutter run
 - [x] Rest node with multiple options
 - [x] Node sequencing constraints
 
-## 🔮 Future Phases
-
 ### Phase 3: Boss Nodes
 
 - Unique boss encounters
 - Branching map visualization
 - Daily seeded runs
 
-### Phase 4: Arcanist & Sub-elements
+### Phase 4: Director-Driven Replayability ✅
 
-- Arcanist unlock system
-- Sub-element encounters
-- Advanced spell modifiers
+- [x] **Director System** - Observes player performance and adjusts difficulty
+- [x] **Ascension System** - 10 levels of optional difficulty modifiers
+- [x] **Relic System** - 18 passive relics with triggers and synergies
+- [x] **Seeded Runs** - Shareable deterministic runs
+- [x] **Run Summary** - Comprehensive statistics and damage breakdown
+- [x] **Enemy Archetypes** - Behavior patterns with intent probabilities
+
+### Phase 5: Act 1 Demo ✅ (NEW!)
+
+Act I: The Threshold - A self-contained demo experience.
+
+#### Narrative System
+
+- [x] **Director Lines** - Cold, observational dialogue that reacts to performance
+- [x] **Lore Fragments** - Short, archival text pieces discovered during runs
+- [x] **Journey Log** - Persistent record of lore, Director observations, and relics
+- [x] **Narrative Text Display** - Centered, focused text with fade-in animation
+- [x] **Entry Narrative** - Introduces Exodia and the loop at run start
+- [x] **Victory/Defeat Text** - Calm, incomplete, slightly unsettling endings
+
+#### Act 1 Content
+
+- [x] **Twin Gatekeepers Boss** - Fire+Earth and Water+Air dual bosses
+  - Silent, mechanistic barriers that test readiness
+  - Synergy attacks when both are alive
+  - Defeating them does not end the loop
+- [x] **Act 1 Relics** - 8 elemental relics in 4 sets:
+  - Fire: Flame Robe / Charcoal Wand
+  - Water: Water Shield / Frost Sword
+  - Earth: Hardened Scales / Undying Helmet
+  - Air: Zephyr Boots / Wings of the Storm
+  - Each with lore fragment and set-completion bonus
+
+#### UI Systems (LOCKED)
+
+- [x] **Node Breadcrumbs** - Abstract symbolic iconography
+  - Entry: Hollow circle | Combat: Split diamond | Relic: Fractured square
+  - Shrine: Vertical line | Boss: Closed gate | Future: Veiled symbol
+  - States: Completed (dimmed), Current (glow pulse), Future (abstracted)
+  - No text labels, no color coding, no animations beyond glow
+  
+- [x] **Journey Log Panel** - Narrative archive (pause menu only)
+  - Dark background, serif font, low contrast
+  - Persists across runs, ordered by discovery
+  - Contains: Lore only. Never same event as Combat Log
+  
+- [x] **Combat Log Panel** - System transparency (combat only)
+  - High contrast, monospace font, element icons
+  - Resets every combat, 50 entry hard cap, auto-scroll
+  - Contains: Numbers only. Never same event as Journey Log
+  
+- [x] **Spell Inspection** - Long-press contextual overlay
+  - Side-mounted, not modal, not turn-pausing
+  - Content: Name, Element, Effect, Modifiers, Status, Tier
+  - Dismissal: Release long-press or tap outside (no close button)
+
+#### Core Narrative Pillars
+
+- The world is Exodia
+- The player is trapped in a loop
+- The Director observes but does not guide
+- Act 1 is a filter, not a victory
+- Progress is implied, never confirmed
+
+#### Design Rationale (LOCKED)
+
+These decisions intentionally:
+
+- Make repetition visible
+- Make mastery learnable
+- Make certainty impossible
+
+### Phase 6: Battle UI & Presentation ✅ (NEW!)
+
+Pokémon-inspired battle UI with Flutter/Flame hybrid architecture.
+
+#### Battle Screen Architecture (LOCKED)
+
+```text
+BattleScreen (Flutter)
+├── Stack
+│   ├── FlameGameWidget (BattleScene)  ← Flame renders world
+│   ├── EnemyStatusBar (top-right)     ← Flutter renders UI
+│   ├── PlayerStatusBar (bottom-left)
+│   ├── NodeBreadcrumbs (top-center, 50% opacity)
+│   ├── DirectorSubtitleOverlay (bottom-center)
+│   ├── CombatLogPanel (bottom, toggle)
+│   ├── SpellDetailOverlay (side, contextual)
+│   └── BattleActionMenu (bottom-right)
+```
+
+#### Status Bars (LOCKED)
+
+- **EnemyStatusBar**: Name, animated HP bar (no numbers), element icon, status icons
+- **PlayerStatusBar**: Portrait (changes on low HP), name, HP/Mana bars, element, buffs
+
+#### Battle Action Menu (LOCKED)
+
+- **Root Menu**: 2x2 grid (Spells, Inspect, Items, Retreat) + End Turn
+- **Spell Selection**: Grid with icons, element accent, mana cost, modifier glyphs
+- **Interaction**: Tap → Cast, Long-press → Spell inspection
+
+#### Combat Feedback System
+
+1. Animation (Flame sprites)
+2. Floating damage numbers (element-colored, fade quickly)
+3. Status effect icons
+4. Combat log entries
+
+#### Director Subtitle Overlay
+
+- Auto-fading, never blocks input
+- One line, muted text
+- Triggered at combat events
+
+#### Files Created
+
+- `lib/ui/battle/battle_screen.dart` - Main battle widget
+- `lib/ui/battle/battle_scene.dart` - Flame game scene
+- `lib/ui/battle/status_bars.dart` - HP/Mana bars
+- `lib/ui/battle/battle_action_menu.dart` - Action menu
+- `lib/ui/battle/director_subtitle_overlay.dart` - Director text
+- `lib/ui/battle/floating_damage.dart` - Damage numbers
+- `lib/ui/battle/battle.dart` - Barrel export
 
 ## 📄 License
 

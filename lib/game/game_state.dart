@@ -119,6 +119,8 @@ class GameState {
   }
 
   /// Starts a new run with the given mage.
+  /// ACT I: THE THRESHOLD
+  /// Entry narrative introduces Exodia and observation.
   void startRun(Mage selectedMage) {
     mage = selectedMage.freshCopy();
     currentScreen = GameScreen.nodeMap;
@@ -141,18 +143,43 @@ class GameState {
     }
 
     clearLog();
-    log('╔══════════════════════════════════════╗');
-    log('║         ⚡ NEW RUN STARTED ⚡         ║');
-    log('╚══════════════════════════════════════╝');
+
+    // Act 1 Entry Narrative
+    log('════════════════════════════════════════');
     log('');
-    log('${mage!.name} embarks on their journey.');
-    log('Passive: ${mage!.passiveDescription}');
+    log('        ACT I: THE THRESHOLD');
     log('');
-    log(mage!.hpDisplay);
-    log(mage!.manaDisplay);
+    log('════════════════════════════════════════');
     log('');
+    log('Exodia.');
+    log('');
+    log('The world has a name. Or did.');
+    log('');
+    log('Now it simply is.');
+    log('');
+    log('─────────────────────────────────────');
+    log('');
+
+    // Director observation (based on run count)
+    final runNumber = progression.totalRuns;
+    if (runNumber <= 1) {
+      log('"Another arrives."');
+    } else if (runNumber <= 3) {
+      log('"You have been here before."');
+    } else if (runNumber <= 5) {
+      log('"The loop begins again."');
+    } else {
+      log('"Exodia observes."');
+    }
+    log('');
+    log('─────────────────────────────────────');
+    log('');
+    log('${mage!.name} stands at the threshold.');
+    log('');
+    log('  ${mage!.hpDisplay}');
+    log('  ${mage!.manaDisplay}');
     log(
-      'Starting spell: ${mage!.spellLoadout.isNotEmpty ? mage!.spellLoadout.first.displayName : 'None'}',
+      '  Starting spell: ${mage!.spellLoadout.isNotEmpty ? mage!.spellLoadout.first.displayName : 'None'}',
     );
     log('');
 
@@ -322,13 +349,42 @@ class GameState {
   }
 
   void _setupBossCombat(int depth) {
-    log('┌──────────────────────────────────────┐');
-    log('│  👹 BOSS BATTLE                      │');
-    log('└──────────────────────────────────────┘');
+    // Twin Gatekeepers narrative - silent, mechanistic, a barrier
+    log('');
+    log('════════════════════════════════════════');
+    log('');
+    log('The path ends here.');
+    log('');
+    log('Two figures stand in silence.');
+    log('');
+    log('They do not speak. They do not need to.');
+    log('');
+    log('Fire and Water. Earth and Air.');
+    log('');
+    log('Complete in opposition.');
+    log('');
+    log('─────────────────────────────────────');
+    log('');
+    log('"The Gatekeepers await."');
+    log('');
+    log('════════════════════════════════════════');
     log('');
 
     currentEnemies = NodeResolver.generateBossEncounter(depth).cast<Enemy>();
     isEliteCombat = false;
+
+    // Show Gatekeeper stats
+    for (final enemy in currentEnemies!) {
+      log(enemy.name);
+      log('  ❤️  HP: ${enemy.maxHP}');
+      log('  ⚔️  Damage: ${enemy.attackDamage}');
+      log('  ${enemy.element.displayName}');
+      log('');
+    }
+
+    log('They were not born. They were placed.');
+    log('They do not tire.');
+    log('');
 
     currentCombat = CombatSystem(mage: mage!, enemies: currentEnemies!);
     currentCombat!.startCombat();
@@ -572,6 +628,9 @@ class GameState {
   }
 
   /// Ends the current run.
+  /// For Act 1: Defeating the Gatekeepers does not end the loop.
+  /// Player returns to the beginning. Fragments and crystals persist.
+  /// Narrative certainty does not.
   void endRun({required bool victory}) {
     currentScreen = GameScreen.runEnd;
 
@@ -589,31 +648,53 @@ class GameState {
     );
 
     log('');
-    log('╔══════════════════════════════════════╗');
+    log('════════════════════════════════════════');
+    log('');
+
     if (victory) {
-      log('║         🎉 VICTORY! 🎉               ║');
+      // Act 1 Victory - calm, incomplete, slightly unsettling
+      log('The Gatekeepers fall.');
+      log('');
+      log('Silence.');
+      log('');
+      log('The threshold yields. For now.');
+      log('');
+      log('"Progress? Or repetition?"');
+      log('');
+      log('─────────────────────────────────────');
+      log('');
+      log('The loop continues.');
+      log('');
+      log('Fragments persist. Crystals remain.');
+      log('');
+      log('You will return.');
     } else {
-      log('║         💀 DEFEAT 💀                 ║');
+      // Act 1 Defeat - calm, inevitable
+      log('Darkness.');
+      log('');
+      if (nodesCompleted <= 3) {
+        log('"Brief."');
+      } else {
+        log('"The pattern holds."');
+      }
+      log('');
+      log('─────────────────────────────────────');
+      log('');
+      log('${mage!.name} has fallen.');
+      log('');
+      log('The threshold remains.');
+      log('');
+      log('You will return. You always do.');
     }
-    log('╚══════════════════════════════════════╝');
+
     log('');
-    if (victory) {
-      log('Congratulations! You have completed the run!');
-    } else {
-      log('${mage!.name} has fallen...');
-    }
+    log('════════════════════════════════════════');
     log('');
-    log('--- Run Statistics ---');
-    log('Depth Reached: $nodesCompleted / ${nodeMapSystem.totalDepths}');
-    log('Combats Won: $combatsWon');
-    log('Elites Defeated: $elitesDefeated');
-    log('Spells Learned: $spellsLearned');
-    log('Spells Upgraded: $spellsUpgraded');
-    log('');
-    log('--- Rewards ---');
-    log('💎 Fragments Earned: $fragmentsEarned');
+    log('Echoes Remain:');
+    log('  Depth Reached: $nodesCompleted');
+    log('  💎 Fragments: +$fragmentsEarned');
     if (crystalsEarned > 0) {
-      log('✨ Crystals Earned: $crystalsEarned');
+      log('  ✨ Crystals: +$crystalsEarned');
     }
     log('');
     log(progression.getProgressSummary());

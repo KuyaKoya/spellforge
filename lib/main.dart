@@ -18,9 +18,9 @@ void main() {
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Color(0xFF1a1a2e),
+      statusBarColor: Color(0xFF0d1117),
       statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF16213e),
+      systemNavigationBarColor: Color(0xFF161b22),
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
@@ -38,7 +38,7 @@ class SpellforgeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF1a1a2e),
+        scaffoldBackgroundColor: const Color(0xFF0d1117),
         fontFamily: 'monospace',
       ),
       home: const SpellforgeScreen(),

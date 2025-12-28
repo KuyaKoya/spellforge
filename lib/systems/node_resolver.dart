@@ -2,6 +2,7 @@ import 'dart:math';
 import '../data/enemy_definitions.dart';
 import '../data/elite_definitions.dart';
 import '../data/spell_definitions.dart';
+import '../domain/element.dart';
 import '../domain/enemy.dart';
 import '../domain/elite_enemy.dart';
 import '../domain/mage.dart';
@@ -51,25 +52,41 @@ class NodeResolver {
   }
 
   /// Generates a boss encounter for the final depth.
+  /// For Act 1, this is the Twin Gatekeepers.
   static List<Enemy> generateBossEncounter(int depth) {
-    // Generate a tough encounter with boss-level stats
-    final baseEnemies = EnemyDefinitions.generateEncounter(
-      minEnemies: 1,
-      maxEnemies: 2,
-      difficultyLevel: 3,
-    );
+    // Twin Gatekeepers: Fire+Earth and Water+Air
+    // They are silent, mechanistic, a barrier not a villain.
 
-    return baseEnemies.map((enemy) {
-      return Enemy(
-        id: '${enemy.id}_boss',
-        name: '${enemy.name} Guardian',
-        element: enemy.element,
-        currentHP: (enemy.maxHP * 2.0).round(),
-        maxHP: (enemy.maxHP * 2.0).round(),
-        attackDamage: enemy.attackDamage + 3,
-        armorGain: enemy.armorGain + 5,
-      );
-    }).toList();
+    final difficultyLevel = (depth / 3).ceil().clamp(1, 3);
+
+    // Gatekeeper of Pyre (Fire + Earth aspects)
+    final pyreHp = 60 + (difficultyLevel * 10);
+    final pyreDamage = 8 + difficultyLevel;
+
+    // Gatekeeper of Tide (Water + Air aspects)
+    final tideHp = 50 + (difficultyLevel * 8);
+    final tideDamage = 6 + difficultyLevel;
+
+    return [
+      Enemy(
+        id: 'gatekeeper_pyre',
+        name: 'Gatekeeper of Pyre',
+        element: Element.fire,
+        currentHP: pyreHp,
+        maxHP: pyreHp,
+        attackDamage: pyreDamage,
+        armorGain: 10,
+      ),
+      Enemy(
+        id: 'gatekeeper_tide',
+        name: 'Gatekeeper of Tide',
+        element: Element.water,
+        currentHP: tideHp,
+        maxHP: tideHp,
+        attackDamage: tideDamage,
+        armorGain: 5,
+      ),
+    ];
   }
 
   // ==================== SPELL GENERATION ====================

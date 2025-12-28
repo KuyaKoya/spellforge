@@ -59,4 +59,18 @@ enum Element {
   String get displayName {
     return name[0].toUpperCase() + name.substring(1);
   }
+
+  /// Icon for the element.
+  String get icon {
+    switch (this) {
+      case Element.fire:
+        return '🔥';
+      case Element.water:
+        return '💧';
+      case Element.earth:
+        return '🪨';
+      case Element.air:
+        return '💨';
+    }
+  }
 }

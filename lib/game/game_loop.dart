@@ -130,9 +130,78 @@ class GameLoop {
     state.syncCombatLog();
   }
 
+  /// Public method to handle combat end - called from BattleScreen.
+  void handleCombatEnd() {
+    if (state.currentCombat == null) {
+      state.completeNode();
+      return;
+    }
+
+    // If combat system hasn't ended yet, check if we should end it
+    if (state.currentCombat!.isOngoing) {
+      final allEnemiesDead = state.currentCombat!.livingEnemies.isEmpty;
+      final playerDead = !state.mage!.isAlive;
+
+      if (allEnemiesDead || playerDead) {
+        // Force the combat to end
+        _handleCombatEndManual(playerWon: allEnemiesDead && !playerDead);
+        return;
+      }
+    }
+
+    _handleCombatEnd();
+  }
+
+  /// Handle combat end when BattleScreen determined the result.
+  void _handleCombatEndManual({required bool playerWon}) {
+    if (playerWon) {
+      state.combatsWon++;
+
+      if (state.isEliteCombat) {
+        state.elitesDefeated++;
+        state.log('');
+        state.log('💀 Elite defeated!');
+        state.showEliteRewards();
+        return;
+      }
+
+      // Award combat rewards
+      final rewards = NodeResolver.calculateCombatReward(
+        depth: state.currentDepth,
+        enemiesDefeated: state.currentEnemies?.length ?? 1,
+        isElite: false,
+      );
+
+      state.progression.addFragments(rewards['fragments']!);
+      state.log('');
+      state.log('💎 Earned ${rewards['fragments']} spell fragments!');
+
+      if (state.mage != null) {
+        final levelLogs = state.mage!.gainExp(rewards['experience']!);
+        for (final log in levelLogs) {
+          state.log(log);
+        }
+      }
+
+      if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {
+        state.progression.addCrystals(1);
+        state.log('✨ A Spell Crystal drops!');
+      }
+
+      state.completeNode();
+    } else {
+      state.endRun(victory: false);
+    }
+  }
+
   void _handleCombatEnd() {
     final result = state.currentCombat!.getResult();
-    if (result == null) return;
+    if (result == null) {
+      // Fall back to manual handling based on current state
+      final allEnemiesDead = state.currentCombat!.livingEnemies.isEmpty;
+      _handleCombatEndManual(playerWon: allEnemiesDead);
+      return;
+    }
 
     if (result.playerWon) {
       state.combatsWon++;
