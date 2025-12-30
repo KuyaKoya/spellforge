@@ -120,16 +120,16 @@ class GameState {
   }
 
   /// Starts a new run with the given mage.
-  /// ACT I: THE THRESHOLD
-  /// Entry narrative introduces Exodia and observation.
+  /// Goes directly to exploration room with doors for first node choice.
   void startRun(Mage selectedMage) {
     mage = selectedMage.freshCopy();
-    currentScreen = GameScreen.nodeMap;
     combatsWon = 0;
     elitesDefeated = 0;
     spellsLearned = 0;
     spellsUpgraded = 0;
     temporaryBuffs.clear();
+    currentEnemies = null;
+    isEliteCombat = false;
 
     // Generate the run with the new node map system
     nodeMapSystem.generateRun(maxDepth: 10);
@@ -145,47 +145,9 @@ class GameState {
 
     clearLog();
 
-    // Act 1 Entry Narrative
-    log('════════════════════════════════════════');
-    log('');
-    log('        ACT I: THE THRESHOLD');
-    log('');
-    log('════════════════════════════════════════');
-    log('');
-    log('Exodia.');
-    log('');
-    log('The world has a name. Or did.');
-    log('');
-    log('Now it simply is.');
-    log('');
-    log('─────────────────────────────────────');
-    log('');
-
-    // Director observation (based on run count)
-    final runNumber = progression.totalRuns;
-    if (runNumber <= 1) {
-      log('"Another arrives."');
-    } else if (runNumber <= 3) {
-      log('"You have been here before."');
-    } else if (runNumber <= 5) {
-      log('"The loop begins again."');
-    } else {
-      log('"Exodia observes."');
-    }
-    log('');
-    log('─────────────────────────────────────');
-    log('');
-    log('${mage!.name} stands at the threshold.');
-    log('');
-    log('  ${mage!.hpDisplay}');
-    log('  ${mage!.manaDisplay}');
-    log(
-      '  Starting spell: ${mage!.spellLoadout.isNotEmpty ? mage!.spellLoadout.first.displayName : 'None'}',
-    );
-    log('');
-
-    // Show the node map and initialize the first node selection
-    showNodeMap();
+    // Go directly to exploration mode
+    // First room is empty - just doors to choose first node
+    currentScreen = GameScreen.exploration;
   }
 
   /// Shows the node map with available choices.
@@ -256,15 +218,33 @@ class GameState {
       return;
     }
 
-    log('');
-    log('=== ${node.displayText} ===');
-    log(node.type.description);
-    log('');
-
+    // All node types now go through exploration screen first
+    // Combat nodes show enemy in room
+    // Non-combat nodes show doors for next choices
     switch (node.type) {
       case NodeType.combat:
         _setupCombat(currentDepth);
         break;
+      case NodeType.elite:
+        _setupEliteCombat(currentDepth);
+        break;
+      case NodeType.bossCombat:
+        _setupBossCombat(currentDepth);
+        break;
+      case NodeType.spellLearn:
+      case NodeType.enhancementShrine:
+      case NodeType.shop:
+      case NodeType.rest:
+      case NodeType.randomEvent:
+        // Non-combat nodes: still use their specific screens for now
+        _enterNonCombatNode(node.type);
+        break;
+    }
+  }
+
+  /// For non-combat nodes, use existing screens
+  void _enterNonCombatNode(NodeType type) {
+    switch (type) {
       case NodeType.spellLearn:
         _setupSpellLearn(currentDepth);
         break;
@@ -277,25 +257,21 @@ class GameState {
       case NodeType.rest:
         _setupRest();
         break;
-      case NodeType.elite:
-        _setupEliteCombat(currentDepth);
-        break;
       case NodeType.randomEvent:
         _setupRandomEvent(currentDepth);
         break;
-      case NodeType.bossCombat:
-        _setupBossCombat(currentDepth);
-        break;
+      default:
+        // Fallback to exploration
+        currentScreen = GameScreen.exploration;
     }
   }
 
   void _setupCombat(int depth) {
-    // NEW: Enter exploration mode first
-    // Combat will be triggered when player approaches and confirms enemy engagement
+    // Generate enemy for exploration room
     currentEnemies = NodeResolver.generateCombatEncounter(depth).cast<Enemy>();
     isEliteCombat = false;
 
-    // Enter exploration screen - combat starts from there
+    // Enter exploration screen - player taps enemy to engage
     currentScreen = GameScreen.exploration;
   }
 
@@ -314,31 +290,13 @@ class GameState {
   }
 
   void _setupEliteCombat(int depth) {
-    log('┌──────────────────────────────────────┐');
-    log('│  💀 ELITE ENCOUNTER                  │');
-    log('└──────────────────────────────────────┘');
-    log('');
-
+    // Generate elite enemy for exploration room
     final elites = NodeResolver.generateEliteEncounter(depth);
     currentEnemies = elites.cast<Enemy>();
     isEliteCombat = true;
 
-    // Show elite info
-    for (final elite in elites) {
-      log('${elite.element.displayName} ${elite.name}');
-      log('  ❤️  HP: ${elite.maxHP}');
-      for (final modifier in elite.modifierDescriptions) {
-        log('  $modifier');
-      }
-      log('');
-    }
-
-    log('⚠️  WARNING: Defeat means the run ends!');
-    log('🏆 REWARD: Guaranteed rare reward on victory');
-    log('');
-    log('Proceed? [Y] Yes / [N] No (retreat)');
-
-    currentScreen = GameScreen.elite;
+    // Enter exploration screen - player taps elite to engage
+    currentScreen = GameScreen.exploration;
   }
 
   /// Starts the elite combat after confirmation.
@@ -361,49 +319,12 @@ class GameState {
   }
 
   void _setupBossCombat(int depth) {
-    // Twin Gatekeepers narrative - silent, mechanistic, a barrier
-    log('');
-    log('════════════════════════════════════════');
-    log('');
-    log('The path ends here.');
-    log('');
-    log('Two figures stand in silence.');
-    log('');
-    log('They do not speak. They do not need to.');
-    log('');
-    log('Fire and Water. Earth and Air.');
-    log('');
-    log('Complete in opposition.');
-    log('');
-    log('─────────────────────────────────────');
-    log('');
-    log('"The Gatekeepers await."');
-    log('');
-    log('════════════════════════════════════════');
-    log('');
-
+    // Generate boss enemies for exploration room
     currentEnemies = NodeResolver.generateBossEncounter(depth).cast<Enemy>();
     isEliteCombat = false;
 
-    // Show Gatekeeper stats
-    for (final enemy in currentEnemies!) {
-      log(enemy.name);
-      log('  ❤️  HP: ${enemy.maxHP}');
-      log('  ⚔️  Damage: ${enemy.attackDamage}');
-      log('  ${enemy.element.displayName}');
-      log('');
-    }
-
-    log('They were not born. They were placed.');
-    log('They do not tire.');
-    log('');
-
-    currentCombat = CombatSystem(mage: mage!, enemies: currentEnemies!);
-    currentCombat!.startCombat();
-    currentScreen = GameScreen.combat;
-
-    textLog.addAll(currentCombat!.combatLog);
-    _combatLogSyncIndex = currentCombat!.combatLog.length;
+    // Enter exploration screen - player taps bosses to engage
+    currentScreen = GameScreen.exploration;
   }
 
   void _setupSpellLearn(int depth) {
@@ -632,10 +553,16 @@ class GameState {
     progression.advanceNode();
     tickTemporaryBuffs();
 
+    // Clear combat state
+    currentCombat = null;
+    currentEnemies = null;
+    isEliteCombat = false;
+
     if (nodeMapSystem.isRunComplete) {
       endRun(victory: true);
     } else {
-      showNodeMap();
+      // Go to exploration mode to choose next room
+      currentScreen = GameScreen.exploration;
     }
   }
 

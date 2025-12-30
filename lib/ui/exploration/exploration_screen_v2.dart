@@ -82,6 +82,13 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
   void didUpdateWidget(ExplorationScreenV2 oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // If room changed completely, reload the controller
+    if (widget.roomConfig.roomId != oldWidget.roomConfig.roomId) {
+      _controller.loadRoom(config: widget.roomConfig, mage: widget.mage);
+      _selectedType = null;
+      return;
+    }
+
     // Update controller if mage changed (e.g., after combat)
     if (widget.mage != oldWidget.mage) {
       _controller.updateMage(widget.mage);
@@ -287,14 +294,17 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
         final centerX = constraints.maxWidth / 2;
         final centerY = constraints.maxHeight / 2;
 
+        // Use controller's state for consistency
+        final roomConfig = _controller.roomConfig ?? widget.roomConfig;
+        final hasEnemy = _controller.hasLivingEnemy;
+
         return Stack(
           children: [
             // Doors
             ..._buildDoors(constraints),
 
             // Enemy (center-ish)
-            if (widget.roomConfig.enemy != null &&
-                !widget.roomConfig.enemyDefeated)
+            if (hasEnemy)
               Positioned(
                 left: centerX - 60,
                 top: centerY - 80,
@@ -302,8 +312,7 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
               ),
 
             // "Cleared" indicator if enemy was defeated
-            if (widget.roomConfig.enemy != null &&
-                widget.roomConfig.enemyDefeated)
+            if (roomConfig.enemy != null && !hasEnemy)
               Positioned(
                 left: centerX - 50,
                 top: centerY - 20,

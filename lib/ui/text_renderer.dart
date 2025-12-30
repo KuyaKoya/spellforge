@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import '../game/spellforge_game.dart';
 import '../game/game_state.dart';
 import '../game/exploration/exploration_controller.dart';
-import '../game/exploration/room_generator.dart';
+import '../game/exploration/components/door_interactable.dart';
 import '../nodes/nodes.dart';
 import '../narrative/journey_log.dart';
 import 'battle/battle.dart';
@@ -56,9 +56,15 @@ class _TextGameWidgetState extends State<TextGameWidget> {
   }
 
   void _onGameStateChanged() {
+    // Reset room config if not in exploration mode
+    // This ensures fresh room generation on each exploration entry
+    if (!_isInExplorationMode) {
+      _currentRoomConfig = null;
+    }
+
     setState(() {});
 
-    // Auto-scroll to bottom
+    // Auto-scroll to bottom (for log-based screens)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -184,18 +190,57 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     // Get or create room configuration
     if (_currentRoomConfig == null) {
       final currentNode = gameState.nodeMapSystem.currentNode;
-      if (currentNode != null) {
-        _currentRoomConfig = RoomGenerator.fromNode(
-          node: currentNode,
-          depth: gameState.currentDepth,
-        );
+      final enemy = gameState.currentEnemies?.isNotEmpty == true
+          ? gameState.currentEnemies!.first
+          : null;
+      final isElite = gameState.isEliteCombat;
+
+      // Get next node choices for doors
+      final nextNodes =
+          gameState.nodeMapSystem.currentDepthLevel?.nodeChoices ?? [];
+
+      // Determine room title
+      String roomTitle;
+      if (currentNode == null && gameState.currentDepth <= 1) {
+        roomTitle = 'The Threshold'; // Starting room
+      } else if (enemy == null) {
+        roomTitle = 'Choose Your Path'; // No enemy, just doors
+      } else if (isElite) {
+        roomTitle = '⚠️ Elite Encounter';
       } else {
-        // Fallback: create a simple combat room
-        _currentRoomConfig = RoomGenerator.generateCombatRoom(
-          depth: gameState.currentDepth,
-          nodeId: 'room_${gameState.currentDepth}',
-        );
+        roomTitle = currentNode?.type.displayName ?? 'Combat Room';
       }
+
+      _currentRoomConfig = RoomConfiguration(
+        roomId: 'room_${currentNode?.depth ?? gameState.currentDepth}',
+        title: roomTitle,
+        enemy: enemy,
+        isEliteEnemy: isElite,
+        doors: nextNodes.isEmpty
+            ? [
+                DoorConfig(
+                  direction: DoorDirection.north,
+                  destinationId: 'next',
+                  destinationType: 'unknown',
+                  state: DoorState.available,
+                ),
+              ]
+            : nextNodes.asMap().entries.map((e) {
+                final directions = [
+                  DoorDirection.north,
+                  DoorDirection.east,
+                  DoorDirection.west,
+                ];
+                return DoorConfig(
+                  direction: directions[e.key % directions.length],
+                  destinationId: 'node_${e.value.depth}_${e.value.pathIndex}',
+                  destinationType: e.value.type.name,
+                  state: DoorState.available,
+                  label: e.value.type.displayName,
+                );
+              }).toList(),
+        nodeType: currentNode?.type,
+      );
     }
 
     return ExplorationScreenV2(
@@ -211,8 +256,17 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         _onGameStateChanged();
       },
       onTravel: (direction, destinationId) {
-        // Complete node and move to next
-        gameState.completeNode();
+        // Parse destination to get node index
+        // destinationId format: 'node_depth_pathIndex'
+        final parts = destinationId.split('_');
+        if (parts.length >= 3) {
+          final pathIndex = int.tryParse(parts[2]) ?? 0;
+          // Select the node and enter it
+          gameState.selectNodeChoice(pathIndex);
+        } else {
+          // Fallback: just select first available
+          gameState.selectNodeChoice(0);
+        }
         _currentRoomConfig = null; // Reset for next room
         _onGameStateChanged();
       },
