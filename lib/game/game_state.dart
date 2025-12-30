@@ -200,10 +200,17 @@ class GameState {
 
   /// Selects a node from the available choices.
   void selectNodeChoice(int choiceIndex) {
+    print('DEBUG: selectNodeChoice($choiceIndex)');
     final depthLevel = nodeMapSystem.currentDepthLevel;
-    if (depthLevel == null) return;
+    if (depthLevel == null) {
+      print('DEBUG: Depth level is null');
+      return;
+    }
 
-    if (choiceIndex < 0 || choiceIndex >= depthLevel.nodeChoices.length) return;
+    if (choiceIndex < 0 || choiceIndex >= depthLevel.nodeChoices.length) {
+      print('DEBUG: Invalid choice index');
+      return;
+    }
 
     nodeMapSystem.selectNode(choiceIndex);
     enterCurrentNode();
@@ -213,10 +220,13 @@ class GameState {
   void enterCurrentNode() {
     final node = nodeMapSystem.currentNode;
     if (node == null) {
+      print('DEBUG: Current node is null');
       // Run complete
       endRun(victory: true);
       return;
     }
+
+    print('DEBUG: Entering node type: ${node.type}');
 
     // All node types now go through exploration screen first
     // Combat nodes show enemy in room
@@ -267,8 +277,10 @@ class GameState {
   }
 
   void _setupCombat(int depth) {
+    print('DEBUG: Setting up combat for depth $depth');
     // Generate enemy for exploration room
     currentEnemies = NodeResolver.generateCombatEncounter(depth).cast<Enemy>();
+    print('DEBUG: Generated ${currentEnemies?.length} enemies');
     isEliteCombat = false;
 
     // Enter exploration screen - player taps enemy to engage

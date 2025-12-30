@@ -211,8 +211,16 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         roomTitle = currentNode?.type.displayName ?? 'Combat Room';
       }
 
+      // Determine distinct room ID
+      String roomId;
+      if (currentNode == null) {
+        roomId = 'start_room_${gameState.currentDepth}';
+      } else {
+        roomId = 'node_${currentNode.depth}_${currentNode.pathIndex}';
+      }
+
       _currentRoomConfig = RoomConfiguration(
-        roomId: 'room_${currentNode?.depth ?? gameState.currentDepth}',
+        roomId: roomId,
         title: roomTitle,
         enemy: enemy,
         isEliteEnemy: isElite,
