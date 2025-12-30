@@ -220,7 +220,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
             ? [
                 DoorConfig(
                   direction: DoorDirection.north,
-                  destinationId: 'next',
+                  destinationId: 'choice_0',
                   destinationType: 'unknown',
                   state: DoorState.available,
                 ),
@@ -233,7 +233,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
                 ];
                 return DoorConfig(
                   direction: directions[e.key % directions.length],
-                  destinationId: 'node_${e.value.depth}_${e.value.pathIndex}',
+                  // Use e.key (choice index) so selectNodeChoice works
+                  destinationId: 'choice_${e.key}',
                   destinationType: e.value.type.name,
                   state: DoorState.available,
                   label: e.value.type.displayName,
@@ -256,13 +257,13 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         _onGameStateChanged();
       },
       onTravel: (direction, destinationId) {
-        // Parse destination to get node index
-        // destinationId format: 'node_depth_pathIndex'
+        // Parse destination to get choice index
+        // destinationId format: 'choice_X'
         final parts = destinationId.split('_');
-        if (parts.length >= 3) {
-          final pathIndex = int.tryParse(parts[2]) ?? 0;
+        if (parts.length >= 2) {
+          final choiceIndex = int.tryParse(parts[1]) ?? 0;
           // Select the node and enter it
-          gameState.selectNodeChoice(pathIndex);
+          gameState.selectNodeChoice(choiceIndex);
         } else {
           // Fallback: just select first available
           gameState.selectNodeChoice(0);
