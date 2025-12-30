@@ -290,8 +290,19 @@ class GameState {
   }
 
   void _setupCombat(int depth) {
+    // NEW: Enter exploration mode first
+    // Combat will be triggered when player approaches and confirms enemy engagement
     currentEnemies = NodeResolver.generateCombatEncounter(depth).cast<Enemy>();
     isEliteCombat = false;
+
+    // Enter exploration screen - combat starts from there
+    currentScreen = GameScreen.exploration;
+  }
+
+  /// Starts combat directly (used by exploration screen callback).
+  void startCombatDirectly(List<Enemy> enemies, {bool isElite = false}) {
+    currentEnemies = enemies;
+    isEliteCombat = isElite;
 
     currentCombat = CombatSystem(mage: mage!, enemies: currentEnemies!);
     currentCombat!.startCombat();

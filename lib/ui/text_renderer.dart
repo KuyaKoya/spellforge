@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 
 import '../game/spellforge_game.dart';
 import '../game/game_state.dart';
+import '../game/exploration/exploration_controller.dart';
+import '../game/exploration/room_generator.dart';
 import '../nodes/nodes.dart';
 import '../narrative/journey_log.dart';
 import 'battle/battle.dart';
-// TODO: Enable when exploration screen is fully integrated
-// import 'exploration/exploration.dart';
+import 'exploration/exploration_screen_v2.dart';
 
 /// A text-based UI renderer for the game.
 /// Displays the game log and handles keyboard input.
@@ -25,18 +26,20 @@ class _TextGameWidgetState extends State<TextGameWidget> {
   final FocusNode _focusNode = FocusNode();
   final JourneyLog _journeyLog = JourneyLog();
 
+  // Current room configuration for exploration
+  RoomConfiguration? _currentRoomConfig;
+
   bool get _isInBattleMode {
     if (!widget.game.isReady) return false;
     final screen = widget.game.currentScreen;
     return screen == GameScreen.combat || screen == GameScreen.targetSelect;
   }
 
-  // TODO: Enable when exploration screen is fully integrated
-  // bool get _isInExplorationMode {
-  //   if (!widget.game.isReady) return false;
-  //   final screen = widget.game.currentScreen;
-  //   return screen == GameScreen.exploration;
-  // }
+  bool get _isInExplorationMode {
+    if (!widget.game.isReady) return false;
+    final screen = widget.game.currentScreen;
+    return screen == GameScreen.exploration;
+  }
 
   @override
   void initState() {
@@ -116,6 +119,11 @@ class _TextGameWidgetState extends State<TextGameWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Show exploration screen during exploration mode
+    if (_isInExplorationMode && widget.game.gameState.mage != null) {
+      return _buildExplorationScreen();
+    }
+
     // Show battle screen during combat
     if (_isInBattleMode &&
         widget.game.gameState.currentCombat != null &&
@@ -169,6 +177,55 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     );
   }
 
+  Widget _buildExplorationScreen() {
+    final gameState = widget.game.gameState;
+    final mage = gameState.mage!;
+
+    // Get or create room configuration
+    if (_currentRoomConfig == null) {
+      final currentNode = gameState.nodeMapSystem.currentNode;
+      if (currentNode != null) {
+        _currentRoomConfig = RoomGenerator.fromNode(
+          node: currentNode,
+          depth: gameState.currentDepth,
+        );
+      } else {
+        // Fallback: create a simple combat room
+        _currentRoomConfig = RoomGenerator.generateCombatRoom(
+          depth: gameState.currentDepth,
+          nodeId: 'room_${gameState.currentDepth}',
+        );
+      }
+    }
+
+    return ExplorationScreenV2(
+      roomConfig: _currentRoomConfig!,
+      mage: mage,
+      nodeMapSystem: gameState.nodeMapSystem,
+      currentDepth: gameState.currentDepth,
+      totalDepths: gameState.nodeMapSystem.totalDepths,
+      runNumber: 1,
+      onEngageEnemy: (enemy, isElite) {
+        // Start combat using the new direct method
+        gameState.startCombatDirectly([enemy], isElite: isElite);
+        _onGameStateChanged();
+      },
+      onTravel: (direction, destinationId) {
+        // Complete node and move to next
+        gameState.completeNode();
+        _currentRoomConfig = null; // Reset for next room
+        _onGameStateChanged();
+      },
+      onEnemyDefeated: () {
+        // Mark room as cleared
+        if (_currentRoomConfig != null) {
+          _currentRoomConfig = _currentRoomConfig!.withEnemyDefeated();
+        }
+        _onGameStateChanged();
+      },
+    );
+  }
+
   Widget _buildHeader() {
     if (!widget.game.isReady) {
       return const SizedBox.shrink();
@@ -193,30 +250,42 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           ),
           const Spacer(),
 
-          // Status
-          if (mage != null) ...[
-            _buildStatusChip('Lv.${mage.level}', Colors.purple.shade400),
-            const SizedBox(width: 8),
-            _buildStatusChip(mage.hpDisplay, Colors.red.shade400),
-            const SizedBox(width: 8),
-            _buildStatusChip(mage.manaDisplay, Colors.blue.shade400),
-            const SizedBox(width: 8),
-            _buildStatusChip(
-              'Depth ${widget.game.gameState.currentDepth}/${widget.game.gameState.nodeMapSystem.totalDepths}',
-              Colors.green.shade400,
+          // Status - wrapped in Flexible to prevent overflow
+          if (mage != null)
+            Flexible(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildStatusChip(
+                      'Lv.${mage.level}',
+                      Colors.purple.shade400,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(mage.hpDisplay, Colors.red.shade400),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(mage.manaDisplay, Colors.blue.shade400),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(
+                      'D${widget.game.gameState.currentDepth}/${widget.game.gameState.nodeMapSystem.totalDepths}',
+                      Colors.green.shade400,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(
+                      '💎 ${widget.game.progressionSystem.spellFragments}',
+                      Colors.teal.shade400,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(width: 8),
-            _buildStatusChip(
-              '💎 ${widget.game.progressionSystem.spellFragments}',
-              Colors.teal.shade400,
-            ),
-          ],
 
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
 
           // Screen indicator
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: _getScreenColor(screen),
               borderRadius: BorderRadius.circular(4),
@@ -225,7 +294,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
               _getScreenName(screen),
               style: const TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
