@@ -54,6 +54,9 @@ class SpellforgeGame extends FlameGame {
       case GameScreen.mainMenu:
         _handleMainMenuInput(upper);
         break;
+      case GameScreen.spellSelect:
+        // Spell selection is handled by SpellSelectionScreen widget
+        break;
       case GameScreen.mageSelect:
         _handleMageSelectInput(upper);
         break;
@@ -104,18 +107,7 @@ class SpellforgeGame extends FlameGame {
 
   void _handleMainMenuInput(String input) {
     if (input == 'N') {
-      gameState.currentScreen = GameScreen.mageSelect;
-      gameState.log('=== CHOOSE YOUR MAGE ===');
-      gameState.log('');
-      final mages = gameState.getAvailableMages();
-      for (int i = 0; i < mages.length; i++) {
-        final mage = mages[i];
-        gameState.log('[${i + 1}] ${mage.name}');
-        gameState.log('    Element: ${mage.primaryElement.displayName}');
-        gameState.log('    HP: ${mage.maxHP} | Mana: ${mage.maxMana}');
-        gameState.log('    Passive: ${mage.passiveDescription}');
-        gameState.log('');
-      }
+      gameState.showSpellSelection();
     }
   }
 

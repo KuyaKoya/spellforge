@@ -61,6 +61,9 @@ class RoomConfiguration {
   /// Whether the enemy has been defeated.
   final bool enemyDefeated;
 
+  /// Whether the main interaction (shrine/shop) has been completed.
+  final bool interactionCompleted;
+
   /// Node type this room represents.
   final NodeType? nodeType;
 
@@ -72,6 +75,7 @@ class RoomConfiguration {
     this.isEliteEnemy = false,
     this.doors = const [],
     this.enemyDefeated = false,
+    this.interactionCompleted = false,
     this.nodeType,
   });
 
@@ -110,6 +114,22 @@ class RoomConfiguration {
       isEliteEnemy: isEliteEnemy,
       doors: doors,
       enemyDefeated: true,
+      interactionCompleted: interactionCompleted,
+      nodeType: nodeType,
+    );
+  }
+
+  /// Create a copy with interaction completed.
+  RoomConfiguration withInteractionCompleted() {
+    return RoomConfiguration(
+      roomId: roomId,
+      title: title,
+      description: description,
+      enemy: enemy,
+      isEliteEnemy: isEliteEnemy,
+      doors: doors,
+      enemyDefeated: enemyDefeated,
+      interactionCompleted: true,
       nodeType: nodeType,
     );
   }
@@ -253,6 +273,14 @@ class ExplorationController extends ChangeNotifier {
   void updateMage(Mage mage) {
     _mage = mage;
     notifyListeners();
+  }
+
+  /// Mark interaction as completed.
+  void markInteractionCompleted() {
+    if (_roomConfig != null) {
+      _roomConfig = _roomConfig!.withInteractionCompleted();
+      notifyListeners();
+    }
   }
 
   /// Mark enemy as defeated.

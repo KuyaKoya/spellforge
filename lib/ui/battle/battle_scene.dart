@@ -57,7 +57,7 @@ class BattleScene extends FlameGame {
     // Mage sprite (bottom-left area, facing right towards enemies)
     _mageSprite = _MageSprite(
       element: mage.primaryElement.name,
-      position: Vector2(size.x * 0.18, size.y * 0.58),
+      position: Vector2(size.x * 0.12, size.y * 0.58),
     );
     add(_mageSprite);
 
@@ -112,7 +112,7 @@ class _BattleBackground extends PositionComponent with HasGameReference {
   @override
   void render(Canvas canvas) {
     final rect = Rect.fromLTWH(0, 0, game.size.x, game.size.y);
-    
+
     // Deep dungeon gradient - dark and atmospheric
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
@@ -132,12 +132,12 @@ class _BattleBackground extends PositionComponent with HasGameReference {
     final vignetteGradient = RadialGradient(
       center: Alignment.center,
       radius: 1.2,
-      colors: [
-        Colors.transparent,
-        Colors.black.withValues(alpha: 0.3),
-      ],
+      colors: [Colors.transparent, Colors.black.withValues(alpha: 0.3)],
     );
-    canvas.drawRect(rect, Paint()..shader = vignetteGradient.createShader(rect));
+    canvas.drawRect(
+      rect,
+      Paint()..shader = vignetteGradient.createShader(rect),
+    );
   }
 }
 
@@ -147,7 +147,7 @@ class _BattleArena extends PositionComponent with HasGameReference {
   void render(Canvas canvas) {
     // Arena floor line with glow
     final floorY = game.size.y * 0.72;
-    
+
     // Glow
     canvas.drawLine(
       Offset(game.size.x * 0.05, floorY),
@@ -157,7 +157,7 @@ class _BattleArena extends PositionComponent with HasGameReference {
         ..strokeWidth = 6
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-    
+
     // Main line
     canvas.drawLine(
       Offset(game.size.x * 0.05, floorY),
@@ -273,7 +273,7 @@ class _MageSprite extends PositionComponent with HasGameReference {
   @override
   void render(Canvas canvas) {
     final breathOffset = math.sin(_idleTimer) * 2;
-    
+
     // Shadow
     canvas.drawOval(
       Rect.fromCenter(
@@ -288,7 +288,7 @@ class _MageSprite extends PositionComponent with HasGameReference {
     Color bodyColor = _elementColor.withValues(alpha: 0.3);
     Color auraColor = _elementColor.withValues(alpha: 0.2);
     double scale = 1.0;
-    
+
     if (_state == _MageState.casting) {
       bodyColor = _elementColor.withValues(alpha: 0.7);
       auraColor = _elementColor.withValues(alpha: 0.5);
@@ -346,10 +346,7 @@ class _MageSprite extends PositionComponent with HasGameReference {
       textDirection: TextDirection.ltr,
     );
     elemPainter.layout();
-    elemPainter.paint(
-      canvas,
-      Offset(size.x - 20, breathOffset + 5),
-    );
+    elemPainter.paint(canvas, Offset(size.x - 20, breathOffset + 5));
 
     // Cast effect particles
     if (_state == _MageState.casting) {
@@ -485,7 +482,7 @@ class _EnemySprite extends PositionComponent with HasGameReference {
     }
 
     final breathOffset = math.sin(_idleTimer) * 3;
-    
+
     // Shadow
     canvas.drawOval(
       Rect.fromCenter(
@@ -505,7 +502,10 @@ class _EnemySprite extends PositionComponent with HasGameReference {
 
     // Highlight glow for targeting
     if (_isHighlighted) {
-      final glowRect = RRect.fromRectAndRadius(rect.inflate(6), const Radius.circular(16));
+      final glowRect = RRect.fromRectAndRadius(
+        rect.inflate(6),
+        const Radius.circular(16),
+      );
       canvas.drawRRect(
         glowRect,
         Paint()
@@ -560,7 +560,11 @@ class _EnemySprite extends PositionComponent with HasGameReference {
         text: enemy.name,
         style: TextStyle(
           fontSize: 10,
-          color: Color.lerp(const Color(0xFFc9d1d9), Colors.transparent, 1 - _opacity),
+          color: Color.lerp(
+            const Color(0xFFc9d1d9),
+            Colors.transparent,
+            1 - _opacity,
+          ),
           fontFamily: 'monospace',
           fontWeight: FontWeight.w600,
         ),
@@ -591,10 +595,7 @@ class _EnemySprite extends PositionComponent with HasGameReference {
       textDirection: TextDirection.ltr,
     );
     intentPainter.layout();
-    intentPainter.paint(
-      canvas,
-      Offset(size.x - 22, breathOffset - 5),
-    );
+    intentPainter.paint(canvas, Offset(size.x - 22, breathOffset - 5));
 
     // Hit flash effect
     if (_state == _EnemyState.hit) {

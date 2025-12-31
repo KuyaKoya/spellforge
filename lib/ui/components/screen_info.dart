@@ -39,6 +39,8 @@ class ScreenInfo {
         return ScreenInfo('ELITE REWARD', Colors.amber);
       case GameScreen.randomEvent:
         return ScreenInfo('RANDOM EVENT', Colors.purple);
+      case GameScreen.spellSelect:
+        return ScreenInfo('SELECT SPELL', Colors.purple);
       case GameScreen.runEnd:
         return ScreenInfo('RUN END', Colors.orange);
     }

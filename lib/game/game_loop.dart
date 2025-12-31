@@ -36,6 +36,11 @@ class GameLoop {
     }
   }
 
+  /// Explicitly leave the current node (after interaction is done).
+  void leaveCurrentNode() {
+    state.completeNode();
+  }
+
   // ==================== COMBAT ACTIONS ====================
 
   /// Initiates spell casting - checks if target selection is needed.
@@ -335,6 +340,8 @@ class GameLoop {
   /// Learns a spell from the choices.
   void learnSpell(int choiceIndex) {
     if (state.currentScreen != GameScreen.spellLearn) return;
+    // Don't allow multiple learnings
+    if (state.nodeInteractionCompleted) return;
     if (state.spellChoices == null) return;
     if (choiceIndex < 0 || choiceIndex >= state.spellChoices!.length) return;
 
@@ -359,12 +366,16 @@ class GameLoop {
     state.spellsLearned++;
     state.log('');
     state.log('📖 Learned ${spell.displayName}!');
-    state.completeNode();
+
+    // Mark as completed but don't leave yet
+    state.nodeInteractionCompleted = true;
   }
 
   /// Replaces a spell when loadout is full.
   void replaceSpell(int loadoutIndex, Spell newSpell) {
     if (state.mage == null) return;
+    // Don't allow multiple learnings
+    if (state.nodeInteractionCompleted) return;
     if (loadoutIndex < 0 || loadoutIndex >= state.mage!.spellLoadout.length) {
       return;
     }
@@ -375,7 +386,9 @@ class GameLoop {
 
     state.log('');
     state.log('Replaced ${oldSpell.displayName} with ${newSpell.displayName}!');
-    state.completeNode();
+
+    // Mark as completed but don't leave yet
+    state.nodeInteractionCompleted = true;
   }
 
   /// Skips spell learning.
@@ -392,6 +405,8 @@ class GameLoop {
   /// Upgrades a spell at the enhancement shrine.
   Future<bool> upgradeSpell(int loadoutIndex) async {
     if (state.currentScreen != GameScreen.enhancementShrine) return false;
+    // Don't allow multiple upgrades
+    if (state.nodeInteractionCompleted) return false;
     if (state.mage == null) return false;
     if (loadoutIndex < 0 || loadoutIndex >= state.mage!.spellLoadout.length) {
       return false;
@@ -419,7 +434,9 @@ class GameLoop {
     state.log('');
     state.log('⭐ Upgraded ${spell.displayName} → ${upgraded.displayName}!');
     state.log('Spent $cost fragments.');
-    state.completeNode();
+
+    // Mark as completed but don't leave yet
+    state.nodeInteractionCompleted = true;
     return true;
   }
 
@@ -527,6 +544,8 @@ class GameLoop {
   /// Rests and recovers HP.
   void rest() {
     if (state.currentScreen != GameScreen.rest) return;
+    // Don't allow multiple rests
+    if (state.nodeInteractionCompleted) return;
     if (state.mage == null) return;
 
     final healAmount = NodeResolver.getRestHealAmount(state.mage!);
@@ -535,12 +554,16 @@ class GameLoop {
     state.log('');
     state.log('🛏️ Rested and recovered $actualHeal HP.');
     state.log(state.mage!.hpDisplay);
-    state.completeNode();
+
+    // Mark as completed but don't leave yet
+    state.nodeInteractionCompleted = true;
   }
 
   /// Removes a modifier from a spell.
   void removeSpellModifier() {
     if (state.currentScreen != GameScreen.rest) return;
+    // Don't allow multiple rests
+    if (state.nodeInteractionCompleted) return;
     if (state.mage == null || state.mage!.spellLoadout.isEmpty) {
       state.log('❌ No spells with modifiers to remove.');
       return;
@@ -553,7 +576,9 @@ class GameLoop {
         // Reset to base (this is simplified - full implementation would track modifiers)
         state.log('');
         state.log('Removed modifiers from ${spell.displayName}.');
-        state.completeNode();
+
+        // Mark as completed but don't leave yet
+        state.nodeInteractionCompleted = true;
         return;
       }
     }
@@ -564,6 +589,8 @@ class GameLoop {
   /// Gains a temporary buff.
   void gainTempBuff() {
     if (state.currentScreen != GameScreen.rest) return;
+    // Don't allow multiple rests
+    if (state.nodeInteractionCompleted) return;
     if (state.mage == null) return;
 
     state.temporaryBuffs.add(
@@ -572,7 +599,9 @@ class GameLoop {
 
     state.log('');
     state.log('⚡ Gained +25% damage for 3 nodes!');
-    state.completeNode();
+
+    // Mark as completed but don't leave yet
+    state.nodeInteractionCompleted = true;
   }
 
   /// Skips resting.
@@ -708,7 +737,11 @@ class GameLoop {
         return [];
 
       case GameScreen.exploration:
-        return ['WASD to move', 'Approach enemy to preview', 'Approach door to proceed'];
+        return [
+          'WASD to move',
+          'Approach enemy to preview',
+          'Approach door to proceed',
+        ];
 
       case GameScreen.combat:
         if (state.currentCombat != null) {
@@ -781,6 +814,9 @@ class GameLoop {
               .cast<String>();
         }
         return ['[1] Continue'];
+
+      case GameScreen.spellSelect:
+        return ['Select a spell to begin your journey'];
 
       case GameScreen.runEnd:
         return ['[M] Main Menu'];

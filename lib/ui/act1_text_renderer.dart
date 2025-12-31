@@ -809,6 +809,9 @@ class _Act1TextGameWidgetState extends State<Act1TextGameWidget> {
         }
         return const SizedBox.shrink();
 
+      case GameScreen.spellSelect:
+        return const SizedBox.shrink();
+
       case GameScreen.runEnd:
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -904,6 +907,8 @@ class _Act1TextGameWidgetState extends State<Act1TextGameWidget> {
         return Colors.amber;
       case GameScreen.randomEvent:
         return Colors.purple;
+      case GameScreen.spellSelect:
+        return Colors.purple;
       case GameScreen.runEnd:
         return Colors.orange;
     }
@@ -939,6 +944,8 @@ class _Act1TextGameWidgetState extends State<Act1TextGameWidget> {
         return 'REWARD';
       case GameScreen.randomEvent:
         return 'EVENT';
+      case GameScreen.spellSelect:
+        return 'SPELL SELECT';
       case GameScreen.runEnd:
         return 'LOOP END';
     }

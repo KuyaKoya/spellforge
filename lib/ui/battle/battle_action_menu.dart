@@ -4,18 +4,16 @@ import '../../domain/enemy.dart';
 import '../../domain/spell.dart';
 import 'battle_screen.dart';
 
-/// Battle action menu with 2x2 grid layout.
+/// ═══════════════════════════════════════════════════════════════════════════
+/// POKÉMON-STYLE ACTION BOX SYSTEM
 ///
-/// Root Menu (LOCKED):
-/// - Spells
-/// - Inspect
-/// - Items
-/// - Retreat
-///
-/// Interaction (LOCKED):
-/// - Tap → Cast/Select
-/// - Long-press → SpellDetailOverlay
-class BattleActionMenu extends StatelessWidget {
+/// Layout states:
+/// - Root: 2x2 grid with Spells, Bag, Info, End Turn
+/// - Spell Select: Grid of available spells
+/// - Target Select: Enemy target buttons
+/// - Inspect: Battle info display
+/// ═══════════════════════════════════════════════════════════════════════════
+class PokemonActionBox extends StatelessWidget {
   final BattleMenuState state;
   final Mage mage;
   final List<Enemy> enemies;
@@ -25,7 +23,7 @@ class BattleActionMenu extends StatelessWidget {
   final VoidCallback? onSpellLongPressEnd;
   final void Function(int)? onTargetSelect;
 
-  const BattleActionMenu({
+  const PokemonActionBox({
     super.key,
     required this.state,
     required this.mage,
@@ -39,20 +37,11 @@ class BattleActionMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      // Fixed width removed - adapts to parent Flex
-      padding: const EdgeInsets.all(4),
-      // Decoration removed - visually cleaner in bottom bar
-      child: _buildContent(),
-    );
-  }
-
-  Widget _buildContent() {
     switch (state) {
       case BattleMenuState.root:
-        return _RootMenu(onAction: onAction);
+        return _RootActionGrid(mage: mage, onAction: onAction);
       case BattleMenuState.spellSelect:
-        return _SpellSelectMenu(
+        return _SpellGrid(
           mage: mage,
           enemies: enemies,
           onSpellSelect: onSpellSelect,
@@ -61,13 +50,13 @@ class BattleActionMenu extends StatelessWidget {
           onBack: () => onAction(BattleMenuAction.back),
         );
       case BattleMenuState.targetSelect:
-        return _TargetSelectMenu(
+        return _TargetGrid(
           enemies: enemies,
           onTargetSelect: onTargetSelect,
           onBack: () => onAction(BattleMenuAction.back),
         );
       case BattleMenuState.inspect:
-        return _InspectMenu(
+        return _InspectView(
           mage: mage,
           enemies: enemies,
           onBack: () => onAction(BattleMenuAction.back),
@@ -76,57 +65,70 @@ class BattleActionMenu extends StatelessWidget {
   }
 }
 
-/// Root action menu (2x2 grid).
-class _RootMenu extends StatelessWidget {
+/// ═══════════════════════════════════════════════════════════════════════════
+/// ROOT ACTION GRID (2x2 Layout)
+/// ┌─────────────────────────────┐
+/// │  [ Spells ]  [ Bag ]        │
+/// │  [ Info ]    [ End Turn ]   │
+/// └─────────────────────────────┘
+/// ═══════════════════════════════════════════════════════════════════════════
+class _RootActionGrid extends StatelessWidget {
+  final Mage mage;
   final void Function(BattleMenuAction) onAction;
 
-  const _RootMenu({required this.onAction});
+  const _RootActionGrid({required this.mage, required this.onAction});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
         Expanded(
-          child: _MenuButton(
-            label: 'SPELLS',
-            icon: '✨',
-            onTap: () => onAction(BattleMenuAction.spells),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ActionButton(
+                  label: 'SPELLS',
+                  icon: '✨',
+                  color: const Color(0xFF58a6ff),
+                  onTap: () => onAction(BattleMenuAction.spells),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ActionButton(
+                  label: 'BAG',
+                  icon: '🎒',
+                  color: const Color(0xFF8b949e),
+                  onTap: () => onAction(BattleMenuAction.items),
+                  disabled: true,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(height: 8),
         Expanded(
-          child: _MenuButton(
-            label: 'INSPECT',
-            icon: '🔍',
-            onTap: () => onAction(BattleMenuAction.inspect),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Expanded(
-          child: _MenuButton(
-            label: 'ITEMS',
-            icon: '🎒',
-            onTap: () => onAction(BattleMenuAction.items),
-            disabled: true,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Expanded(
-          child: _MenuButton(
-            label: 'RETREAT',
-            icon: '🚪',
-            onTap: () => onAction(BattleMenuAction.retreat),
-            color: const Color(0xFF6e7681),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 2,
-          child: _MenuButton(
-            label: 'END TURN',
-            icon: '⏭️',
-            onTap: () => onAction(BattleMenuAction.endTurn),
-            color: const Color(0xFFe3b341),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ActionButton(
+                  label: 'INFO',
+                  icon: '📋',
+                  color: const Color(0xFF8b949e),
+                  onTap: () => onAction(BattleMenuAction.inspect),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ActionButton(
+                  label: 'END TURN',
+                  icon: '⏭️',
+                  color: const Color(0xFFe3b341),
+                  onTap: () => onAction(BattleMenuAction.endTurn),
+                  emphasized: true,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -134,8 +136,14 @@ class _RootMenu extends StatelessWidget {
   }
 }
 
-/// Spell selection menu (2x2 grid).
-class _SpellSelectMenu extends StatelessWidget {
+/// ═══════════════════════════════════════════════════════════════════════════
+/// SPELL GRID (2x2 + Back button)
+/// ┌─────────────────────────────┐
+/// │ [Spell 1] [Spell 2]         │
+/// │ [Spell 3] [Spell 4] [Back]  │
+/// └─────────────────────────────┘
+/// ═══════════════════════════════════════════════════════════════════════════
+class _SpellGrid extends StatelessWidget {
   final Mage mage;
   final List<Enemy> enemies;
   final void Function(Spell) onSpellSelect;
@@ -143,7 +151,7 @@ class _SpellSelectMenu extends StatelessWidget {
   final VoidCallback? onSpellLongPressEnd;
   final VoidCallback onBack;
 
-  const _SpellSelectMenu({
+  const _SpellGrid({
     required this.mage,
     required this.enemies,
     required this.onSpellSelect,
@@ -158,34 +166,45 @@ class _SpellSelectMenu extends StatelessWidget {
 
     return Row(
       children: [
-        _BackButton(onTap: onBack),
-        const SizedBox(width: 8),
+        // Spell grid (takes most of the space)
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: spells.map((spell) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: _SpellButton(
-                    spell: spell,
-                    canCast: mage.canCast(spell),
-                    enemies: enemies,
-                    onTap: () => onSpellSelect(spell),
-                    onLongPress: () => onSpellLongPress?.call(spell),
-                    onLongPressEnd: onSpellLongPressEnd,
-                  ),
+          flex: 4,
+          child: GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
+            childAspectRatio: 2.0,
+            shrinkWrap: true,
+            // physics: const NeverScrollableScrollPhysics(),
+            children: List.generate(4, (index) {
+              if (index < spells.length) {
+                final spell = spells[index];
+                return _SpellButton(
+                  spell: spell,
+                  canCast: mage.canCast(spell),
+                  enemies: enemies,
+                  onTap: () => onSpellSelect(spell),
+                  onLongPress: () => onSpellLongPress?.call(spell),
+                  onLongPressEnd: onSpellLongPressEnd,
                 );
-              }).toList(),
-            ),
+              } else {
+                return _EmptySpellSlot();
+              }
+            }),
           ),
         ),
+        const SizedBox(width: 8),
+        // Back button (narrow column)
+        SizedBox(width: 48, child: _BackButton(onTap: onBack)),
       ],
     );
   }
 }
 
-/// Spell button with element accent, mana cost, and effectiveness indicator.
+/// ═══════════════════════════════════════════════════════════════════════════
+/// SPELL BUTTON
+/// Shows: Element icon, Name, Mana cost, Effectiveness indicator
+/// ═══════════════════════════════════════════════════════════════════════════
 class _SpellButton extends StatelessWidget {
   final Spell spell;
   final bool canCast;
@@ -218,40 +237,40 @@ class _SpellButton extends StatelessWidget {
     }
   }
 
-  /// Get the best effectiveness indicator against current enemies
+  /// Get effectiveness indicator against current enemies
   String get _effectivenessIndicator {
     if (enemies.isEmpty) return '';
-    
+
     bool hasStrong = false;
     bool hasWeak = false;
-    
+
     for (final enemy in enemies) {
       final multiplier = spell.element.getMultiplierAgainst(enemy.element);
       if (multiplier > 1.0) hasStrong = true;
       if (multiplier < 1.0) hasWeak = true;
     }
-    
-    if (hasStrong && !hasWeak) return '▲'; // All effective or mixed
-    if (hasWeak && !hasStrong) return '▼'; // All weak
-    if (hasStrong && hasWeak) return '●'; // Mixed
-    return ''; // All neutral
+
+    if (hasStrong && !hasWeak) return '▲';
+    if (hasWeak && !hasStrong) return '▼';
+    if (hasStrong && hasWeak) return '●';
+    return '';
   }
 
   Color get _effectivenessColor {
     if (enemies.isEmpty) return Colors.transparent;
-    
+
     bool hasStrong = false;
     bool hasWeak = false;
-    
+
     for (final enemy in enemies) {
       final multiplier = spell.element.getMultiplierAgainst(enemy.element);
       if (multiplier > 1.0) hasStrong = true;
       if (multiplier < 1.0) hasWeak = true;
     }
-    
-    if (hasStrong && !hasWeak) return const Color(0xFF3fb950); // Green
-    if (hasWeak && !hasStrong) return const Color(0xFFf85149); // Red
-    if (hasStrong && hasWeak) return const Color(0xFFe3b341); // Yellow
+
+    if (hasStrong && !hasWeak) return const Color(0xFF3fb950);
+    if (hasWeak && !hasStrong) return const Color(0xFFf85149);
+    if (hasStrong && hasWeak) return const Color(0xFFe3b341);
     return Colors.transparent;
   }
 
@@ -262,75 +281,98 @@ class _SpellButton extends StatelessWidget {
       onLongPressStart: (_) => onLongPress?.call(),
       onLongPressEnd: (_) => onLongPressEnd?.call(),
       child: Container(
-        width: 80,
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: canCast ? const Color(0xFF21262d) : const Color(0xFF161b22),
+          gradient: canCast
+              ? LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [const Color(0xFF2d333b), const Color(0xFF22272e)],
+                )
+              : null,
+          color: canCast ? null : const Color(0xFF161b22),
           border: Border.all(
             color: canCast ? _elementColor : const Color(0xFF30363d),
+            width: canCast ? 2 : 1,
           ),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: canCast
+              ? [
+                  BoxShadow(
+                    color: _elementColor.withValues(alpha: 0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        child: Column(
+        child: Row(
           children: [
-            // Icon with effectiveness indicator
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(spell.elementIcon, style: const TextStyle(fontSize: 16)),
-                if (_effectivenessIndicator.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 2),
-                    child: Text(
-                      _effectivenessIndicator,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: _effectivenessColor,
+            // Element icon
+            Text(spell.elementIcon, style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 6),
+            // Spell info
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name with effectiveness
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          spell.name,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: canCast
+                                ? const Color(0xFFc9d1d9)
+                                : const Color(0xFF484f58),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
+                      if (_effectivenessIndicator.isNotEmpty)
+                        Text(
+                          _effectivenessIndicator,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: _effectivenessColor,
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
-            const SizedBox(height: 2),
-
-            // Name (truncated)
-            Text(
-              spell.name,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 9,
-                color: canCast
-                    ? const Color(0xFFc9d1d9)
-                    : const Color(0xFF484f58),
+                  const SizedBox(height: 2),
+                  // Mana cost
+                  Row(
+                    children: [
+                      Text(
+                        '💧 ${spell.manaCost}',
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: canCast
+                              ? const Color(0xFF58a6ff)
+                              : const Color(0xFF484f58),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '⚔ ${spell.baseDamage}',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: canCast
+                              ? _elementColor
+                              : const Color(0xFF484f58),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-
-            // Mana cost
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '💧${spell.manaCost}',
-                  style: TextStyle(
-                    fontSize: 8,
-                    color: canCast
-                        ? const Color(0xFF58a6ff)
-                        : const Color(0xFF484f58),
-                  ),
-                ),
-                // Modifier glyphs (if any)
-                if (spell.starLevel > 1)
-                  Text(
-                    ' ${'★' * (spell.starLevel - 1)}',
-                    style: const TextStyle(
-                      fontSize: 7,
-                      color: Color(0xFFe3b341),
-                    ),
-                  ),
-              ],
             ),
           ],
         ),
@@ -339,13 +381,36 @@ class _SpellButton extends StatelessWidget {
   }
 }
 
-/// Target selection menu.
-class _TargetSelectMenu extends StatelessWidget {
+/// Empty spell slot placeholder
+class _EmptySpellSlot extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF161b22),
+        border: Border.all(color: const Color(0xFF21262d), width: 1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Center(
+        child: Text(
+          '─',
+          style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+        ),
+      ),
+    );
+  }
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════
+/// TARGET GRID
+/// Shows clickable enemy targets
+/// ═══════════════════════════════════════════════════════════════════════════
+class _TargetGrid extends StatelessWidget {
   final List<Enemy> enemies;
   final void Function(int)? onTargetSelect;
   final VoidCallback onBack;
 
-  const _TargetSelectMenu({
+  const _TargetGrid({
     required this.enemies,
     this.onTargetSelect,
     required this.onBack,
@@ -355,172 +420,141 @@ class _TargetSelectMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _BackButton(onTap: onBack),
-        const SizedBox(width: 8),
+        // Target list
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: enemies.asMap().entries.map((entry) {
+                final index = entry.key;
+                final enemy = entry.value;
                 return Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: SizedBox(
-                    width: 120, // Specific width for target buttons
-                    child: _MenuButton(
-                      label: entry.value.name,
-                      icon: entry.value.element.displayName.characters.first,
-                      onTap: () => onTargetSelect?.call(entry.key),
-                      color: const Color(0xFFf85149),
-                    ),
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _TargetButton(
+                    enemy: enemy,
+                    onTap: () => onTargetSelect?.call(index),
                   ),
                 );
               }).toList(),
             ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-/// Inspect menu for viewing battle state.
-class _InspectMenu extends StatelessWidget {
-  final Mage mage;
-  final List<Enemy> enemies;
-  final VoidCallback onBack;
-
-  const _InspectMenu({
-    required this.mage,
-    required this.enemies,
-    required this.onBack,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _BackButton(onTap: onBack),
         const SizedBox(width: 8),
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                // Player
-                 Container(
-                  width: 140,
-                  margin: const EdgeInsets.only(right: 4),
-                  child: _InspectItem(
-                    label: mage.name,
-                    detail: '${mage.currentHP}/${mage.maxHP} HP',
-                  ),
-                ),
-                // Enemies
-                ...enemies.map((enemy) {
-                  return Container(
-                    width: 140,
-                    margin: const EdgeInsets.only(right: 4),
-                    child: _InspectItem(
-                      label: enemy.name,
-                      detail: '${enemy.currentHP}/${enemy.maxHP} HP',
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        ),
+        // Back button
+        SizedBox(width: 48, child: _BackButton(onTap: onBack)),
       ],
     );
   }
 }
 
-/// Simple inspect item row.
-class _InspectItem extends StatelessWidget {
-  final String label;
-  final String detail;
-
-  const _InspectItem({required this.label, required this.detail});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF21262d),
-        borderRadius: BorderRadius.circular(2),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 10,
-              color: Color(0xFFc9d1d9),
-            ),
-          ),
-          Text(
-            detail,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 9,
-              color: Colors.grey.shade500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Generic menu button.
-class _MenuButton extends StatelessWidget {
-  final String label;
-  final String icon;
+/// Target button for enemy selection
+class _TargetButton extends StatelessWidget {
+  final Enemy enemy;
   final VoidCallback onTap;
-  final Color? color;
-  final bool disabled;
 
-  const _MenuButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.color,
-    this.disabled = false,
-  });
+  const _TargetButton({required this.enemy, required this.onTap});
+
+  Color get _elementColor {
+    switch (enemy.element.name) {
+      case 'fire':
+        return const Color(0xFFf85149);
+      case 'water':
+        return const Color(0xFF58a6ff);
+      case 'earth':
+        return const Color(0xFF7c6f4a);
+      case 'air':
+        return const Color(0xFF79c0ff);
+      default:
+        return const Color(0xFF8b949e);
+    }
+  }
+
+  String get _elementIcon {
+    switch (enemy.element.name) {
+      case 'fire':
+        return '🔥';
+      case 'water':
+        return '💧';
+      case 'earth':
+        return '🪨';
+      case 'air':
+        return '💨';
+      default:
+        return '⚫';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final buttonColor = disabled
-        ? const Color(0xFF30363d)
-        : (color ?? const Color(0xFF58a6ff));
+    final hpPercent = (enemy.currentHP / enemy.maxHP).clamp(0.0, 1.0);
 
     return GestureDetector(
-      onTap: disabled ? null : onTap,
+      onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        width: 120,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: disabled ? const Color(0xFF161b22) : const Color(0xFF21262d),
-          border: Border.all(color: buttonColor.withValues(alpha: 0.5)),
-          borderRadius: BorderRadius.circular(4),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _elementColor.withValues(alpha: 0.3),
+              _elementColor.withValues(alpha: 0.1),
+            ],
+          ),
+          border: Border.all(color: _elementColor, width: 2),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: _elementColor.withValues(alpha: 0.4),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
         ),
-        child: Row(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(icon, style: const TextStyle(fontSize: 10)),
-            const SizedBox(width: 2),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 8,
-                  fontWeight: FontWeight.w600,
-                  color: disabled ? const Color(0xFF484f58) : buttonColor,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(_elementIcon, style: const TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    enemy.name,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFc9d1d9),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
+              ],
+            ),
+            const SizedBox(height: 4),
+            // Mini HP bar
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF363636),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: hpPercent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: hpPercent > 0.5
+                        ? const Color(0xFF58d854)
+                        : hpPercent > 0.2
+                        ? const Color(0xFFf8d030)
+                        : const Color(0xFFf85888),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
             ),
           ],
@@ -530,7 +564,208 @@ class _MenuButton extends StatelessWidget {
   }
 }
 
-/// Back button.
+/// ═══════════════════════════════════════════════════════════════════════════
+/// INSPECT VIEW
+/// Shows battle information (player and enemy stats)
+/// ═══════════════════════════════════════════════════════════════════════════
+class _InspectView extends StatelessWidget {
+  final Mage mage;
+  final List<Enemy> enemies;
+  final VoidCallback onBack;
+
+  const _InspectView({
+    required this.mage,
+    required this.enemies,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                // Player info
+                _InfoCard(
+                  name: mage.name,
+                  hp: '${mage.currentHP}/${mage.maxHP}',
+                  mp: '${mage.mana}/${mage.maxMana}',
+                  isPlayer: true,
+                ),
+                const SizedBox(width: 8),
+                // Enemy info
+                ...enemies.map(
+                  (enemy) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _InfoCard(
+                      name: enemy.name,
+                      hp: '${enemy.currentHP}/${enemy.maxHP}',
+                      isPlayer: false,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(width: 48, child: _BackButton(onTap: onBack)),
+      ],
+    );
+  }
+}
+
+/// Info card for inspect view
+class _InfoCard extends StatelessWidget {
+  final String name;
+  final String hp;
+  final String? mp;
+  final bool isPlayer;
+
+  const _InfoCard({
+    required this.name,
+    required this.hp,
+    this.mp,
+    required this.isPlayer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 130,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF21262d),
+        border: Border.all(
+          color: isPlayer ? const Color(0xFF58a6ff) : const Color(0xFFf85149),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            name.toUpperCase(),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFc9d1d9),
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'HP: $hp',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 9,
+              color: Color(0xFF3fb950),
+            ),
+          ),
+          if (mp != null)
+            Text(
+              'MP: $mp',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 9,
+                color: Color(0xFF58a6ff),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════
+/// SHARED COMPONENTS
+/// ═══════════════════════════════════════════════════════════════════════════
+
+/// Generic action button (for root menu)
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final String icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool disabled;
+  final bool emphasized;
+
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.disabled = false,
+    this.emphasized = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final buttonColor = disabled ? const Color(0xFF484f58) : color;
+
+    return GestureDetector(
+      onTap: disabled ? null : onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: !disabled && emphasized
+              ? LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    buttonColor.withValues(alpha: 0.3),
+                    buttonColor.withValues(alpha: 0.1),
+                  ],
+                )
+              : null,
+          color: disabled
+              ? const Color(0xFF161b22)
+              : (emphasized ? null : const Color(0xFF21262d)),
+          border: Border.all(
+            color: buttonColor.withValues(alpha: disabled ? 0.3 : 0.7),
+            width: emphasized ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: emphasized && !disabled
+              ? [
+                  BoxShadow(
+                    color: buttonColor.withValues(alpha: 0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(icon, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: disabled ? const Color(0xFF484f58) : buttonColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Back button
 class _BackButton extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -541,22 +776,251 @@ class _BackButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF30363d)),
-          borderRadius: BorderRadius.circular(4),
+          color: const Color(0xFF21262d),
+          border: Border.all(color: const Color(0xFF484f58), width: 1),
+          borderRadius: BorderRadius.circular(6),
         ),
-        child: Center(
-          child: Text(
-            '← BACK',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 10,
-              color: Colors.grey.shade500,
-            ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.arrow_back, size: 16, color: Color(0xFF8b949e)),
+              SizedBox(height: 2),
+              Text(
+                'BACK',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 8,
+                  color: Color(0xFF8b949e),
+                ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════
+/// SPELL DETAIL CARD (for long-press inspection overlay)
+/// ═══════════════════════════════════════════════════════════════════════════
+class SpellDetailCard extends StatelessWidget {
+  final Spell spell;
+
+  const SpellDetailCard({super.key, required this.spell});
+
+  Color get _elementColor {
+    switch (spell.element.name) {
+      case 'fire':
+        return const Color(0xFFf85149);
+      case 'water':
+        return const Color(0xFF58a6ff);
+      case 'earth':
+        return const Color(0xFF7c6f4a);
+      case 'air':
+        return const Color(0xFF79c0ff);
+      default:
+        return const Color(0xFF6e7681);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 260,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161b22),
+        border: Border.all(color: _elementColor, width: 2),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: _elementColor.withValues(alpha: 0.4),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.8),
+            blurRadius: 30,
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: Name + Element
+          Row(
+            children: [
+              Text(spell.elementIcon, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  spell.name,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFc9d1d9),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Color(0xFF30363d), height: 1),
+          const SizedBox(height: 12),
+
+          // Stats
+          _DetailRow(
+            label: 'Mana Cost',
+            value: '${spell.manaCost}',
+            icon: '💧',
+          ),
+          const SizedBox(height: 8),
+          _DetailRow(
+            label: 'Damage',
+            value: '${spell.baseDamage}',
+            icon: '⚔️',
+            valueColor: _elementColor,
+          ),
+          const SizedBox(height: 8),
+          _DetailRow(
+            label: 'Element',
+            value: spell.element.displayName,
+            icon: spell.elementIcon,
+          ),
+
+          // Effects (if any)
+          if (spell.effects.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(color: Color(0xFF30363d), height: 1),
+            const SizedBox(height: 12),
+            const Text(
+              'EFFECTS',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF8b949e),
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...spell.effects.map(
+              (effect) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '• ${effect.toString()}',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 10,
+                    color: Color(0xFFc9d1d9),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 12),
+          // Tap to close hint
+          Center(
+            child: Text(
+              'Tap anywhere to close',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 9,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final String icon;
+  final Color? valueColor;
+
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(icon, style: const TextStyle(fontSize: 14)),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 11,
+            color: Color(0xFF8b949e),
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: valueColor ?? const Color(0xFFc9d1d9),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════
+/// LEGACY BATTLE ACTION MENU (Retained for compatibility)
+/// ═══════════════════════════════════════════════════════════════════════════
+class BattleActionMenu extends StatelessWidget {
+  final BattleMenuState state;
+  final Mage mage;
+  final List<Enemy> enemies;
+  final void Function(BattleMenuAction) onAction;
+  final void Function(Spell) onSpellSelect;
+  final void Function(Spell)? onSpellLongPress;
+  final VoidCallback? onSpellLongPressEnd;
+  final void Function(int)? onTargetSelect;
+
+  const BattleActionMenu({
+    super.key,
+    required this.state,
+    required this.mage,
+    required this.enemies,
+    required this.onAction,
+    required this.onSpellSelect,
+    this.onSpellLongPress,
+    this.onSpellLongPressEnd,
+    this.onTargetSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PokemonActionBox(
+      state: state,
+      mage: mage,
+      enemies: enemies,
+      onAction: onAction,
+      onSpellSelect: onSpellSelect,
+      onSpellLongPress: onSpellLongPress,
+      onSpellLongPressEnd: onSpellLongPressEnd,
+      onTargetSelect: onTargetSelect,
     );
   }
 }

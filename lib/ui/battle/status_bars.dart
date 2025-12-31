@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
-import '../../domain/effect.dart';
 
-/// Enemy status bar widget (Top-Right).
-///
-/// Composition (LOCKED):
-/// - EnemyName + Level
-/// - HPBar (animated, no numbers)
-/// - ElementIcons (1-2)
-/// - StatusEffectIcons
-class EnemyStatusBar extends StatelessWidget {
+/// ═══════════════════════════════════════════════════════════════════════════
+/// POKÉMON-STYLE ENEMY STATUS PANEL
+/// Position: Top-left of screen (Zone 1)
+/// ═══════════════════════════════════════════════════════════════════════════
+class PokemonEnemyStatusPanel extends StatelessWidget {
   final List<Enemy> enemies;
   final int? selectedIndex;
 
-  const EnemyStatusBar({super.key, required this.enemies, this.selectedIndex});
+  const PokemonEnemyStatusPanel({
+    super.key,
+    required this.enemies,
+    this.selectedIndex,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: enemies.asMap().entries.map((entry) {
         return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _EnemyStatusCard(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: _PokemonEnemyCard(
             enemy: entry.value,
             isSelected: entry.key == selectedIndex,
           ),
@@ -33,403 +33,443 @@ class EnemyStatusBar extends StatelessWidget {
   }
 }
 
-class _EnemyStatusCard extends StatelessWidget {
+/// Pokémon-style enemy status card (angled nameplate with HP bar)
+class _PokemonEnemyCard extends StatelessWidget {
   final Enemy enemy;
   final bool isSelected;
 
-  const _EnemyStatusCard({required this.enemy, this.isSelected = false});
-
-  Color get _elementColor {
-    switch (enemy.element.name) {
-      case 'fire':
-        return const Color(0xFFf85149);
-      case 'water':
-        return const Color(0xFF58a6ff);
-      case 'earth':
-        return const Color(0xFF7c6f4a);
-      case 'air':
-        return const Color(0xFF79c0ff);
-      default:
-        return const Color(0xFF6e7681);
-    }
-  }
+  const _PokemonEnemyCard({required this.enemy, this.isSelected = false});
 
   @override
   Widget build(BuildContext context) {
+    final hpPercent = (enemy.currentHP / enemy.maxHP).clamp(0.0, 1.0);
+
     return Container(
-      width: 200,
-      padding: const EdgeInsets.all(10),
+      width: 160,
       decoration: BoxDecoration(
-        // Pokémon-style gradient background
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF1a1f26),
-            const Color(0xFF161b22),
-          ],
+          colors: [const Color(0xFFF8F8F8), const Color(0xFFE8E8E8)],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(4),
+          topRight: Radius.circular(12),
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(4),
         ),
         border: Border.all(
-          color: isSelected ? const Color(0xFFe3b341) : _elementColor.withValues(alpha: 0.5),
+          color: isSelected ? const Color(0xFFe3b341) : const Color(0xFF6b6b6b),
           width: isSelected ? 3 : 2,
         ),
-        // More rounded like Pokémon UI
-        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: isSelected 
-                ? const Color(0xFFe3b341).withValues(alpha: 0.3)
-                : _elementColor.withValues(alpha: 0.2),
-            blurRadius: 8,
-            spreadRadius: isSelected ? 2 : 0,
+            color: Colors.black.withValues(alpha: 0.5),
+            offset: const Offset(3, 3),
+            blurRadius: 0,
           ),
+          if (isSelected)
+            BoxShadow(
+              color: const Color(0xFFe3b341).withValues(alpha: 0.5),
+              blurRadius: 8,
+              spreadRadius: 2,
+            ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Top row: Name + Element
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  enemy.name,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFc9d1d9),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(2),
+          topRight: Radius.circular(10),
+          bottomLeft: Radius.circular(10),
+          bottomRight: Radius.circular(2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Name row with element and level
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              color: const Color(0xFF484848),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      enemy.name.toUpperCase(),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  const SizedBox(width: 4),
+                  Text(_getElementIcon(), style: const TextStyle(fontSize: 10)),
+                ],
               ),
-              const SizedBox(width: 4),
-              _ElementIcon(element: enemy.element.name),
-            ],
-          ),
-          const SizedBox(height: 6),
+            ),
 
-          // HP Bar with percentage
-          Row(
-            children: [
-              Text(
-                'HP',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _AnimatedHPBar(current: enemy.currentHP, max: enemy.maxHP),
-              ),
-              const SizedBox(width: 6),
-              // HP Percentage
-              Text(
-                '${((enemy.currentHP / enemy.maxHP) * 100).round()}%',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  color: _getHPColor(enemy.currentHP, enemy.maxHP),
-                ),
-              ),
-            ],
-          ),
+            // HP bar section
+            Container(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Column(
+                children: [
+                  // HP bar
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF484848),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: const Text(
+                          'HP',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 7,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFf8d030),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF484848),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          padding: const EdgeInsets.all(1),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: Stack(
+                              children: [
+                                // Background
+                                Container(color: const Color(0xFF363636)),
+                                // HP fill
+                                AnimatedFractionallySizedBox(
+                                  duration: const Duration(milliseconds: 300),
+                                  widthFactor: hpPercent,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: _getHPGradientColors(hpPercent),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
 
-          // Status effect icons (if any)
-          if (enemy.statusEffects.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                ..._buildStatusIcons(),
-              ],
+                  // Level and HP percentage
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Lv${_getLevel()}',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF484848),
+                        ),
+                      ),
+                      Text(
+                        '${(hpPercent * 100).round()}%',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: _getHPTextColor(hpPercent),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
-
-          // Intent indicator
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFF21262d),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _getIntentIcon(),
-                  style: const TextStyle(fontSize: 12),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  enemy.intent.displayName,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 9,
-                    color: _getIntentColor(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  String _getIntentIcon() {
-    switch (enemy.intent) {
-      case EnemyIntent.attack:
-        return '⚔️';
-      case EnemyIntent.defend:
-        return '🛡️';
-      case EnemyIntent.debuff:
-        return '💀';
+  String _getElementIcon() {
+    switch (enemy.element.name) {
+      case 'fire':
+        return '🔥';
+      case 'water':
+        return '💧';
+      case 'earth':
+        return '🪨';
+      case 'air':
+        return '💨';
+      default:
+        return '⚫';
     }
   }
 
-  Color _getIntentColor() {
-    switch (enemy.intent) {
-      case EnemyIntent.attack:
-        return const Color(0xFFf85149);
-      case EnemyIntent.defend:
-        return const Color(0xFF58a6ff);
-      case EnemyIntent.debuff:
-        return const Color(0xFFa371f7);
-    }
+  int _getLevel() {
+    // Derive level from enemy stats
+    return (enemy.maxHP ~/ 10).clamp(1, 99);
   }
 
-  List<Widget> _buildStatusIcons() {
-    return enemy.statusEffects.take(3).map((effect) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 4),
-        child: _StatusIcon(type: effect.type),
-      );
-    }).toList();
-  }
-
-  Color _getHPColor(int current, int max) {
-    final percent = current / max;
+  List<Color> _getHPGradientColors(double percent) {
     if (percent > 0.5) {
-      return const Color(0xFF3fb950); // Green
-    } else if (percent > 0.25) {
-      return const Color(0xFFe3b341); // Yellow
+      return [const Color(0xFF78F878), const Color(0xFF58D858)]; // Green
+    } else if (percent > 0.2) {
+      return [const Color(0xFFF8E858), const Color(0xFFF8D030)]; // Yellow
     } else {
-      return const Color(0xFFf85149); // Red
+      return [const Color(0xFFF88888), const Color(0xFFF85888)]; // Red
+    }
+  }
+
+  Color _getHPTextColor(double percent) {
+    if (percent > 0.5) {
+      return const Color(0xFF2d8a2e);
+    } else if (percent > 0.2) {
+      return const Color(0xFF8a6e2d);
+    } else {
+      return const Color(0xFF8a2d2d);
     }
   }
 }
 
-/// Player status bar widget (Bottom-Left).
-///
-/// Composition (LOCKED):
-/// - MagePortraitSprite
-/// - MageName
-/// - HPBar
-/// - ManaBar
-/// - ElementAffinityIcon
-/// - BuffDebuffIcons
-///
-/// Portrait Rule: Subtly changes on low HP
-class PlayerStatusBar extends StatelessWidget {
+/// ═══════════════════════════════════════════════════════════════════════════
+/// POKÉMON-STYLE PLAYER STATUS PANEL
+/// Position: Bottom-right of screen (Zone 3)
+/// ═══════════════════════════════════════════════════════════════════════════
+class PokemonPlayerStatusPanel extends StatelessWidget {
   final Mage mage;
 
-  const PlayerStatusBar({super.key, required this.mage});
-
-  bool get _isLowHP => mage.currentHP < mage.maxHP * 0.3;
+  const PokemonPlayerStatusPanel({super.key, required this.mage});
 
   @override
   Widget build(BuildContext context) {
+    final hpPercent = (mage.currentHP / mage.maxHP).clamp(0.0, 1.0);
+    final mpPercent = (mage.mana / mage.maxMana).clamp(0.0, 1.0);
+    final isLowHP = hpPercent < 0.25;
+
     return Container(
-      width: 220,
-      padding: const EdgeInsets.all(12),
+      width: 180,
       decoration: BoxDecoration(
-        color: const Color(0xFF161b22),
-        border: Border.all(color: const Color(0xFF30363d)),
-        borderRadius: BorderRadius.circular(4),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [const Color(0xFFF8F8F8), const Color(0xFFE8E8E8)],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(4),
+          bottomLeft: Radius.circular(4),
+          bottomRight: Radius.circular(12),
+        ),
+        border: Border.all(
+          color: isLowHP ? const Color(0xFFf85888) : const Color(0xFF6b6b6b),
+          width: isLowHP ? 3 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            offset: const Offset(-3, 3),
+            blurRadius: 0,
+          ),
+          if (isLowHP)
+            BoxShadow(
+              color: const Color(0xFFf85888).withValues(alpha: 0.4),
+              blurRadius: 8,
+              spreadRadius: 2,
+            ),
+        ],
       ),
-      child: Row(
-        children: [
-          // Portrait (changes on low HP)
-          _MagePortrait(element: mage.primaryElement.name, isLowHP: _isLowHP),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(10),
+          topRight: Radius.circular(2),
+          bottomLeft: Radius.circular(2),
+          bottomRight: Radius.circular(10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Name row
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              color: const Color(0xFF484848),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      mage.name.toUpperCase(),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(_getElementIcon(), style: const TextStyle(fontSize: 10)),
+                ],
+              ),
+            ),
 
-          const SizedBox(width: 12),
+            // HP and MP section
+            Container(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Column(
+                children: [
+                  // HP bar
+                  _buildStatBar(
+                    label: 'HP',
+                    labelColor: const Color(0xFFf8d030),
+                    percent: hpPercent,
+                    gradientColors: _getHPGradientColors(hpPercent),
+                    height: 10,
+                    showValue: true,
+                    value: '${mage.currentHP}/${mage.maxHP}',
+                  ),
+                  const SizedBox(height: 4),
 
-          // Stats column
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Name row with element
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        mage.name,
+                  // MP bar (thinner)
+                  _buildStatBar(
+                    label: 'MP',
+                    labelColor: const Color(0xFF58a6ff),
+                    percent: mpPercent,
+                    gradientColors: [
+                      const Color(0xFF78C8F8),
+                      const Color(0xFF58A6FF),
+                    ],
+                    height: 6,
+                    showValue: true,
+                    value: '${mage.mana}/${mage.maxMana}',
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Level
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Lv${_getLevel()}',
                         style: const TextStyle(
                           fontFamily: 'monospace',
-                          fontSize: 12,
+                          fontSize: 9,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFFc9d1d9),
+                          color: Color(0xFF484848),
+                        ),
+                      ),
+                      // Buff/debuff icons placeholder
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: _buildStatusIcons(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatBar({
+    required String label,
+    required Color labelColor,
+    required double percent,
+    required List<Color> gradientColors,
+    required double height,
+    bool showValue = false,
+    String? value,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(
+            color: const Color(0xFF484848),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 7,
+              fontWeight: FontWeight.bold,
+              color: labelColor,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: const Color(0xFF484848),
+              borderRadius: BorderRadius.circular(height / 2),
+            ),
+            padding: const EdgeInsets.all(1),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(height / 2 - 1),
+              child: Stack(
+                children: [
+                  Container(color: const Color(0xFF363636)),
+                  AnimatedFractionallySizedBox(
+                    duration: const Duration(milliseconds: 300),
+                    widthFactor: percent,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: gradientColors,
                         ),
                       ),
                     ),
-                    _ElementIcon(element: mage.primaryElement.name),
-                  ],
-                ),
-                const SizedBox(height: 6),
-
-                // HP Bar
-                _AnimatedHPBar(
-                  current: mage.currentHP,
-                  max: mage.maxHP,
-                  height: 8,
-                  showLabel: true,
-                ),
-                const SizedBox(height: 4),
-
-                // Mana Bar
-                _AnimatedManaBar(current: mage.mana, max: mage.maxMana),
-
-                // Buff/Debuff icons
-                if (mage.statusEffects.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  _BuffDebuffRow(effects: mage.statusEffects),
+                  ),
                 ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Animated HP bar with smooth transitions.
-/// LOCKED: No numbers displayed over bar.
-class _AnimatedHPBar extends StatelessWidget {
-  final int current;
-  final int max;
-  final double height;
-  final bool showLabel;
-
-  const _AnimatedHPBar({
-    required this.current,
-    required this.max,
-    this.height = 6,
-    this.showLabel = false,
-  });
-
-  double get _percentage => max > 0 ? (current / max).clamp(0.0, 1.0) : 0.0;
-
-  Color get _barColor {
-    if (_percentage > 0.5) return const Color(0xFF3fb950);
-    if (_percentage > 0.25) return const Color(0xFFe3b341);
-    return const Color(0xFFf85149);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (showLabel)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Text(
-              'HP',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 8,
-                color: Colors.grey.shade600,
               ),
             ),
           ),
-        Container(
-          height: height,
-          decoration: BoxDecoration(
-            color: const Color(0xFF21262d),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: AnimatedFractionallySizedBox(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-              alignment: Alignment.centerLeft,
-              widthFactor: _percentage,
-              child: Container(color: _barColor),
-            ),
-          ),
         ),
-      ],
-    );
-  }
-}
-
-/// Animated mana bar.
-class _AnimatedManaBar extends StatelessWidget {
-  final int current;
-  final int max;
-
-  const _AnimatedManaBar({required this.current, required this.max});
-
-  double get _percentage => max > 0 ? (current / max).clamp(0.0, 1.0) : 0.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Text(
-            'MP',
-            style: TextStyle(
+        if (showValue && value != null) ...[
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: const TextStyle(
               fontFamily: 'monospace',
               fontSize: 8,
-              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF484848),
             ),
           ),
-        ),
-        Container(
-          height: 6,
-          decoration: BoxDecoration(
-            color: const Color(0xFF21262d),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: AnimatedFractionallySizedBox(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-              alignment: Alignment.centerLeft,
-              widthFactor: _percentage,
-              child: Container(color: const Color(0xFF58a6ff)),
-            ),
-          ),
-        ),
+        ],
       ],
     );
   }
-}
 
-/// Mage portrait placeholder.
-/// Changes appearance on low HP.
-class _MagePortrait extends StatelessWidget {
-  final String element;
-  final bool isLowHP;
-
-  const _MagePortrait({required this.element, required this.isLowHP});
-
-  String get _icon {
-    switch (element) {
+  String _getElementIcon() {
+    switch (mage.primaryElement.name) {
       case 'fire':
         return '🔥';
       case 'water':
@@ -443,109 +483,55 @@ class _MagePortrait extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: isLowHP ? const Color(0xFF3d1f1f) : const Color(0xFF21262d),
-        border: Border.all(
-          color: isLowHP ? const Color(0xFFf85149) : const Color(0xFF30363d),
-        ),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Center(
-        child: Text(
-          _icon,
-          style: TextStyle(
-            fontSize: 20,
-            // Subtle visual change on low HP
-            color: isLowHP ? Colors.red.shade200 : null,
-          ),
-        ),
-      ),
-    );
+  int _getLevel() {
+    return (mage.maxHP ~/ 5).clamp(1, 99);
   }
-}
 
-/// Element icon widget.
-class _ElementIcon extends StatelessWidget {
-  final String element;
-
-  const _ElementIcon({required this.element});
-
-  String get _icon {
-    switch (element) {
-      case 'fire':
-        return '🔥';
-      case 'water':
-        return '💧';
-      case 'earth':
-        return '🪨';
-      case 'air':
-        return '💨';
-      default:
-        return '⚪';
+  List<Color> _getHPGradientColors(double percent) {
+    if (percent > 0.5) {
+      return [const Color(0xFF78F878), const Color(0xFF58D858)];
+    } else if (percent > 0.2) {
+      return [const Color(0xFFF8E858), const Color(0xFFF8D030)];
+    } else {
+      return [const Color(0xFFF88888), const Color(0xFFF85888)];
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Text(_icon, style: const TextStyle(fontSize: 14));
+  List<Widget> _buildStatusIcons() {
+    // Placeholder for buff/debuff icons
+    // TODO: Integrate with mage status effects
+    return [];
   }
 }
 
-/// Status effect icon.
-class _StatusIcon extends StatelessWidget {
-  final EffectType type;
+/// ═══════════════════════════════════════════════════════════════════════════
+/// LEGACY COMPONENTS (Retained for backward compatibility)
+/// ═══════════════════════════════════════════════════════════════════════════
 
-  const _StatusIcon({required this.type});
+/// Legacy enemy status bar
+class EnemyStatusBar extends StatelessWidget {
+  final List<Enemy> enemies;
+  final int? selectedIndex;
 
-  String get _icon {
-    switch (type) {
-      case EffectType.burn:
-        return '🔥';
-      case EffectType.slow:
-        return '🐌';
-      case EffectType.weaken:
-        return '💀';
-      case EffectType.armor:
-        return '🛡️';
-      default:
-        return '○';
-    }
-  }
+  const EnemyStatusBar({super.key, required this.enemies, this.selectedIndex});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 16,
-      height: 16,
-      decoration: BoxDecoration(
-        color: const Color(0xFF21262d),
-        borderRadius: BorderRadius.circular(2),
-      ),
-      child: Center(child: Text(_icon, style: const TextStyle(fontSize: 10))),
+    return PokemonEnemyStatusPanel(
+      enemies: enemies,
+      selectedIndex: selectedIndex,
     );
   }
 }
 
-/// Buff/debuff icon row for player.
-class _BuffDebuffRow extends StatelessWidget {
-  final List<ActiveStatusEffect> effects;
+/// Legacy player status bar
+class PlayerStatusBar extends StatelessWidget {
+  final Mage mage;
 
-  const _BuffDebuffRow({required this.effects});
+  const PlayerStatusBar({super.key, required this.mage});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: effects.take(5).map((effect) {
-        return Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: _StatusIcon(type: effect.type),
-        );
-      }).toList(),
-    );
+    return PokemonPlayerStatusPanel(mage: mage);
   }
 }

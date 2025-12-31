@@ -5,6 +5,7 @@ import '../../domain/enemy.dart';
 import '../../domain/element.dart' as game_element;
 import '../../game/exploration/exploration_controller.dart';
 import '../../game/exploration/components/components.dart';
+import '../../nodes/nodes.dart';
 import '../../nodes/node_map_system.dart';
 import '../components/node_breadcrumbs.dart';
 import '../battle/director_subtitle_overlay.dart';
@@ -40,8 +41,14 @@ class ExplorationScreenV2 extends StatefulWidget {
   /// Callback when player travels through a door.
   final void Function(DoorDirection direction, String destinationId)? onTravel;
 
+  /// Callback when player taps a non-combat interactable (shop, shrine, etc.).
+  final void Function(NodeType nodeType)? onInteractableTapped;
+
   /// Callback when player returns from combat (enemy defeated).
   final void Function()? onEnemyDefeated;
+
+  /// Callback when player completes a non-combat interaction.
+  final void Function()? onInteractionCompleted;
 
   const ExplorationScreenV2({
     super.key,
@@ -53,7 +60,9 @@ class ExplorationScreenV2 extends StatefulWidget {
     this.runNumber = 1,
     this.onEngageEnemy,
     this.onTravel,
+    this.onInteractableTapped,
     this.onEnemyDefeated,
+    this.onInteractionCompleted,
   });
 
   @override
@@ -98,6 +107,12 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
     if (widget.roomConfig.enemyDefeated &&
         !oldWidget.roomConfig.enemyDefeated) {
       _controller.markEnemyDefeated();
+    }
+
+    // Check if interaction was completed
+    if (widget.roomConfig.interactionCompleted &&
+        !oldWidget.roomConfig.interactionCompleted) {
+      _controller.markInteractionCompleted();
     }
   }
 
@@ -297,19 +312,41 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
         // Use controller's state for consistency
         final roomConfig = _controller.roomConfig ?? widget.roomConfig;
         final hasEnemy = _controller.hasLivingEnemy;
+        final nodeType = roomConfig.nodeType;
+
+        // Check if this is a non-combat interactable node
+        final isNonCombatNode =
+            nodeType != null &&
+            !nodeType.isCombat &&
+            nodeType != NodeType.bossCombat;
 
         return Stack(
           children: [
             // Doors
             ..._buildDoors(constraints),
 
-            // Enemy (center-ish)
+            // Enemy (center-ish) - only for combat nodes
             if (hasEnemy)
               Positioned(
                 left: centerX - 60,
                 top: centerY - 80,
                 child: _buildEnemyWidget(),
               ),
+
+            // Non-combat interactable (merchant, altar, campfire, etc.)
+            // Only show if interaction NOT completed
+            if (isNonCombatNode &&
+                !hasEnemy &&
+                !roomConfig.interactionCompleted)
+              Positioned(
+                left: centerX - 60,
+                top: centerY - 80,
+                child: _buildInteractableWidget(nodeType),
+              ),
+
+            // "Used" indicator if interaction completed (optional, or just nothing)
+            // User asked it to "disappear", so we leave empty or show subtle trace.
+            // For now, let's just make it disappear as requested.
 
             // "Cleared" indicator if enemy was defeated
             if (roomConfig.enemy != null && !hasEnemy)
@@ -463,6 +500,97 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
               ),
               child: const Text(
                 'TAP TO ENGAGE',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFc9d1d9),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds an interactable widget for non-combat nodes (merchant, altar, etc.).
+  Widget _buildInteractableWidget(NodeType nodeType) {
+    // Get icon and name based on node type
+    String icon;
+    String name;
+    Color accentColor;
+
+    switch (nodeType) {
+      case NodeType.shop:
+        icon = '🏪';
+        name = 'Merchant';
+        accentColor = const Color(0xFF3fb950);
+        break;
+      case NodeType.enhancementShrine:
+        icon = '✨';
+        name = 'Shrine';
+        accentColor = const Color(0xFFe3b341);
+        break;
+      case NodeType.spellLearn:
+        icon = '📚';
+        name = 'Spell Tome';
+        accentColor = const Color(0xFF58a6ff);
+        break;
+      case NodeType.rest:
+        icon = '🔥';
+        name = 'Campfire';
+        accentColor = const Color(0xFFf85149);
+        break;
+      case NodeType.randomEvent:
+        icon = '❓';
+        name = 'Mystery';
+        accentColor = const Color(0xFFa371f7);
+        break;
+      default:
+        icon = '📍';
+        name = 'Interactable';
+        accentColor = Colors.grey;
+    }
+
+    return GestureDetector(
+      onTap: () => widget.onInteractableTapped?.call(nodeType),
+      child: Container(
+        width: 120,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161b22),
+          border: Border.all(color: accentColor, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Icon
+            Text(icon, style: const TextStyle(fontSize: 48)),
+            const SizedBox(height: 8),
+
+            // Name
+            Text(
+              name,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: accentColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Tap hint
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'TAP TO INTERACT',
                 style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 9,

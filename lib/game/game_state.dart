@@ -4,6 +4,7 @@ import '../domain/enemy.dart';
 import '../domain/mage.dart';
 import '../domain/spell.dart';
 import '../domain/effect.dart';
+import '../domain/element.dart';
 import '../systems/combat_system.dart';
 import '../nodes/nodes.dart';
 import '../systems/node_resolver.dart';
@@ -13,6 +14,7 @@ import '../systems/shop_system.dart';
 /// The current screen/mode of the game.
 enum GameScreen {
   mainMenu,
+  spellSelect, // NEW: Spell selection instead of mage selection
   mageSelect,
   nodeMap,
   nodeChoice,
@@ -48,6 +50,10 @@ class GameState {
   List<Enemy>? currentEnemies;
   ShopSystem? currentShop;
   bool isEliteCombat = false;
+
+  // Track if the main interaction of the current node has been completed
+  // Used for single-use nodes like Rest/Shrines to persist the screen until user leaves
+  bool nodeInteractionCompleted = false;
 
   // Target selection state
   int? pendingSpellIndex;
@@ -130,6 +136,7 @@ class GameState {
     temporaryBuffs.clear();
     currentEnemies = null;
     isEliteCombat = false;
+    nodeInteractionCompleted = false;
 
     // Generate the run with the new node map system
     nodeMapSystem.generateRun(maxDepth: 10);
@@ -148,6 +155,69 @@ class GameState {
     // Go directly to exploration mode
     // First room is empty - just doors to choose first node
     currentScreen = GameScreen.exploration;
+  }
+
+  /// Shows spell selection screen with one spell from each element.
+  void showSpellSelection() {
+    currentScreen = GameScreen.spellSelect;
+
+    // Get one common spell from each element
+    spellChoices = [
+      SpellDefinitions.getByElement(
+        Element.fire,
+      ).where((s) => s.rarity == SpellRarity.common).first,
+      SpellDefinitions.getByElement(
+        Element.water,
+      ).where((s) => s.rarity == SpellRarity.common).first,
+      SpellDefinitions.getByElement(
+        Element.earth,
+      ).where((s) => s.rarity == SpellRarity.common).first,
+      SpellDefinitions.getByElement(
+        Element.air,
+      ).where((s) => s.rarity == SpellRarity.common).first,
+    ];
+  }
+
+  /// Selects a starting spell and creates a default mage based on its element.
+  void selectStartingSpell(Spell selectedSpell) {
+    // Create a default mage based on spell element
+    final elementalMage = _createMageForElement(selectedSpell.element);
+
+    // Give the mage the selected spell
+    mage = elementalMage;
+    mage!.learnSpell(selectedSpell);
+
+    // Start the run
+    combatsWon = 0;
+    elitesDefeated = 0;
+    spellsLearned = 0;
+    spellsUpgraded = 0;
+    temporaryBuffs.clear();
+    currentEnemies = null;
+    isEliteCombat = false;
+    nodeInteractionCompleted = false;
+
+    nodeMapSystem.generateRun(maxDepth: 10);
+    progression.startNewRun();
+
+    clearLog();
+
+    // Go to exploration mode
+    currentScreen = GameScreen.exploration;
+  }
+
+  /// Creates a mage for the given element.
+  Mage _createMageForElement(Element element) {
+    switch (element) {
+      case Element.fire:
+        return MageDefinitions.pyromancer().freshCopy();
+      case Element.water:
+        return MageDefinitions.hydromancer().freshCopy();
+      case Element.earth:
+        return MageDefinitions.geomancer().freshCopy();
+      case Element.air:
+        return MageDefinitions.aeromancer().freshCopy();
+    }
   }
 
   /// Shows the node map with available choices.
@@ -227,10 +297,11 @@ class GameState {
     }
 
     print('DEBUG: Entering node type: ${node.type}');
+    nodeInteractionCompleted = false;
 
-    // All node types now go through exploration screen first
-    // Combat nodes show enemy in room
-    // Non-combat nodes show doors for next choices
+    // ALL node types go through exploration screen first
+    // Combat nodes: show enemy
+    // Non-combat nodes: show interactable object (merchant, altar, campfire, etc.)
     switch (node.type) {
       case NodeType.combat:
         _setupCombat(currentDepth);
@@ -246,15 +317,16 @@ class GameState {
       case NodeType.shop:
       case NodeType.rest:
       case NodeType.randomEvent:
-        // Non-combat nodes: still use their specific screens for now
-        _enterNonCombatNode(node.type);
+        // Non-combat: show exploration room with interactable
+        // Player taps interactable to open the actual screen
+        currentScreen = GameScreen.exploration;
         break;
     }
   }
 
-  /// For non-combat nodes, use existing screens
-  void _enterNonCombatNode(NodeType type) {
-    switch (type) {
+  /// Opens a non-combat node screen (called when player taps interactable)
+  void openNonCombatScreen(NodeType nodeType) {
+    switch (nodeType) {
       case NodeType.spellLearn:
         _setupSpellLearn(currentDepth);
         break;
@@ -271,8 +343,7 @@ class GameState {
         _setupRandomEvent(currentDepth);
         break;
       default:
-        // Fallback to exploration
-        currentScreen = GameScreen.exploration;
+        break;
     }
   }
 
@@ -565,6 +636,9 @@ class GameState {
     progression.advanceNode();
     tickTemporaryBuffs();
 
+    // Reset interaction state
+    nodeInteractionCompleted = false;
+
     // Clear combat state
     currentCombat = null;
     currentEnemies = null;
@@ -662,6 +736,7 @@ class GameState {
     currentEliteRewards = null;
     pendingSpellIndex = null;
     isEliteCombat = false;
+    nodeInteractionCompleted = false;
     temporaryBuffs.clear();
     nodeMapSystem.reset();
     currentScreen = GameScreen.mainMenu;
