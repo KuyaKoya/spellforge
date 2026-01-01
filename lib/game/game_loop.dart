@@ -84,8 +84,6 @@ class GameLoop {
     );
 
     // Sync logs
-    _syncCombatLog();
-
     // Check for combat end
     if (!state.currentCombat!.isOngoing) {
       _handleCombatEnd();
@@ -95,8 +93,6 @@ class GameLoop {
     // Auto-end turn if no more actions available
     if (!state.currentCombat!.canPlayerAct) {
       state.currentCombat!.autoEndTurn();
-      _syncCombatLog();
-
       if (!state.currentCombat!.isOngoing) {
         _handleCombatEnd();
       }
@@ -124,15 +120,9 @@ class GameLoop {
     if (state.currentCombat == null) return;
 
     state.currentCombat!.endPlayerTurn();
-    _syncCombatLog();
-
     if (!state.currentCombat!.isOngoing) {
       _handleCombatEnd();
     }
-  }
-
-  void _syncCombatLog() {
-    state.syncCombatLog();
   }
 
   /// Public method to handle combat end - called from BattleScreen.
@@ -164,8 +154,6 @@ class GameLoop {
 
       if (state.isEliteCombat) {
         state.elitesDefeated++;
-        state.log('');
-        state.log('💀 Elite defeated!');
         state.showEliteRewards();
         return;
       }
@@ -178,19 +166,10 @@ class GameLoop {
       );
 
       state.progression.addFragments(rewards['fragments']!);
-      state.log('');
-      state.log('💎 Earned ${rewards['fragments']} spell fragments!');
-
-      if (state.mage != null) {
-        final levelLogs = state.mage!.gainExp(rewards['experience']!);
-        for (final log in levelLogs) {
-          state.log(log);
-        }
-      }
+      if (state.mage != null) {}
 
       if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {
         state.progression.addCrystals(1);
-        state.log('✨ A Spell Crystal drops!');
       }
 
       state.completeNode();
@@ -214,9 +193,6 @@ class GameLoop {
       // Check if this was an elite combat
       if (state.isEliteCombat) {
         state.elitesDefeated++;
-        state.log('');
-        state.log('💀 Elite defeated!');
-
         // Show elite rewards
         state.showEliteRewards();
         return;
@@ -230,21 +206,12 @@ class GameLoop {
       );
 
       state.progression.addFragments(rewards['fragments']!);
-      state.log('');
-      state.log('💎 Earned ${rewards['fragments']} spell fragments!');
-
       // Award experience
-      if (state.mage != null) {
-        final levelLogs = state.mage!.gainExp(rewards['experience']!);
-        for (final log in levelLogs) {
-          state.log(log);
-        }
-      }
+      if (state.mage != null) {}
 
       // Check for bonus spell crystal drop (after depth 4)
       if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {
         state.progression.addCrystals(1);
-        state.log('✨ A Spell Crystal drops!');
       }
 
       state.completeNode();
@@ -276,22 +243,17 @@ class GameLoop {
     if (rewardIndex < 0 || rewardIndex >= rewards.length) return;
 
     final reward = rewards[rewardIndex] as Map<String, dynamic>;
-
-    state.log('');
     switch (reward['type']) {
       case 'crystal':
         final value = reward['value'] as int;
         state.progression.addCrystals(value);
-        state.log('✨ Gained $value Spell Crystal(s)!');
         break;
 
       case 'spell':
         final spell = reward['spell'] as Spell;
         if (state.mage!.learnSpell(spell)) {
           state.spellsLearned++;
-          state.log('📖 Learned ${spell.displayName}!');
         } else {
-          state.log('❌ Loadout full! Gained 50 fragments instead.');
           state.progression.addFragments(50);
         }
         break;
@@ -299,32 +261,24 @@ class GameLoop {
       case 'fragments':
         final value = reward['value'] as int;
         state.progression.addFragments(value);
-        state.log('💎 Gained $value spell fragments!');
         break;
 
       case 'upgrade':
         if (state.mage!.spellLoadout.isNotEmpty) {
           // Show upgrade selection
-          state.log('Select a spell to upgrade for free:');
           for (int i = 0; i < state.mage!.spellLoadout.length; i++) {
             final spell = state.mage!.spellLoadout[i];
-            if (spell.starLevel < 3) {
-              state.log('[${i + 1}] ${spell.displayName}');
-            }
+            if (spell.starLevel < 3) {}
           }
           // For simplicity, auto-upgrade first upgradeable spell
           for (int i = 0; i < state.mage!.spellLoadout.length; i++) {
             if (state.mage!.spellLoadout[i].starLevel < 3) {
               state.mage!.upgradeSpell(i);
               state.spellsUpgraded++;
-              state.log(
-                '⭐ Upgraded ${state.mage!.spellLoadout[i].displayName}!',
-              );
               break;
             }
           }
         } else {
-          state.log('❌ No spells to upgrade! Gained 50 fragments instead.');
           state.progression.addFragments(50);
         }
         break;
@@ -350,13 +304,7 @@ class GameLoop {
 
     if (mage.isLoadoutFull) {
       // Need to replace
-      state.log('');
-      state.log('Loadout is full! Choose a spell to replace:');
-      for (int i = 0; i < mage.spellLoadout.length; i++) {
-        state.log('[${i + 1}] ${mage.spellLoadout[i].displayName}');
-      }
-      state.log('[C] Cancel');
-
+      for (int i = 0; i < mage.spellLoadout.length; i++) {}
       // Store the pending spell for replacement
       // (Would need additional state for this flow - simplified for prototype)
       return;
@@ -364,9 +312,6 @@ class GameLoop {
 
     mage.learnSpell(spell);
     state.spellsLearned++;
-    state.log('');
-    state.log('📖 Learned ${spell.displayName}!');
-
     // Mark as completed but don't leave yet
     state.nodeInteractionCompleted = true;
   }
@@ -383,10 +328,6 @@ class GameLoop {
     final oldSpell = state.mage!.spellLoadout[loadoutIndex];
     state.mage!.replaceSpell(loadoutIndex, newSpell);
     state.spellsLearned++;
-
-    state.log('');
-    state.log('Replaced ${oldSpell.displayName} with ${newSpell.displayName}!');
-
     // Mark as completed but don't leave yet
     state.nodeInteractionCompleted = true;
   }
@@ -394,9 +335,6 @@ class GameLoop {
   /// Skips spell learning.
   void skipSpellLearn() {
     if (state.currentScreen != GameScreen.spellLearn) return;
-
-    state.log('');
-    state.log('Chose not to learn any spells.');
     state.completeNode();
   }
 
@@ -414,15 +352,11 @@ class GameLoop {
 
     final spell = state.mage!.spellLoadout[loadoutIndex];
     if (spell.starLevel >= 3) {
-      state.log('That spell is already at maximum level!');
       return false;
     }
 
     final cost = NodeResolver.getUpgradeCost(spell);
     if (state.progression.spellFragments < cost) {
-      state.log(
-        'Not enough fragments! Need $cost, have ${state.progression.spellFragments}.',
-      );
       return false;
     }
 
@@ -431,10 +365,6 @@ class GameLoop {
     state.spellsUpgraded++;
 
     final upgraded = state.mage!.spellLoadout[loadoutIndex];
-    state.log('');
-    state.log('⭐ Upgraded ${spell.displayName} → ${upgraded.displayName}!');
-    state.log('Spent $cost fragments.');
-
     // Mark as completed but don't leave yet
     state.nodeInteractionCompleted = true;
     return true;
@@ -443,9 +373,6 @@ class GameLoop {
   /// Skips enhancement.
   void skipEnhancement() {
     if (state.currentScreen != GameScreen.enhancementShrine) return;
-
-    state.log('');
-    state.log('Left the shrine without upgrading.');
     state.completeNode();
   }
 
@@ -465,42 +392,30 @@ class GameLoop {
       item,
       state.progression.spellFragments,
     )) {
-      state.log('❌ Not enough fragments!');
       return false;
     }
 
     // Make the purchase
     await state.progression.spendFragments(item.cost);
     state.currentShop!.purchaseItem(item);
-
-    state.log('');
-    state.log('💰 Purchased ${item.displayName}!');
-
     // Apply the item effect
     switch (item.type) {
       case ShopItemType.spellFragments:
         state.progression.addFragments(item.value);
-        state.log('💎 Gained ${item.value} spell fragments!');
         break;
 
       case ShopItemType.spellCrystal:
         state.progression.addCrystals(item.value);
-        state.log('✨ Gained ${item.value} Spell Crystal(s)!');
         break;
 
       case ShopItemType.randomSpell:
         if (item.spell != null && state.mage!.learnSpell(item.spell!)) {
           state.spellsLearned++;
-          state.log('📖 Learned ${item.spell!.displayName}!');
-        } else {
-          state.log('❌ Loadout full! Could not learn spell.');
-        }
+        } else {}
         break;
 
       case ShopItemType.heal:
         final actual = state.mage!.heal(item.value);
-        state.log('❤️ Healed for $actual HP!');
-        state.log(state.mage!.hpDisplay);
         break;
 
       case ShopItemType.tempBuff:
@@ -511,31 +426,18 @@ class GameLoop {
             remainingNodes: 3,
           ),
         );
-        state.log('⚡ Gained +${item.value}% damage for 3 nodes!');
         break;
     }
 
     // Show remaining items
-    state.log('');
     if (state.currentShop!.availableItems.isNotEmpty) {
-      state.log('Remaining items:');
-      final items = state.currentShop!.availableItems;
-      for (int i = 0; i < items.length; i++) {
-        final item = items[i];
-        state.log('[${i + 1}] ${item.displayText} (${item.cost} frags)');
-      }
-    } else {
-      state.log('Shop is now empty.');
-    }
+    } else {}
     return true;
   }
 
   /// Leaves the shop.
   void leaveShop() {
     if (state.currentScreen != GameScreen.shop) return;
-
-    state.log('');
-    state.log('You leave the shop.');
     state.completeNode();
   }
 
@@ -550,11 +452,6 @@ class GameLoop {
 
     final healAmount = NodeResolver.getRestHealAmount(state.mage!);
     final actualHeal = state.mage!.heal(healAmount);
-
-    state.log('');
-    state.log('🛏️ Rested and recovered $actualHeal HP.');
-    state.log(state.mage!.hpDisplay);
-
     // Mark as completed but don't leave yet
     state.nodeInteractionCompleted = true;
   }
@@ -565,7 +462,6 @@ class GameLoop {
     // Don't allow multiple rests
     if (state.nodeInteractionCompleted) return;
     if (state.mage == null || state.mage!.spellLoadout.isEmpty) {
-      state.log('❌ No spells with modifiers to remove.');
       return;
     }
 
@@ -574,16 +470,11 @@ class GameLoop {
       if (state.mage!.spellLoadout[i].starLevel > 1) {
         final spell = state.mage!.spellLoadout[i];
         // Reset to base (this is simplified - full implementation would track modifiers)
-        state.log('');
-        state.log('Removed modifiers from ${spell.displayName}.');
-
         // Mark as completed but don't leave yet
         state.nodeInteractionCompleted = true;
         return;
       }
     }
-
-    state.log('❌ No upgraded spells to modify.');
   }
 
   /// Gains a temporary buff.
@@ -596,10 +487,6 @@ class GameLoop {
     state.temporaryBuffs.add(
       TemporaryBuff(name: 'Rest Vigor', value: 25, remainingNodes: 3),
     );
-
-    state.log('');
-    state.log('⚡ Gained +25% damage for 3 nodes!');
-
     // Mark as completed but don't leave yet
     state.nodeInteractionCompleted = true;
   }
@@ -607,9 +494,6 @@ class GameLoop {
   /// Skips resting.
   void skipRest() {
     if (state.currentScreen != GameScreen.rest) return;
-
-    state.log('');
-    state.log('Pressed on without resting.');
     state.completeNode();
   }
 
@@ -635,20 +519,16 @@ class GameLoop {
     if (selectedChoice == null) return;
 
     final action = selectedChoice['action'] as String;
-    state.log('');
-
     switch (action) {
       case 'take':
       case 'heal':
         if (selectedChoice.containsKey('reward')) {
           final reward = selectedChoice['reward'] as int;
           state.progression.addFragments(reward);
-          state.log('💎 Gained $reward spell fragments!');
         }
         if (selectedChoice.containsKey('healAmount')) {
           final heal = selectedChoice['healAmount'] as int;
           final actual = state.mage!.heal(heal);
-          state.log('❤️ Recovered $actual HP!');
         }
         break;
 
@@ -656,12 +536,10 @@ class GameLoop {
         if (selectedChoice.containsKey('hpCost')) {
           final cost = selectedChoice['hpCost'] as int;
           state.mage!.takeDamage(cost);
-          state.log('💔 Lost $cost HP.');
         }
         if (selectedChoice.containsKey('reward')) {
           final reward = selectedChoice['reward'] as int;
           state.progression.addFragments(reward);
-          state.log('💎 Gained $reward spell fragments!');
         }
         break;
 
@@ -675,18 +553,12 @@ class GameLoop {
             state.currentDepth,
           );
           if (spells.isNotEmpty && state.mage!.learnSpell(spells.first)) {
-            state.log('📖 Learned ${spells.first.displayName}!');
-          } else {
-            state.log('❌ Loadout full! Lost fragments.');
-          }
-        } else {
-          state.log('❌ Not enough fragments!');
-        }
+          } else {}
+        } else {}
         break;
 
       case 'decline':
       case 'leave':
-        state.log('You continue on your way.');
         break;
     }
 

@@ -95,16 +95,25 @@ class MainMenuOverlay extends StatelessWidget {
               ),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
                   children: [
-                    _buildStat('TOTAL RUNS', '$totalRuns'),
-                    const SizedBox(width: 32),
-                    _buildStat('BEST DEPTH', '$bestDepth'),
-                    const SizedBox(width: 32),
-                    _buildStat('FRAGMENTS', '$totalFragments 💎'),
-                    const SizedBox(width: 32),
-                    _buildStat('CRYSTALS', '$totalCrystals ✨'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildStat('TOTAL RUNS', '$totalRuns'),
+                        const SizedBox(width: 32),
+                        _buildStat('BEST DEPTH', '$bestDepth'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildStat('FRAGMENTS', '$totalFragments 💎'),
+                        const SizedBox(width: 32),
+                        _buildStat('CRYSTALS', '$totalCrystals ✨'),
+                      ],
+                    ),
                   ],
                 ),
               ),

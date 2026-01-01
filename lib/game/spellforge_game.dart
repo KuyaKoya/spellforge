@@ -35,9 +35,6 @@ class SpellforgeGame extends FlameGame {
   /// Whether the game is initialized and ready.
   bool get isReady => _initialized;
 
-  /// Gets the current text log for display.
-  List<String> get textLog => gameState.textLog;
-
   /// Gets the current screen.
   GameScreen get currentScreen => gameState.currentScreen;
 

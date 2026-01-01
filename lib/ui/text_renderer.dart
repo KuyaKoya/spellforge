@@ -66,8 +66,40 @@ class _TextGameWidgetState extends State<TextGameWidget> {
 
   void _onGameStateChanged() {
     // Reset room config if not in exploration-related mode
+    // OR if we're still in exploration but our cached config is outdated
     if (!_shouldShowExplorationBackground) {
       _currentRoomConfig = null;
+    } else if (_currentRoomConfig != null) {
+      // Check if the current room is now stale (node completed, or config doesn't match gamestate)
+      final gameState = widget.game.gameState;
+      final currentNode = gameState.nodeMapSystem.currentNode;
+
+      // Determine current room ID to compare
+      String expectedRoomId;
+      if (currentNode == null) {
+        expectedRoomId = 'start_room_${gameState.currentDepth}';
+      } else {
+        expectedRoomId = 'node_${currentNode.depth}_${currentNode.pathIndex}';
+      }
+
+      // If room ID changed OR enemy state changed OR interaction state changed, reset config
+      final configEnemyDefeated = _currentRoomConfig!.enemyDefeated;
+      final hasLivingEnemy =
+          gameState.currentEnemies?.isNotEmpty == true &&
+          gameState.currentEnemies!.first.isAlive;
+
+      // Check if interaction completed state is out of sync
+      final configInteractionCompleted =
+          _currentRoomConfig!.interactionCompleted;
+      final stateInteractionCompleted = gameState.nodeInteractionCompleted;
+
+      if (_currentRoomConfig!.roomId != expectedRoomId ||
+          (configEnemyDefeated == false &&
+              !hasLivingEnemy &&
+              gameState.currentEnemies != null) ||
+          (configInteractionCompleted != stateInteractionCompleted)) {
+        _currentRoomConfig = null;
+      }
     }
 
     setState(() {});
@@ -399,6 +431,10 @@ class _TextGameWidgetState extends State<TextGameWidget> {
                 );
               }).toList(),
         nodeType: currentNode?.type,
+        // Respect the interaction completed state from gameState
+        interactionCompleted: gameState.nodeInteractionCompleted,
+        // Check if enemy was already defeated (no living enemies)
+        enemyDefeated: enemy != null && !enemy.isAlive,
       );
     }
 
