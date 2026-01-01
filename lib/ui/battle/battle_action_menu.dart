@@ -202,8 +202,8 @@ class _SpellGrid extends StatelessWidget {
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════
-/// SPELL BUTTON
-/// Shows: Element icon, Name, Mana cost, Effectiveness indicator
+/// SPELL BUTTON (Compact 2x2 grid style)
+/// Shows: Element icon + Spell name (color-coded by effectiveness)
 /// ═══════════════════════════════════════════════════════════════════════════
 class _SpellButton extends StatelessWidget {
   final Spell spell;
@@ -237,9 +237,10 @@ class _SpellButton extends StatelessWidget {
     }
   }
 
-  /// Get effectiveness indicator against current enemies
-  String get _effectivenessIndicator {
-    if (enemies.isEmpty) return '';
+  /// Get text color based on effectiveness against enemies
+  Color get _textColor {
+    if (!canCast) return const Color(0xFF484f58);
+    if (enemies.isEmpty) return const Color(0xFFc9d1d9);
 
     bool hasStrong = false;
     bool hasWeak = false;
@@ -250,28 +251,11 @@ class _SpellButton extends StatelessWidget {
       if (multiplier < 1.0) hasWeak = true;
     }
 
-    if (hasStrong && !hasWeak) return '▲';
-    if (hasWeak && !hasStrong) return '▼';
-    if (hasStrong && hasWeak) return '●';
-    return '';
-  }
-
-  Color get _effectivenessColor {
-    if (enemies.isEmpty) return Colors.transparent;
-
-    bool hasStrong = false;
-    bool hasWeak = false;
-
-    for (final enemy in enemies) {
-      final multiplier = spell.element.getMultiplierAgainst(enemy.element);
-      if (multiplier > 1.0) hasStrong = true;
-      if (multiplier < 1.0) hasWeak = true;
-    }
-
+    // Green = super effective, Red = not effective, Yellow = mixed, White = neutral
     if (hasStrong && !hasWeak) return const Color(0xFF3fb950);
     if (hasWeak && !hasStrong) return const Color(0xFFf85149);
     if (hasStrong && hasWeak) return const Color(0xFFe3b341);
-    return Colors.transparent;
+    return const Color(0xFFc9d1d9);
   }
 
   @override
@@ -281,7 +265,6 @@ class _SpellButton extends StatelessWidget {
       onLongPressStart: (_) => onLongPress?.call(),
       onLongPressEnd: (_) => onLongPressEnd?.call(),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           gradient: canCast
               ? LinearGradient(
@@ -295,86 +278,42 @@ class _SpellButton extends StatelessWidget {
             color: canCast ? _elementColor : const Color(0xFF30363d),
             width: canCast ? 2 : 1,
           ),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: canCast
               ? [
                   BoxShadow(
-                    color: _elementColor.withValues(alpha: 0.3),
+                    color: _elementColor.withOpacity(0.3),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
                 ]
               : null,
         ),
-        child: Row(
-          children: [
-            // Element icon
-            Text(spell.elementIcon, style: const TextStyle(fontSize: 16)),
-            const SizedBox(width: 6),
-            // Spell info
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Name with effectiveness
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          spell.name,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: canCast
-                                ? const Color(0xFFc9d1d9)
-                                : const Color(0xFF484f58),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (_effectivenessIndicator.isNotEmpty)
-                        Text(
-                          _effectivenessIndicator,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: _effectivenessColor,
-                          ),
-                        ),
-                    ],
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(spell.elementIcon, style: const TextStyle(fontSize: 18)),
+              const SizedBox(height: 2),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    spell.name,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: _textColor,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 2),
-                  // Mana cost
-                  Row(
-                    children: [
-                      Text(
-                        '💧 ${spell.manaCost}',
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: canCast
-                              ? const Color(0xFF58a6ff)
-                              : const Color(0xFF484f58),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '⚔ ${spell.baseDamage}',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: canCast
-                              ? _elementColor
-                              : const Color(0xFF484f58),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -742,19 +681,22 @@ class _ActionButton extends StatelessWidget {
               : null,
         ),
         child: Center(
-          child: Row(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(icon, style: const TextStyle(fontSize: 16)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: disabled ? const Color(0xFF484f58) : buttonColor,
+              Text(icon, style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: disabled ? const Color(0xFF484f58) : buttonColor,
+                  ),
                 ),
               ),
             ],

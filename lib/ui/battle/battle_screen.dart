@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
 
@@ -12,32 +13,25 @@ import '../components/components.dart';
 import 'battle_scene.dart';
 import 'status_bars.dart';
 import 'battle_action_menu.dart';
-import 'director_subtitle_overlay.dart';
 import 'floating_damage.dart';
 import 'sprite_overlay.dart';
 
-/// Main battle screen widget implementing Pokémon-inspired UI.
+/// Combat phases for Pokémon-style sequential combat.
+enum CombatPhase {
+  playerSelect, // Player choosing action
+  playerAction, // Playing player's attack animation/text
+  enemyAction, // Playing enemy's attack animation/text
+  turnTransition, // Brief pause between turns
+  combatEnd, // Victory/defeat
+}
+
+/// Battle screen with Pokémon-style turn-based combat flow.
 ///
-/// LAYOUT (PORTRAIT - Pokémon-style zones):
-/// ┌─────────────────────────────────┐
-/// │ ZONE 1 - ENEMY AREA (35%)       │
-/// │   Enemy Status Panel (top-left) │
-/// │   Enemy Sprite (centered)       │
-/// ├─────────────────────────────────┤
-/// │ ZONE 2 - BATTLEFIELD (30%)      │
-/// │   Player Sprite (bottom-left)   │
-/// │   Visual breathing room         │
-/// ├─────────────────────────────────┤
-/// │ ZONE 3 - PLAYER STATUS (15%)    │
-/// │   Player Status Panel           │
-/// ├─────────────────────────────────┤
-/// │ ZONE 4 - ACTION PANEL (20%)     │
-/// │   Action Box System             │
-/// └─────────────────────────────────┘
-///
-/// Architecture (LOCKED):
-/// - Flame renders the world (background, player sprite)
-/// - Flutter renders decisions and information (overlays)
+/// Flow:
+/// 1. Player selects action (Fight menu)
+/// 2. "Mage used [Spell]!" → Animation → "It's super effective!" → Damage
+/// 3. Enemy turn: "[Enemy] attacks!" → Animation → Damage to player
+/// 4. Return to step 1
 class BattleScreen extends StatefulWidget {
   final CombatSystem combat;
   final Mage mage;
@@ -73,15 +67,21 @@ class BattleScreen extends StatefulWidget {
 class _BattleScreenState extends State<BattleScreen> {
   late BattleScene _battleScene;
 
+  // Combat phase state machine
+  CombatPhase _phase = CombatPhase.playerSelect;
+
   // UI State
   BattleMenuState _menuState = BattleMenuState.root;
   Spell? _inspectedSpell;
-  String? _directorMessage;
   int? _selectedEnemyIndex;
   Spell? _pendingSpell;
-  bool _combatEnded = false;
 
-  // Combat Log
+  // Dialog text (Pokémon-style narration)
+  String _dialogText = '';
+  bool _waitingForTap = false;
+  VoidCallback? _onTapContinue;
+
+  // Combat Log (for reference)
   final List<CombatLogEntry> _combatLogEntries = [];
   bool _showCombatLog = false;
 
@@ -97,6 +97,7 @@ class _BattleScreenState extends State<BattleScreen> {
       onDamageDealt: _onDamageDealt,
       onStatusApplied: _onStatusApplied,
     );
+    _setDialogText('What will ${widget.mage.name} do?');
   }
 
   void _onDamageDealt(int index, int damage, bool isPlayer) {
@@ -115,25 +116,40 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
-  void _showDirectorMessage(String message) {
-    setState(() => _directorMessage = message);
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() => _directorMessage = null);
-      }
+  void _setDialogText(
+    String text, {
+    bool waitForTap = false,
+    VoidCallback? onTap,
+  }) {
+    setState(() {
+      _dialogText = text;
+      _waitingForTap = waitForTap;
+      _onTapContinue = onTap;
     });
   }
 
+  void _handleDialogTap() {
+    if (_waitingForTap && _onTapContinue != null) {
+      _onTapContinue!();
+    }
+  }
+
+  // ==================== MENU ACTIONS ====================
+
   void _handleMenuAction(BattleMenuAction action) {
+    if (_phase != CombatPhase.playerSelect) return;
+
     switch (action) {
       case BattleMenuAction.spells:
         setState(() => _menuState = BattleMenuState.spellSelect);
+        _setDialogText('Choose a spell to cast.');
         break;
       case BattleMenuAction.inspect:
         setState(() => _menuState = BattleMenuState.inspect);
+        _setDialogText('View battle information.');
         break;
       case BattleMenuAction.items:
-        _logCombat(CombatLogBuilder.system('No items available'));
+        _setDialogText('No items available.');
         break;
       case BattleMenuAction.retreat:
         _handleRetreat();
@@ -143,16 +159,19 @@ class _BattleScreenState extends State<BattleScreen> {
           _menuState = BattleMenuState.root;
           _pendingSpell = null;
         });
+        _setDialogText('What will ${widget.mage.name} do?');
         break;
       case BattleMenuAction.endTurn:
-        _handleEndTurn();
+        _startEnemyPhase();
         break;
     }
   }
 
   void _handleSpellSelect(Spell spell) {
+    if (_phase != CombatPhase.playerSelect) return;
+
     if (!widget.mage.canCast(spell)) {
-      _logCombat(CombatLogBuilder.system('Not enough mana'));
+      _setDialogText('Not enough mana to cast ${spell.name}!');
       return;
     }
 
@@ -165,25 +184,39 @@ class _BattleScreenState extends State<BattleScreen> {
         _pendingSpell = spell;
         _menuState = BattleMenuState.targetSelect;
       });
+      _setDialogText('Choose a target for ${spell.name}.');
     } else {
-      _executeSpell(spell, 0);
+      _executePlayerSpell(spell, 0);
     }
   }
 
   void _handleTargetSelect(int enemyIndex) {
     if (_pendingSpell != null) {
-      _executeSpell(_pendingSpell!, enemyIndex);
+      _executePlayerSpell(_pendingSpell!, enemyIndex);
     }
   }
 
-  void _executeSpell(Spell spell, int targetIndex) {
+  // ==================== PLAYER ACTION PHASE ====================
+
+  void _executePlayerSpell(Spell spell, int targetIndex) {
     final spellIndex = widget.mage.spellLoadout.indexOf(spell);
     if (spellIndex < 0) return;
 
-    final enemyName = widget.combat.livingEnemies.isNotEmpty
-        ? widget.combat.livingEnemies[targetIndex].name
-        : 'enemy';
+    final enemies = widget.combat.livingEnemies;
+    if (enemies.isEmpty) return;
 
+    final enemy = enemies[targetIndex.clamp(0, enemies.length - 1)];
+
+    // Transition to player action phase
+    setState(() {
+      _phase = CombatPhase.playerAction;
+      _menuState = BattleMenuState.root;
+      _pendingSpell = null;
+    });
+
+    // Step 1: Show spell cast message
+    _setDialogText('${widget.mage.name} used ${spell.name}!');
+    _battleScene.playMageCast();
     _logCombat(
       CombatLogBuilder.spellCast(
         widget.mage.name,
@@ -192,42 +225,167 @@ class _BattleScreenState extends State<BattleScreen> {
       ),
     );
 
-    final result = widget.combat.castSpell(
-      spellIndex,
-      targetIndex: targetIndex,
-    );
-    _battleScene.playMageCast();
+    // Step 2: After delay, show effectiveness and damage
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
 
-    if (result != null && result.success && result.totalDamage > 0) {
-      final damage = result.totalDamage;
-      _onDamageDealt(targetIndex, damage, false);
-      _logCombat(CombatLogBuilder.damage(enemyName, damage));
-    }
+      final result = widget.combat.castSpell(
+        spellIndex,
+        targetIndex: targetIndex,
+      );
 
-    setState(() {
-      _menuState = BattleMenuState.root;
-      _pendingSpell = null;
+      if (result == null || !result.success) {
+        _setDialogText('But it failed...');
+        _afterPlayerAction();
+        return;
+      }
+
+      // Check elemental effectiveness
+      final multiplier = spell.element.getMultiplierAgainst(enemy.element);
+      String effectivenessMsg = '';
+      if (multiplier > 1.0) {
+        effectivenessMsg = "It's super effective!";
+      } else if (multiplier < 1.0) {
+        effectivenessMsg = "It's not very effective...";
+      }
+
+      // Show damage
+      if (result.totalDamage > 0) {
+        _onDamageDealt(targetIndex, result.totalDamage, false);
+        _logCombat(CombatLogBuilder.damage(enemy.name, result.totalDamage));
+      }
+
+      // Show effectiveness message or damage result
+      if (effectivenessMsg.isNotEmpty) {
+        _setDialogText(effectivenessMsg);
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (!mounted) return;
+          _showDamageResult(enemy, result.totalDamage);
+        });
+      } else {
+        _showDamageResult(enemy, result.totalDamage);
+      }
     });
+  }
 
-    if (_checkCombatEnd()) return;
-
-    if (!widget.combat.canPlayerAct) {
-      _logCombat(CombatLogBuilder.system('No more actions - ending turn'));
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) _handleEndTurn();
+  void _showDamageResult(Enemy enemy, int damage) {
+    if (!enemy.isAlive) {
+      _setDialogText('${enemy.name} fainted!');
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (!mounted) return;
+        _afterPlayerAction();
+      });
+    } else {
+      _setDialogText('${enemy.name} took $damage damage!');
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (!mounted) return;
+        _afterPlayerAction();
       });
     }
   }
 
-  void _handleEndTurn() {
-    widget.combat.endPlayerTurn();
-    _logCombat(CombatLogBuilder.turnMarker(widget.combat.currentTurn));
-    setState(() => _menuState = BattleMenuState.root);
-    _checkCombatEnd();
+  void _afterPlayerAction() {
+    // Check for combat end
+    if (_checkCombatEnd()) return;
+
+    // Check if player can still act
+    if (widget.combat.canPlayerAct) {
+      // Player has more actions, return to selection
+      setState(() => _phase = CombatPhase.playerSelect);
+      _setDialogText('What will ${widget.mage.name} do?');
+    } else {
+      // No more actions, proceed to enemy phase
+      _startEnemyPhase();
+    }
   }
 
+  // ==================== ENEMY ACTION PHASE ====================
+
+  void _startEnemyPhase() {
+    setState(() => _phase = CombatPhase.enemyAction);
+
+    // End player turn in combat system
+    widget.combat.endPlayerTurn();
+    _logCombat(CombatLogBuilder.turnMarker(widget.combat.currentTurn));
+
+    // Check if combat ended during enemy turn resolution
+    if (_checkCombatEnd()) return;
+
+    // Execute each living enemy's action sequentially
+    _executeEnemyActions(0);
+  }
+
+  void _executeEnemyActions(int index) {
+    final enemies = widget.combat.livingEnemies;
+
+    if (index >= enemies.length) {
+      // All enemies have acted, return to player select
+      _startNewPlayerTurn();
+      return;
+    }
+
+    final enemy = enemies[index];
+
+    // Show enemy intent
+    final intentText = _getEnemyIntentText(enemy);
+    _setDialogText('${enemy.name} $intentText');
+
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (!mounted) return;
+
+      // Enemy attacks player - damage was already applied in endPlayerTurn
+      // We just need to show the result
+      if (enemy.intent == EnemyIntent.attack) {
+        final damage = enemy.getEffectiveDamage();
+        _onDamageDealt(0, damage, true); // isPlayer = true
+
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (!mounted) return;
+          _setDialogText('${widget.mage.name} took $damage damage!');
+
+          Future.delayed(const Duration(milliseconds: 800), () {
+            if (!mounted) return;
+
+            // Check if player died
+            if (_checkCombatEnd()) return;
+
+            // Next enemy
+            _executeEnemyActions(index + 1);
+          });
+        });
+      } else {
+        // Non-attack actions (defend, debuff)
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (!mounted) return;
+          _executeEnemyActions(index + 1);
+        });
+      }
+    });
+  }
+
+  String _getEnemyIntentText(Enemy enemy) {
+    switch (enemy.intent) {
+      case EnemyIntent.attack:
+        return 'attacks!';
+      case EnemyIntent.defend:
+        return 'is defending!';
+      case EnemyIntent.debuff:
+        return 'uses a dark curse!';
+    }
+  }
+
+  void _startNewPlayerTurn() {
+    // Check for combat end
+    if (_checkCombatEnd()) return;
+
+    setState(() => _phase = CombatPhase.playerSelect);
+    _setDialogText('What will ${widget.mage.name} do?');
+  }
+
+  // ==================== COMBAT END & RETREAT ====================
+
   void _handleRetreat() {
-    _showDirectorMessage('"Retreat is not failure. It is recognition."');
+    _setDialogText('"Retreat is not failure. It is recognition."');
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         if (widget.onRetreat != null) {
@@ -245,14 +403,14 @@ class _BattleScreenState extends State<BattleScreen> {
     final combatOver = !widget.combat.isOngoing || allEnemiesDead || playerDead;
 
     if (combatOver) {
-      setState(() => _combatEnded = true);
+      setState(() => _phase = CombatPhase.combatEnd);
 
       final isVictory = allEnemiesDead && widget.mage.isAlive;
       if (isVictory) {
-        _showDirectorMessage('"The pattern continues."');
+        _setDialogText('You won the battle!');
         _logCombat(CombatLogBuilder.system('VICTORY'));
       } else {
-        _showDirectorMessage('"Brief."');
+        _setDialogText('${widget.mage.name} was defeated...');
         _logCombat(CombatLogBuilder.system('DEFEAT'));
       }
 
@@ -287,6 +445,8 @@ class _BattleScreenState extends State<BattleScreen> {
     setState(() => _showCombatLog = !_showCombatLog);
   }
 
+  // ==================== BUILD ====================
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -295,79 +455,47 @@ class _BattleScreenState extends State<BattleScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final screenHeight = constraints.maxHeight;
-            final screenWidth = constraints.maxWidth;
 
             // Zone heights (Pokémon-style distribution)
             final zone1Height = screenHeight * 0.35; // Enemy area
-            final zone2Height = screenHeight * 0.25; // Battlefield (Reduced)
-            final zone3Height = screenHeight * 0.15; // Player status
-            final zone4Height = screenHeight * 0.25; // Action panel (Increased)
+            final zone2Height = screenHeight * 0.25; // Battlefield
+            final zone4Height = screenHeight * 0.25; // Action panel
 
             return Stack(
               children: [
-                // ═══════════════════════════════════════════════════════
-                // LAYER 1: Flame battle scene (background + player sprite)
-                // ═══════════════════════════════════════════════════════
+                // Background battle scene
                 Positioned.fill(child: GameWidget(game: _battleScene)),
 
-                // ═══════════════════════════════════════════════════════
-                // ZONE 1: ENEMY AREA (Top 35%)
-                // ═══════════════════════════════════════════════════════
+                // ZONE 1: Enemy area
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  height:
-                      zone1Height +
-                      zone2Height * 0.3, // Extend into battlefield
-                  child: _buildEnemyZone(screenWidth),
+                  height: zone1Height + zone2Height * 0.3,
+                  child: _buildEnemyZone(constraints.maxWidth),
                 ),
 
-                // ═══════════════════════════════════════════════════════
-                // ZONE 2: BATTLEFIELD implied by gap (player sprite in Flame)
-                // Ground plane / shadow handled by BattleScene
-                // ═══════════════════════════════════════════════════════
-
-                // ═══════════════════════════════════════════════════════
-                // ZONE 3: PLAYER STATUS (Lower 15%)
-                // ═══════════════════════════════════════════════════════
+                // ZONE 3: Player status (right side)
                 Positioned(
                   bottom: zone4Height + 8,
                   right: 16,
                   child: PokemonPlayerStatusPanel(mage: widget.mage),
                 ),
 
-                // ═══════════════════════════════════════════════════════
-                // ZONE 4: ACTION PANEL (Bottom 20%)
-                // ═══════════════════════════════════════════════════════
+                // ZONE 4: Dialog + Action panel
                 Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   height: zone4Height,
-                  child: _buildActionPanel(zone4Height),
+                  child: _buildBottomPanel(zone4Height),
                 ),
 
-                // ═══════════════════════════════════════════════════════
-                // OVERLAY: Director subtitle (above action panel)
-                // ═══════════════════════════════════════════════════════
-                if (_directorMessage != null)
-                  Positioned(
-                    bottom: zone4Height + zone3Height / 2,
-                    left: 0,
-                    right: 0,
-                    child: DirectorSubtitleOverlay(message: _directorMessage!),
-                  ),
-
-                // ═══════════════════════════════════════════════════════
-                // OVERLAY: Spell detail (contextual, non-fullscreen)
-                // ═══════════════════════════════════════════════════════
+                // Spell inspection overlay
                 if (_inspectedSpell != null)
                   Positioned.fill(child: _buildSpellInspectionOverlay()),
 
-                // ═══════════════════════════════════════════════════════
-                // OVERLAY: Combat log (collapsible panel)
-                // ═══════════════════════════════════════════════════════
+                // Combat log overlay
                 if (_showCombatLog)
                   Positioned(
                     bottom: zone4Height,
@@ -376,9 +504,7 @@ class _BattleScreenState extends State<BattleScreen> {
                     child: _buildCombatLogOverlay(),
                   ),
 
-                // ═══════════════════════════════════════════════════════
-                // OVERLAY: Floating damage numbers
-                // ═══════════════════════════════════════════════════════
+                // Floating damage numbers
                 ..._damageController.buildWidgets(),
               ],
             );
@@ -388,24 +514,24 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
-  /// ZONE 1: Enemy area with status panel and sprites
   Widget _buildEnemyZone(double screenWidth) {
     return Stack(
       children: [
-        // Enemy sprites (centered, elevated)
         Positioned.fill(
           child: EnemySpriteOverlay(
             enemies: widget.combat.livingEnemies,
             highlightedIndex: _menuState == BattleMenuState.targetSelect
                 ? _selectedEnemyIndex
                 : null,
-            onTap: (_menuState == BattleMenuState.targetSelect && !_combatEnded)
+            onTap:
+                (_menuState == BattleMenuState.targetSelect &&
+                    _phase == CombatPhase.playerSelect)
                 ? (index) => _handleTargetSelect(index)
                 : null,
           ),
         ),
 
-        // Enemy status panel (top-left, Pokémon-style)
+        // Enemy status panel
         Positioned(
           top: 80,
           left: 16,
@@ -418,156 +544,444 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
-  /// ZONE 4: Action panel with Pokémon-style action box
-  Widget _buildActionPanel(double panelHeight) {
+  /// Bottom panel with Pokémon-style dialog box and action menu
+  Widget _buildBottomPanel(double panelHeight) {
+    // For spell select and target select, use full width
+    final useFullWidth =
+        _menuState == BattleMenuState.spellSelect ||
+        _menuState == BattleMenuState.targetSelect;
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF21262d),
         border: Border(top: BorderSide(color: Color(0xFF484f58), width: 2)),
       ),
-      child: Column(
-        children: [
-          // Header row with log toggle button
-          Container(
-            height: 28,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFF161b22),
-              border: Border(
-                bottom: BorderSide(color: Color(0xFF30363d), width: 1),
-              ),
-            ),
-            child: Row(
-              children: [
-                // Menu state indicator
-                Text(
-                  _getMenuTitle(),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFc9d1d9),
-                  ),
-                ),
-                const Spacer(),
-                // Combat log toggle
-                GestureDetector(
-                  onTap: _toggleCombatLog,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _showCombatLog
-                          ? const Color(0xFF30363d)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: const Color(0xFF484f58),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _showCombatLog
-                              ? Icons.expand_more
-                              : Icons.expand_less,
-                          size: 12,
-                          color: const Color(0xFF8b949e),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'LOG',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 9,
-                            color: _showCombatLog
-                                ? const Color(0xFFc9d1d9)
-                                : const Color(0xFF8b949e),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+      padding: const EdgeInsets.all(8),
+      child: useFullWidth ? _buildFullWidthContent() : _buildDialogAndActions(),
+    );
+  }
 
-          // Action content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: _combatEnded
-                  ? _buildCombatEndDisplay()
-                  : PokemonActionBox(
-                      state: _menuState,
-                      mage: widget.mage,
-                      enemies: widget.combat.livingEnemies,
-                      onAction: _handleMenuAction,
-                      onSpellSelect: _handleSpellSelect,
-                      onSpellLongPress: _showSpellInspection,
-                      onSpellLongPressEnd: _hideSpellInspection,
-                      onTargetSelect: _handleTargetSelect,
+  /// Full width content for spell/target selection
+  Widget _buildFullWidthContent() {
+    if (_menuState == BattleMenuState.spellSelect) {
+      return _buildSpellGrid();
+    } else if (_menuState == BattleMenuState.targetSelect) {
+      return _buildTargetGrid();
+    }
+    return const SizedBox();
+  }
+
+  /// Spell grid using full width (2x2 + back button)
+  Widget _buildSpellGrid() {
+    final spells = widget.mage.spellLoadout;
+
+    return Row(
+      children: [
+        // Spell grid (2x2)
+        Expanded(
+          child: Column(
+            children: [
+              // Row 1
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: spells.isNotEmpty
+                          ? _buildSpellButton(spells[0])
+                          : _buildEmptySlot(),
                     ),
-            ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: spells.length > 1
+                          ? _buildSpellButton(spells[1])
+                          : _buildEmptySlot(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Row 2
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: spells.length > 2
+                          ? _buildSpellButton(spells[2])
+                          : _buildEmptySlot(),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: spells.length > 3
+                          ? _buildSpellButton(spells[3])
+                          : _buildEmptySlot(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
+        const SizedBox(width: 8),
+        // Back button
+        SizedBox(width: 50, child: _buildBackButton()),
+      ],
+    );
+  }
+
+  Widget _buildSpellButton(Spell spell) {
+    final canCast = widget.mage.canCast(spell);
+    final textColor = _getSpellTextColor(spell, canCast);
+
+    return GestureDetector(
+      onTap: canCast ? () => _handleSpellSelect(spell) : null,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: canCast
+              ? LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [const Color(0xFF2d333b), const Color(0xFF22272e)],
+                )
+              : null,
+          color: canCast ? null : const Color(0xFF161b22),
+          border: Border.all(
+            color: canCast
+                ? _getElementColor(spell.element.name)
+                : const Color(0xFF30363d),
+            width: canCast ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(spell.elementIcon, style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 2),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    spell.name,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  String _getMenuTitle() {
-    switch (_menuState) {
-      case BattleMenuState.root:
-        return 'What will you do?';
-      case BattleMenuState.spellSelect:
-        return 'Choose a spell';
-      case BattleMenuState.targetSelect:
-        return 'Select target';
-      case BattleMenuState.inspect:
-        return 'Battle info';
+  Color _getSpellTextColor(Spell spell, bool canCast) {
+    if (!canCast) return const Color(0xFF484f58);
+    final enemies = widget.combat.livingEnemies;
+    if (enemies.isEmpty) return const Color(0xFFc9d1d9);
+
+    bool hasStrong = false;
+    bool hasWeak = false;
+
+    for (final enemy in enemies) {
+      final multiplier = spell.element.getMultiplierAgainst(enemy.element);
+      if (multiplier > 1.0) hasStrong = true;
+      if (multiplier < 1.0) hasWeak = true;
+    }
+
+    if (hasStrong && !hasWeak) return const Color(0xFF3fb950); // Green
+    if (hasWeak && !hasStrong) return const Color(0xFFf85149); // Red
+    if (hasStrong && hasWeak) return const Color(0xFFe3b341); // Yellow
+    return const Color(0xFFc9d1d9); // White
+  }
+
+  Color _getElementColor(String element) {
+    switch (element) {
+      case 'fire':
+        return const Color(0xFFf85149);
+      case 'water':
+        return const Color(0xFF58a6ff);
+      case 'earth':
+        return const Color(0xFF7c6f4a);
+      case 'air':
+        return const Color(0xFF79c0ff);
+      default:
+        return const Color(0xFF6e7681);
     }
   }
 
-  Widget _buildCombatEndDisplay() {
-    final isVictory =
-        _combatLogEntries.isNotEmpty &&
-        _combatLogEntries.last.message.contains('VICTORY');
+  Widget _buildEmptySlot() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF161b22),
+        border: Border.all(color: const Color(0xFF21262d), width: 1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Center(
+        child: Text(
+          '─',
+          style: TextStyle(fontSize: 16, color: Color(0xFF484f58)),
+        ),
+      ),
+    );
+  }
 
-    return Center(
+  /// Target grid using full width
+  Widget _buildTargetGrid() {
+    final enemies = widget.combat.livingEnemies;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: enemies.asMap().entries.map((entry) {
+              final index = entry.key;
+              final enemy = entry.value;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: index < enemies.length - 1 ? 6 : 0,
+                  ),
+                  child: _buildTargetButton(enemy, index),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(width: 50, child: _buildBackButton()),
+      ],
+    );
+  }
+
+  Widget _buildTargetButton(Enemy enemy, int index) {
+    final hpPercent = (enemy.currentHP / enemy.maxHP).clamp(0.0, 1.0);
+
+    return GestureDetector(
+      onTap: () => _handleTargetSelect(index),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: isVictory
-                ? [const Color(0xFF238636), const Color(0xFF2ea043)]
-                : [const Color(0xFFb62324), const Color(0xFFda3633)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _getElementColor(enemy.element.name).withOpacity(0.3),
+              _getElementColor(enemy.element.name).withOpacity(0.1),
+            ],
+          ),
+          border: Border.all(
+            color: _getElementColor(enemy.element.name),
+            width: 2,
           ),
           borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color:
-                  (isVictory
-                          ? const Color(0xFF3fb950)
-                          : const Color(0xFFf85149))
-                      .withValues(alpha: 0.4),
-              blurRadius: 12,
-              spreadRadius: 2,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(enemy.element.icon, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  enemy.name,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFc9d1d9),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // HP bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF363636),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: hpPercent,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: hpPercent > 0.5
+                          ? const Color(0xFF58d854)
+                          : hpPercent > 0.2
+                          ? const Color(0xFFf8d030)
+                          : const Color(0xFFf85888),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return GestureDetector(
+      onTap: () => _handleMenuAction(BattleMenuAction.back),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF21262d),
+          border: Border.all(color: const Color(0xFF484f58), width: 1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.arrow_back, size: 18, color: Color(0xFF8b949e)),
+              SizedBox(height: 2),
+              Text(
+                'BACK',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  color: Color(0xFF8b949e),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Standard dialog + action buttons layout
+  Widget _buildDialogAndActions() {
+    return Row(
+      children: [
+        // Left side: Dialog text box (60%)
+        Expanded(
+          flex: 6,
+          child: GestureDetector(
+            onTap: _handleDialogTap,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0d1117),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF484f58), width: 2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _dialogText,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 14,
+                      color: Colors.white,
+                      height: 1.4,
+                    ),
+                  ),
+                  if (_waitingForTap) ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      '▼ Tap to continue',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        color: Color(0xFF8b949e),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Right side: Action buttons (40%)
+        Expanded(flex: 4, child: _buildActionButtons()),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons() {
+    // During non-player phases, show waiting state
+    if (_phase != CombatPhase.playerSelect) {
+      return Container(
+        margin: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161b22),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF30363d)),
+        ),
+        child: const Center(
+          child: Text(
+            '...',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 24,
+              color: Color(0xFF8b949e),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Combat ended
+    if (_phase == CombatPhase.combatEnd) {
+      return _buildCombatEndButtons();
+    }
+
+    // Player select phase - show action menu
+    return Container(
+      margin: const EdgeInsets.all(8),
+      child: PokemonActionBox(
+        state: _menuState,
+        mage: widget.mage,
+        enemies: widget.combat.livingEnemies,
+        onAction: _handleMenuAction,
+        onSpellSelect: _handleSpellSelect,
+        onSpellLongPress: _showSpellInspection,
+        onSpellLongPressEnd: _hideSpellInspection,
+        onTargetSelect: _handleTargetSelect,
+      ),
+    );
+  }
+
+  Widget _buildCombatEndButtons() {
+    final isVictory =
+        widget.combat.livingEnemies.isEmpty && widget.mage.isAlive;
+
+    return Container(
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isVictory
+              ? [const Color(0xFF238636), const Color(0xFF2ea043)]
+              : [const Color(0xFFb62324), const Color(0xFFda3633)],
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
         child: Text(
           isVictory ? '✨ VICTORY ✨' : '💀 DEFEAT 💀',
           style: const TextStyle(
             fontFamily: 'monospace',
-            fontSize: 20,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Colors.white,
-            letterSpacing: 2,
           ),
         ),
       ),
@@ -578,10 +992,10 @@ class _BattleScreenState extends State<BattleScreen> {
     return GestureDetector(
       onTap: _hideSpellInspection,
       child: Container(
-        color: Colors.black.withValues(alpha: 0.5),
+        color: Colors.black.withOpacity(0.5),
         child: Center(
           child: GestureDetector(
-            onTap: () {}, // Prevent tap-through
+            onTap: () {},
             child: SpellDetailCard(spell: _inspectedSpell!),
           ),
         ),
