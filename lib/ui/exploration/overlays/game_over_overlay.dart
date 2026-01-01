@@ -75,36 +75,38 @@ class GameOverOverlay extends StatelessWidget {
               const SizedBox(height: 48),
               _buildStatRow('Depth Reached', '$depthReached / $totalDepths'),
               _buildStatRow('Fragments Found', '$fragmentsCollected 💎'),
-              _buildStatRow('Turns Taken', '$turnsTaken ⏳'),
               const SizedBox(height: 48),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: onMainMenu,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade800,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: onMainMenu,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade800,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
                       ),
+                      child: const Text('MAIN MENU'),
                     ),
-                    child: const Text('MAIN MENU'),
-                  ),
-                  const SizedBox(width: 24),
-                  ElevatedButton(
-                    onPressed: onRestart,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: color.shade800,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
+                    const SizedBox(width: 24),
+                    ElevatedButton(
+                      onPressed: onRestart,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color.shade800,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
                       ),
+                      child: const Text('PLAY AGAIN'),
                     ),
-                    child: const Text('PLAY AGAIN'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

@@ -192,12 +192,17 @@ class _BattleScreenState extends State<BattleScreen> {
       ),
     );
 
-    widget.combat.castSpell(spellIndex, targetIndex: targetIndex);
+    final result = widget.combat.castSpell(
+      spellIndex,
+      targetIndex: targetIndex,
+    );
     _battleScene.playMageCast();
 
-    final damage = spell.baseDamage;
-    _onDamageDealt(targetIndex, damage, false);
-    _logCombat(CombatLogBuilder.damage(enemyName, damage));
+    if (result != null && result.success && result.totalDamage > 0) {
+      final damage = result.totalDamage;
+      _onDamageDealt(targetIndex, damage, false);
+      _logCombat(CombatLogBuilder.damage(enemyName, damage));
+    }
 
     setState(() {
       _menuState = BattleMenuState.root;

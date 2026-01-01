@@ -76,7 +76,13 @@ class NodeMapSystem {
 
     // Final depth is always boss
     if (depthIndex == maxDepth - 1) {
-      return [MapNode(depth: depth, pathIndex: 0, type: NodeType.bossCombat)];
+      final bossNode = MapNode(
+        depth: depth,
+        pathIndex: 0,
+        type: NodeType.bossCombat,
+      );
+      _nodeSelector.onNodeCompleted(bossNode.type);
+      return [bossNode];
     }
 
     // Determine node count (1 or 2)
@@ -91,6 +97,20 @@ class NodeMapSystem {
         excludeTypes: nodes.map((n) => n.type).toList(),
       );
       nodes.add(MapNode(depth: depth, pathIndex: i, type: nodeType));
+    }
+
+    // Update selector with the first/only node - this tracks combat frequency
+    // Note: When there are 2 choices, we track based on the first choice
+    // since player will only complete one of them
+    if (nodes.isNotEmpty) {
+      // If ANY choice is combat, consider it combat for tracking purposes
+      // This ensures if player picks non-combat, the next depth still respects the limit
+      final hasCombatChoice = nodes.any((n) => n.type.isCombat);
+      if (hasCombatChoice) {
+        _nodeSelector.onNodeCompleted(NodeType.combat);
+      } else {
+        _nodeSelector.onNodeCompleted(nodes.first.type);
+      }
     }
 
     return nodes;

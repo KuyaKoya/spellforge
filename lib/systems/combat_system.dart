@@ -136,10 +136,10 @@ class CombatSystem {
     }
   }
 
-  /// Casts a spell at a target. Returns success status.
-  bool castSpell(int spellIndex, {int? targetIndex}) {
-    if (!isPlayerTurn) return false;
-    if (spellIndex < 0 || spellIndex >= mage.spellLoadout.length) return false;
+  /// Casts a spell at a target. Returns the detailed result.
+  SpellCastResult? castSpell(int spellIndex, {int? targetIndex}) {
+    if (!isPlayerTurn) return null;
+    if (spellIndex < 0 || spellIndex >= mage.spellLoadout.length) return null;
 
     final spell = mage.spellLoadout[spellIndex];
 
@@ -156,7 +156,7 @@ class CombatSystem {
     // Check for victory
     if (livingEnemies.isEmpty) {
       _endCombat(playerWon: true);
-      return true;
+      return result;
     }
 
     // Log remaining resources after cast
@@ -167,7 +167,7 @@ class CombatSystem {
       combatLog.add('');
     }
 
-    return result.success;
+    return result;
   }
 
   /// Ends the player's turn.

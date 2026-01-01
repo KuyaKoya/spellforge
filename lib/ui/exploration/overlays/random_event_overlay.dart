@@ -12,8 +12,9 @@ class RandomEventOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = event['text'] as String;
-    final choices = event['choices'] as List;
+    final title = event['title'] as String? ?? 'Random Event';
+    final description = event['description'] as String? ?? '';
+    final choices = event['choices'] as List? ?? [];
 
     return Center(
       child: Container(
@@ -40,14 +41,20 @@ class RandomEventOverlay extends StatelessWidget {
               children: [
                 const Icon(Icons.help_outline, color: Colors.amber, size: 40),
                 const SizedBox(width: 16),
-                Text(
-                  'Mystery',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.amber.shade200,
-                    letterSpacing: 2,
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber.shade200,
+                        letterSpacing: 2,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
               ],
@@ -56,7 +63,7 @@ class RandomEventOverlay extends StatelessWidget {
             Divider(color: Colors.amber.shade900),
             const SizedBox(height: 24),
             Text(
-              text,
+              description,
               style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 16,

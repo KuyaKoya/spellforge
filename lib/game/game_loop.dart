@@ -78,10 +78,12 @@ class GameLoop {
     state.pendingSpellIndex = null;
     state.currentScreen = GameScreen.combat;
 
-    final success = state.currentCombat!.castSpell(
+    final result = state.currentCombat!.castSpell(
       spellIndex,
       targetIndex: targetIndex,
     );
+
+    final success = result?.success ?? false;
 
     // Sync logs
     // Check for combat end

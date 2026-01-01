@@ -64,7 +64,7 @@ class NodeSelector {
   int turnsSinceCombat = 0;
 
   /// Maximum turns allowed without combat.
-  static const int maxTurnsWithoutCombat = 2;
+  static const int maxTurnsWithoutCombat = 1;
 
   NodeSelector({int? seed}) : _random = seed != null ? Random(seed) : Random();
 
