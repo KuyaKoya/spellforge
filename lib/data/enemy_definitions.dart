@@ -29,9 +29,9 @@ class EnemyDefinitions {
 
   // ==================== WATER ENEMIES ====================
 
-  static Enemy waterSprite() => Enemy(
-    id: 'waterSprite',
-    name: 'Water Sprite',
+  static Enemy waterSpirit() => Enemy(
+    id: 'waterSpirit',
+    name: 'Water Spirit',
     element: Element.water,
     currentHP: 12,
     maxHP: 12,
@@ -39,9 +39,9 @@ class EnemyDefinitions {
     armorGain: 5,
   );
 
-  static Enemy seaStalker() => Enemy(
-    id: 'seaStalker',
-    name: 'Sea Stalker',
+  static Enemy seaSerpent() => Enemy(
+    id: 'seaSerpent',
+    name: 'Sea Serpent',
     element: Element.water,
     currentHP: 22,
     maxHP: 22,
@@ -97,8 +97,8 @@ class EnemyDefinitions {
   static List<Enemy Function()> get allEnemies => [
     fireImp,
     flameSerpent,
-    waterSprite,
-    seaStalker,
+    waterSpirit,
+    seaSerpent,
     earthGolem,
     mudCrawler,
     windWisp,
@@ -109,7 +109,7 @@ class EnemyDefinitions {
   static List<Enemy Function()> getByElement(Element element) {
     return [
       if (element == Element.fire) ...[fireImp, flameSerpent],
-      if (element == Element.water) ...[waterSprite, seaStalker],
+      if (element == Element.water) ...[waterSpirit, seaSerpent],
       if (element == Element.earth) ...[earthGolem, mudCrawler],
       if (element == Element.air) ...[windWisp, stormHawk],
     ];
