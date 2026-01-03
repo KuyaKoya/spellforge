@@ -3,6 +3,7 @@ import '../domain/element.dart';
 import '../domain/enemy.dart';
 import '../domain/mage.dart';
 import '../domain/spell.dart';
+import '../domain/status_effect.dart';
 
 /// Result of a spell cast, containing all log messages.
 class SpellCastResult {
@@ -145,10 +146,17 @@ class SpellSystem {
     if (effect.targetRule == TargetRule.self) {
       switch (effect.type) {
         case EffectType.armor:
+          // Compatible with old: also apply to legacy list in mage.dart's applyStatusEffect
           caster.applyStatusEffect(effect);
-          logs.add(
-            '${caster.name} gains ${effect.value} Armor for ${effect.duration} turn(s)',
+
+          // Phase 7.2: Apply new Shield status
+          final newShield = StatusEffect.shield(
+            shieldValue: effect.value,
+            sourceId: spell.id,
           );
+          caster.applyNewStatusEffect(newShield);
+
+          logs.add('${caster.name} gains ${effect.value} Shield');
           break;
         case EffectType.actionGain:
           caster.actionsRemaining += effect.value;
@@ -183,27 +191,66 @@ class SpellSystem {
 
         case EffectType.burn:
           target.applyStatusEffect(effect);
+
+          // Phase 7.2: Apply new Burn status
+          final newBurn = StatusEffect.burn(
+            duration: effect.duration,
+            damagePerStack: effect.value,
+            sourceId: spell.id,
+          );
+          final burnMsg = target.applyNewStatusEffect(newBurn);
+
           logs.add(
             'Burn applied to ${target.name} (${effect.value}/turn for ${effect.duration} turns)',
           );
+          if (burnMsg != null) logs.add(burnMsg);
           break;
 
         case EffectType.slow:
           target.applyStatusEffect(effect);
-          logs.add(
-            'Slow applied to ${target.name} (${effect.value} actions for ${effect.duration} turns)',
+
+          // Phase 7.2: Apply new Slow status
+          final newSlow = StatusEffect.slow(
+            duration: effect.duration,
+            sourceId: spell.id,
           );
+          final slowMsg = target.applyNewStatusEffect(newSlow);
+
+          logs.add('Slow applied to ${target.name} (${effect.duration} turns)');
+          if (slowMsg != null) logs.add(slowMsg);
           break;
 
         case EffectType.weaken:
           target.applyStatusEffect(effect);
+
+          // Phase 7.2: Apply new Weaken status
+          final newWeaken = StatusEffect.weaken(
+            duration: effect.duration,
+            percentage: effect.value,
+            sourceId: spell.id,
+          );
+          target.applyNewStatusEffect(newWeaken);
+
           logs.add(
-            'Weaken applied to ${target.name} (${effect.value}% for ${effect.duration} turns)',
+            'Weaken applied to ${target.name} (-${effect.value}% output for ${effect.duration} turns)',
           );
           break;
 
         case EffectType.delay:
-          target.isDelayed = true;
+          target.isDelayed = true; // Legacy
+
+          // Phase 7.2: New Delay status (optional but good for consistency)
+          final newDelay = StatusEffect(
+            id: 'delay_${DateTime.now().millisecondsSinceEpoch}',
+            type: StatusEffectType.delay,
+            value: 1,
+            duration: effect
+                .value, // Effect value is duration for delay? Or standard?
+            source: StatusSource.spell,
+            sourceId: spell.id,
+          );
+          target.applyNewStatusEffect(newDelay);
+
           logs.add('${target.name} is delayed!');
           break;
 

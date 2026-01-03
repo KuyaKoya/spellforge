@@ -1,6 +1,8 @@
 import 'effect.dart';
 import 'element.dart';
 import 'spell.dart';
+import 'status_effect.dart';
+import 'status_effect_manager.dart';
 
 /// Represents the player-controlled mage.
 /// Mage element does NOT restrict spell learning.
@@ -14,7 +16,8 @@ class Mage {
   int mana;
   int maxMana;
   final List<Spell> spellLoadout; // Max 4 spells
-  final List<ActiveStatusEffect> statusEffects;
+  final List<ActiveStatusEffect> statusEffects; // Legacy, for compatibility
+  late final StatusEffectManager statusManager; // Phase 7.2: New status system
   int actionsRemaining;
   int actionsPerTurn;
 
@@ -68,7 +71,10 @@ class Mage {
        assert(
          spellLoadout == null || spellLoadout.length <= maxLoadoutSize,
          'Spell loadout cannot exceed $maxLoadoutSize',
-       );
+       ) {
+    // Phase 7.2: Initialize new status effect manager
+    statusManager = StatusEffectManager(ownerName: name);
+  }
 
   /// Whether the mage is alive.
   bool get isAlive => currentHP > 0;
@@ -176,9 +182,13 @@ class Mage {
   }
 
   /// Takes damage, returning the actual damage taken.
+  /// Phase 7.2 C3: Shields absorb damage first.
   int takeDamage(int damage) {
-    // Check for armor status effect
-    int remainingDamage = damage;
+    // Phase 7.2: Use new status manager for damage absorption
+    final absorption = statusManager.absorbDamage(damage);
+    int remainingDamage = absorption.remaining;
+
+    // Legacy: Also check old armor status effects for compatibility
     final armorEffects = statusEffects
         .where((e) => e.type == EffectType.armor)
         .toList();
@@ -194,6 +204,13 @@ class Mage {
     }
 
     final actualDamage = remainingDamage.clamp(0, currentHP);
+    currentHP -= actualDamage;
+    return actualDamage;
+  }
+
+  /// Takes burn damage (ignores shields per C1 spec).
+  int takeBurnDamage(int damage) {
+    final actualDamage = damage.clamp(0, currentHP);
     currentHP -= actualDamage;
     return actualDamage;
   }
@@ -240,14 +257,46 @@ class Mage {
     );
   }
 
+  /// Phase 7.2: Process turn START effects (burn, regen).
+  /// Returns list of results for UI display.
+  List<TurnStartResult> processTurnStartEffects() {
+    return statusManager.processTurnStart();
+  }
+
+  /// Phase 7.2: Process turn END effects (duration tick, expiration).
+  /// Returns list of expiration messages.
+  List<String> processTurnEndEffects() {
+    return statusManager.processTurnEnd();
+  }
+
   /// Processes status effects at turn boundary. Returns log messages.
+  /// Legacy method - also processes new system effects.
   List<String> processStatusEffects() {
     final logs = <String>[];
 
+    // Phase 7.2: Process new status effects
+    final turnStartResults = statusManager.processTurnStart();
+    for (final result in turnStartResults) {
+      if (result.damage > 0) {
+        // C1 Spec: Burn ignores shields
+        final actualDamage = takeBurnDamage(result.damage);
+        logs.add('$name takes $actualDamage burn damage');
+      }
+      if (result.healing > 0) {
+        final actualHeal = heal(result.healing);
+        logs.add('$name regenerates $actualHeal HP');
+      }
+    }
+
+    // Process turn end for new effects
+    final expiredMessages = statusManager.processTurnEnd();
+    logs.addAll(expiredMessages);
+
+    // Legacy: Process old status effects for compatibility
     for (final effect in List.from(statusEffects)) {
       switch (effect.type) {
         case EffectType.burn:
-          final damage = takeDamage(effect.value);
+          final damage = takeBurnDamage(effect.value);
           logs.add('$name takes $damage burn damage');
           break;
         default:
@@ -261,6 +310,11 @@ class Mage {
     }
 
     return logs;
+  }
+
+  /// Applies a new-style status effect.
+  String? applyNewStatusEffect(StatusEffect effect) {
+    return statusManager.applyEffect(effect);
   }
 
   /// Creates a fresh copy for a new run.

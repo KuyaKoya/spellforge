@@ -293,58 +293,84 @@ class CombatSystem {
     return result;
   }
 
-  /// Resolves status effects at turn boundary.
+  /// Resolves status effects at turn boundary (end of enemy turn).
+  /// Phase 7.2: Burn now triggers at the START of each character's turn.
+  /// This method only handles end-of-turn cleanup for enemies.
   void _resolveStatusEffects() {
-    final hasStatusEffects =
-        mage.statusEffects.isNotEmpty ||
-        enemies.any((e) => e.isAlive && e.statusEffects.isNotEmpty);
-
-    if (hasStatusEffects) {
-      combatLog.add('┌──────────────────────────────────────┐');
-      combatLog.add('│  STATUS EFFECTS');
-      combatLog.add('└──────────────────────────────────────┘');
-      combatLog.add('');
-
-      // Resolve mage status effects
-      if (mage.statusEffects.isNotEmpty) {
-        combatLog.add('${mage.name}:');
-        final mageLogs = mage.processStatusEffects();
-        for (final log in mageLogs) {
-          combatLog.add('  $log');
-        }
-        combatLog.add('');
-      }
-
-      if (!mage.isAlive) {
-        _endCombat(playerWon: false);
-        return;
-      }
-
-      // Resolve enemy status effects
-      for (final enemy in enemies.where((e) => e.isAlive)) {
-        if (enemy.statusEffects.isNotEmpty) {
-          combatLog.add('${enemy.name}:');
-          final enemyLogs = enemy.processStatusEffects();
-          for (final log in enemyLogs) {
-            combatLog.add('  $log');
+    // Process enemy status effect duration/expiration only
+    // Burn damage for enemies was already processed before their action
+    for (final enemy in enemies.where((e) => e.isAlive)) {
+      // Tick duration for old status effects (non-burn)
+      for (final effect in List.from(enemy.statusEffects)) {
+        if (effect.type != EffectType.burn) {
+          if (!effect.tick()) {
+            enemy.statusEffects.remove(effect);
+            combatLog.add(
+              '${effect.type.displayName} wore off from ${enemy.name}',
+            );
           }
-
-          if (!enemy.isAlive) {
-            combatLog.add('  💀 ${enemy.name} is defeated by status effects!');
-          }
-          combatLog.add('');
         }
       }
 
-      // Check for victory after burns
-      if (livingEnemies.isEmpty) {
-        _endCombat(playerWon: true);
-        return;
+      // Reset delay flag
+      if (enemy.isDelayed) {
+        enemy.isDelayed = false;
       }
+    }
+
+    // Check for victory
+    if (livingEnemies.isEmpty) {
+      _endCombat(playerWon: true);
+      return;
     }
 
     // Start new turn
     _startNewTurn();
+  }
+
+  /// Processes a single enemy's status effects at the start of their action.
+  /// C1 Spec: Burn triggers at start of affected character's turn.
+  List<String> processEnemyTurnStartEffects(Enemy enemy) {
+    final logs = <String>[];
+
+    if (enemy.statusEffects.isEmpty && !enemy.statusManager.hasActiveEffects) {
+      return logs;
+    }
+
+    // Process new status effects (Phase 7.2)
+    final turnStartResults = enemy.statusManager.processTurnStart();
+    for (final result in turnStartResults) {
+      if (result.damage > 0) {
+        final actualDamage = enemy.takeBurnDamage(result.damage);
+        logs.add('🔥 ${enemy.name} takes $actualDamage burn damage!');
+      }
+      if (result.healing > 0) {
+        enemy.currentHP = (enemy.currentHP + result.healing).clamp(
+          0,
+          enemy.maxHP,
+        );
+        logs.add('💚 ${enemy.name} regenerates ${result.healing} HP!');
+      }
+    }
+
+    // Process turn end (tick duration, expire) for new system
+    final expiredMessages = enemy.statusManager.processTurnEnd();
+    logs.addAll(expiredMessages);
+
+    // Legacy: Process old burn status effects
+    for (final effect in List.from(enemy.statusEffects)) {
+      if (effect.type == EffectType.burn) {
+        final damage = enemy.takeBurnDamage(effect.value);
+        logs.add('🔥 ${enemy.name} takes $damage burn damage!');
+
+        if (!effect.tick()) {
+          enemy.statusEffects.remove(effect);
+          logs.add('${effect.type.displayName} wore off from ${enemy.name}');
+        }
+      }
+    }
+
+    return logs;
   }
 
   /// Starts a new player turn.
@@ -364,7 +390,60 @@ class CombatSystem {
       combatLog.add('');
     }
 
+    // Phase 7.2: Process PLAYER status effects at turn START
+    _processPlayerTurnStartEffects();
+
     _logStatus();
+  }
+
+  /// Processes player status effects at the start of their turn.
+  /// C1 Spec: Burn triggers at start of affected character's turn.
+  void _processPlayerTurnStartEffects() {
+    if (mage.statusEffects.isEmpty && !mage.statusManager.hasActiveEffects) {
+      return;
+    }
+
+    combatLog.add('── ${mage.name}\'s Status Effects ──');
+
+    // Process new status effects (Phase 7.2)
+    final turnStartResults = mage.statusManager.processTurnStart();
+    for (final result in turnStartResults) {
+      if (result.damage > 0) {
+        final actualDamage = mage.takeBurnDamage(result.damage);
+        combatLog.add('  🔥 ${mage.name} takes $actualDamage burn damage!');
+      }
+      if (result.healing > 0) {
+        final actualHeal = mage.heal(result.healing);
+        combatLog.add('  💚 ${mage.name} regenerates $actualHeal HP!');
+      }
+    }
+
+    // Process turn end (tick duration, expire)
+    final expiredMessages = mage.statusManager.processTurnEnd();
+    for (final msg in expiredMessages) {
+      combatLog.add('  $msg');
+    }
+
+    // Legacy: Process old status effects
+    for (final effect in List.from(mage.statusEffects)) {
+      switch (effect.type) {
+        case EffectType.burn:
+          final damage = mage.takeBurnDamage(effect.value);
+          combatLog.add('  🔥 ${mage.name} takes $damage burn damage!');
+          break;
+        default:
+          break;
+      }
+
+      if (!effect.tick()) {
+        mage.statusEffects.remove(effect);
+        combatLog.add(
+          '  ${effect.type.displayName} wore off from ${mage.name}',
+        );
+      }
+    }
+
+    combatLog.add('');
   }
 
   /// Ends combat with the given result.

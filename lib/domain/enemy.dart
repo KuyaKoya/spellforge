@@ -1,5 +1,7 @@
 import 'effect.dart';
 import 'element.dart';
+import 'status_effect.dart';
+import 'status_effect_manager.dart';
 
 /// Enemy intent types - simple enum as per specification.
 enum EnemyIntent {
@@ -59,7 +61,8 @@ class Enemy {
   final int attackDamage;
   final int armorGain;
   EnemyIntent intent;
-  final List<ActiveStatusEffect> statusEffects;
+  final List<ActiveStatusEffect> statusEffects; // Legacy
+  late final StatusEffectManager statusManager; // Phase 7.2
   bool isDelayed;
 
   Enemy({
@@ -73,7 +76,9 @@ class Enemy {
     this.intent = EnemyIntent.attack,
     List<ActiveStatusEffect>? statusEffects,
     this.isDelayed = false,
-  }) : statusEffects = statusEffects ?? [];
+  }) : statusEffects = statusEffects ?? [] {
+    statusManager = StatusEffectManager(ownerName: name);
+  }
 
   /// Whether the enemy is alive.
   bool get isAlive => currentHP > 0;
@@ -125,6 +130,13 @@ class Enemy {
     return actualDamage;
   }
 
+  /// Takes burn damage (ignores shields per C1 spec).
+  int takeBurnDamage(int damage) {
+    final actualDamage = damage.clamp(0, currentHP);
+    currentHP -= actualDamage;
+    return actualDamage;
+  }
+
   /// Applies a status effect.
   void applyStatusEffect(Effect effect) {
     if (!effect.isStatusEffect) return;
@@ -143,14 +155,39 @@ class Enemy {
     );
   }
 
+  /// Applies a new-style status effect.
+  String? applyNewStatusEffect(StatusEffect effect) {
+    return statusManager.applyEffect(effect);
+  }
+
   /// Processes status effects at turn boundary. Returns log messages.
+  /// Legacy method - also processes new system effects.
   List<String> processStatusEffects() {
     final logs = <String>[];
 
+    // Phase 7.2: Process new status effects
+    final turnStartResults = statusManager.processTurnStart();
+    for (final result in turnStartResults) {
+      if (result.damage > 0) {
+        // C1 Spec: Burn ignores shields
+        final actualDamage = takeBurnDamage(result.damage);
+        logs.add('$name takes $actualDamage burn damage');
+      }
+      if (result.healing > 0) {
+        currentHP = (currentHP + result.healing).clamp(0, maxHP);
+        logs.add('$name regenerates ${result.healing} HP');
+      }
+    }
+
+    // Process turn end for new effects
+    final expiredMessages = statusManager.processTurnEnd();
+    logs.addAll(expiredMessages);
+
+    // Legacy: Process old status effects for compatibility
     for (final effect in List.from(statusEffects)) {
       switch (effect.type) {
         case EffectType.burn:
-          final damage = takeDamage(effect.value);
+          final damage = takeBurnDamage(effect.value);
           logs.add('$name takes $damage burn damage');
           break;
         default:

@@ -7,6 +7,7 @@ import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
 import '../../domain/spell.dart';
 import '../../domain/effect.dart';
+import '../../domain/status_effect.dart';
 import '../../narrative/journey_log.dart';
 import '../../nodes/node_map_system.dart';
 import '../components/components.dart';
@@ -362,16 +363,59 @@ class _BattleScreenState extends State<BattleScreen> {
 
     final enemy = enemies[index];
 
-    // Step 1: Show enemy intent text FIRST (before damage is applied)
+    // Phase 7.2: Process enemy's burn/status effects at the START of their action
+    final statusLogs = widget.combat.processEnemyTurnStartEffects(enemy);
+
+    if (statusLogs.isNotEmpty) {
+      // Show burn damage first
+      _setDialogText(statusLogs.first);
+
+      // Show floating damage for burn if applicable
+      if (enemy.statusEffects.any((e) => e.type == EffectType.burn) ||
+          enemy.statusManager.hasEffect(StatusEffectType.burn)) {
+        // Update enemy HP display
+        setState(() {});
+      }
+
+      // Check if enemy died from burn
+      if (!enemy.isAlive) {
+        _setDialogText('${enemy.name} was defeated by burn!');
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (!mounted) return;
+          if (_checkCombatEnd()) return;
+          _executeEnemyActions(index + 1);
+        });
+        return;
+      }
+
+      // Wait before showing enemy action
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        _executeEnemyAction(enemy, index);
+      });
+      return;
+    }
+
+    // No status effects, proceed to action
+    _executeEnemyAction(enemy, index);
+  }
+
+  /// Executes a single enemy's action after status effects are processed.
+  void _executeEnemyAction(Enemy enemy, int index) {
+    // Show enemy intent text FIRST (before damage is applied)
     final intentText = _getEnemyIntentText(enemy);
     _setDialogText('${enemy.name} $intentText');
 
-    // Step 2: Wait, then apply the action (which updates HP)
+    // Wait, then apply the action (which updates HP)
     Future.delayed(const Duration(milliseconds: 800), () {
       if (!mounted) return;
 
       // Now execute the action - this applies the damage to player
-      final result = widget.combat.executeEnemyActionAtIndex(index);
+      final result = widget.combat.executeEnemyActionAtIndex(
+        widget.combat.livingEnemies
+            .indexOf(enemy)
+            .clamp(0, widget.combat.livingEnemies.length - 1),
+      );
 
       if (result == null || result.wasDelayed) {
         // Enemy was delayed, skip to next
