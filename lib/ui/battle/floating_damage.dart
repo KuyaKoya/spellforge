@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
 
+/// Types of floating damage for visual distinction.
+enum FloatingDamageType {
+  damage, // Normal damage - red/orange
+  burn, // DoT damage - darker red, smaller
+  healing, // HP restoration - green
+  shieldAbsorb, // Damage blocked by shield - blue/gray
+  status, // Status effect text - gray
+  critical, // Critical hit - larger, yellow
+  mana, // Mana gain/loss - blue
+}
+
 /// Controller for floating damage numbers.
 ///
 /// Visual Priority (LOCKED):
@@ -8,32 +19,88 @@ import 'package:flutter/material.dart';
 /// 3. Status Icons
 /// 4. Combat Log
 ///
-/// Damage Numbers:
-/// - Element-colored
-/// - Appear near target
+/// Damage Numbers (A2.1 Spec):
+/// - Damage: red/orange
+/// - Burn/DoT: darker red, smaller
+/// - Healing: green
+/// - Shield absorb: blue/gray
+/// - Appear near target with directional movement
 /// - Fade quickly
 class FloatingDamageController {
   final List<_FloatingDamageData> _activeNumbers = [];
   int _idCounter = 0;
 
-  /// Shows damage number near target.
+  /// Shows damage number near target with type-specific styling.
   void showDamage({
     required int targetIndex,
     required int damage,
+    required bool isPlayer,
+    FloatingDamageType damageType = FloatingDamageType.damage,
+  }) {
+    final id = _idCounter++;
+    final prefix = damageType == FloatingDamageType.healing ? '+' : '-';
+
+    _activeNumbers.add(
+      _FloatingDamageData(
+        id: id,
+        text: '$prefix$damage',
+        isPlayer: isPlayer,
+        targetIndex: targetIndex,
+        damageType: damageType,
+      ),
+    );
+
+    // Auto-remove after animation
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      _activeNumbers.removeWhere((n) => n.id == id);
+    });
+  }
+
+  /// Shows burn/DoT damage (smaller, darker)
+  void showBurnDamage({
+    required int targetIndex,
+    required int damage,
+    required bool isPlayer,
+  }) {
+    showDamage(
+      targetIndex: targetIndex,
+      damage: damage,
+      isPlayer: isPlayer,
+      damageType: FloatingDamageType.burn,
+    );
+  }
+
+  /// Shows healing amount (green)
+  void showHealing({
+    required int targetIndex,
+    required int amount,
+    required bool isPlayer,
+  }) {
+    showDamage(
+      targetIndex: targetIndex,
+      damage: amount,
+      isPlayer: isPlayer,
+      damageType: FloatingDamageType.healing,
+    );
+  }
+
+  /// Shows shield absorption (blue/gray)
+  void showShieldAbsorb({
+    required int targetIndex,
+    required int absorbed,
     required bool isPlayer,
   }) {
     final id = _idCounter++;
     _activeNumbers.add(
       _FloatingDamageData(
         id: id,
-        text: '-$damage',
+        text: '🛡️ $absorbed',
         isPlayer: isPlayer,
         targetIndex: targetIndex,
-        type: _FloatingType.damage,
+        damageType: FloatingDamageType.shieldAbsorb,
       ),
     );
 
-    // Auto-remove after animation
     Future.delayed(const Duration(milliseconds: 1500), () {
       _activeNumbers.removeWhere((n) => n.id == id);
     });
@@ -52,7 +119,7 @@ class FloatingDamageController {
         text: status,
         isPlayer: isPlayer,
         targetIndex: targetIndex,
-        type: _FloatingType.status,
+        damageType: FloatingDamageType.status,
       ),
     );
 
@@ -69,21 +136,19 @@ class FloatingDamageController {
   }
 }
 
-enum _FloatingType { damage, status }
-
 class _FloatingDamageData {
   final int id;
   final String text;
   final bool isPlayer;
   final int targetIndex;
-  final _FloatingType type;
+  final FloatingDamageType damageType;
 
   _FloatingDamageData({
     required this.id,
     required this.text,
     required this.isPlayer,
     required this.targetIndex,
-    required this.type,
+    required this.damageType,
   });
 }
 
@@ -134,11 +199,39 @@ class _FloatingNumberState extends State<_FloatingNumber>
   }
 
   Color get _color {
-    if (widget.data.type == _FloatingType.status) {
-      return const Color(0xFF8b949e);
+    switch (widget.data.damageType) {
+      case FloatingDamageType.damage:
+        return const Color(0xFFf85149); // Red/orange for damage
+      case FloatingDamageType.burn:
+        return const Color(0xFFbd3a3a); // Darker red for burn/DoT
+      case FloatingDamageType.healing:
+        return const Color(0xFF3fb950); // Green for healing
+      case FloatingDamageType.shieldAbsorb:
+        return const Color(0xFF79c0ff); // Blue/gray for shield
+      case FloatingDamageType.status:
+        return const Color(0xFF8b949e); // Gray for status
+      case FloatingDamageType.critical:
+        return const Color(0xFFe3b341); // Yellow for critical
+      case FloatingDamageType.mana:
+        return const Color(0xFF58a6ff); // Blue for mana
     }
-    // Damage is always red for clarity
-    return const Color(0xFFf85149);
+  }
+
+  double get _fontSize {
+    switch (widget.data.damageType) {
+      case FloatingDamageType.damage:
+      case FloatingDamageType.healing:
+        return 24;
+      case FloatingDamageType.critical:
+        return 28;
+      case FloatingDamageType.burn:
+        return 18; // Smaller for DoT
+      case FloatingDamageType.shieldAbsorb:
+      case FloatingDamageType.mana:
+        return 16;
+      case FloatingDamageType.status:
+        return 14;
+    }
   }
 
   @override
@@ -169,7 +262,7 @@ class _FloatingNumberState extends State<_FloatingNumber>
               widget.data.text,
               style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: widget.data.type == _FloatingType.damage ? 24 : 14,
+                fontSize: _fontSize,
                 fontWeight: FontWeight.bold,
                 color: _color,
                 shadows: const [

@@ -15,6 +15,7 @@ import 'status_bars.dart';
 import 'battle_action_menu.dart';
 import 'floating_damage.dart';
 import 'sprite_overlay.dart';
+import 'status_effect_icons.dart';
 
 /// Combat phases for Pokémon-style sequential combat.
 enum CombatPhase {
@@ -70,6 +71,9 @@ class _BattleScreenState extends State<BattleScreen> {
   // Combat phase state machine
   CombatPhase _phase = CombatPhase.playerSelect;
 
+  // A3.1: Animation lock - prevents state mutation during animations
+  bool _isAnimating = false;
+
   // UI State
   BattleMenuState _menuState = BattleMenuState.root;
   Spell? _inspectedSpell;
@@ -87,6 +91,20 @@ class _BattleScreenState extends State<BattleScreen> {
 
   // Floating damage controller
   final FloatingDamageController _damageController = FloatingDamageController();
+
+  /// A3.1: Centralized input lock check.
+  /// Returns true if all player input should be disabled.
+  bool get _isInputLocked {
+    // Lock during enemy turn
+    if (_phase == CombatPhase.enemyAction) return true;
+    // Lock during animations
+    if (_isAnimating) return true;
+    // Lock during combat end
+    if (_phase == CombatPhase.combatEnd) return true;
+    // Lock during turn transition
+    if (_phase == CombatPhase.turnTransition) return true;
+    return false;
+  }
 
   @override
   void initState() {
@@ -137,6 +155,8 @@ class _BattleScreenState extends State<BattleScreen> {
   // ==================== MENU ACTIONS ====================
 
   void _handleMenuAction(BattleMenuAction action) {
+    // A3.1: Turn locking - reject all input when locked
+    if (_isInputLocked) return;
     if (_phase != CombatPhase.playerSelect) return;
 
     switch (action) {
@@ -168,6 +188,8 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   void _handleSpellSelect(Spell spell) {
+    // A3.1: Turn locking
+    if (_isInputLocked) return;
     if (_phase != CombatPhase.playerSelect) return;
 
     if (!widget.mage.canCast(spell)) {
@@ -191,6 +213,8 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   void _handleTargetSelect(int enemyIndex) {
+    // A3.1: Turn locking
+    if (_isInputLocked) return;
     if (_pendingSpell != null) {
       _executePlayerSpell(_pendingSpell!, enemyIndex);
     }
@@ -199,6 +223,9 @@ class _BattleScreenState extends State<BattleScreen> {
   // ==================== PLAYER ACTION PHASE ====================
 
   void _executePlayerSpell(Spell spell, int targetIndex) {
+    // A3.1: Prevent spell execution during animation
+    if (_isAnimating) return;
+
     final spellIndex = widget.mage.spellLoadout.indexOf(spell);
     if (spellIndex < 0) return;
 
@@ -212,6 +239,7 @@ class _BattleScreenState extends State<BattleScreen> {
       _phase = CombatPhase.playerAction;
       _menuState = BattleMenuState.root;
       _pendingSpell = null;
+      _isAnimating = true; // A3.1: Lock during animation
     });
 
     // Step 1: Show spell cast message
@@ -285,6 +313,9 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   void _afterPlayerAction() {
+    // A3.1: Unlock animation
+    _isAnimating = false;
+
     // Check for combat end
     if (_checkCombatEnd()) return;
 
@@ -302,14 +333,14 @@ class _BattleScreenState extends State<BattleScreen> {
   // ==================== ENEMY ACTION PHASE ====================
 
   void _startEnemyPhase() {
-    setState(() => _phase = CombatPhase.enemyAction);
+    setState(() {
+      _phase = CombatPhase.enemyAction;
+      _isAnimating = true; // A3.1: Lock during enemy turn
+    });
 
-    // End player turn in combat system
+    // End player turn in combat system (now just transitions phase, doesn't apply damage)
     widget.combat.endPlayerTurn();
     _logCombat(CombatLogBuilder.turnMarker(widget.combat.currentTurn));
-
-    // Check if combat ended during enemy turn resolution
-    if (_checkCombatEnd()) return;
 
     // Execute each living enemy's action sequentially
     _executeEnemyActions(0);
@@ -319,31 +350,53 @@ class _BattleScreenState extends State<BattleScreen> {
     final enemies = widget.combat.livingEnemies;
 
     if (index >= enemies.length) {
-      // All enemies have acted, return to player select
+      // All enemies have acted, finish enemy phase and start new player turn
+      widget.combat.finishEnemyPhase();
+
+      // Check if player died from status effects
+      if (_checkCombatEnd()) return;
+
       _startNewPlayerTurn();
       return;
     }
 
     final enemy = enemies[index];
 
-    // Show enemy intent
+    // Step 1: Show enemy intent text FIRST (before damage is applied)
     final intentText = _getEnemyIntentText(enemy);
     _setDialogText('${enemy.name} $intentText');
 
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    // Step 2: Wait, then apply the action (which updates HP)
+    Future.delayed(const Duration(milliseconds: 800), () {
       if (!mounted) return;
 
-      // Enemy attacks player - damage was already applied in endPlayerTurn
-      // We just need to show the result
-      if (enemy.intent == EnemyIntent.attack) {
-        final damage = enemy.getEffectiveDamage();
-        _onDamageDealt(0, damage, true); // isPlayer = true
+      // Now execute the action - this applies the damage to player
+      final result = widget.combat.executeEnemyActionAtIndex(index);
 
+      if (result == null || result.wasDelayed) {
+        // Enemy was delayed, skip to next
+        _setDialogText('${enemy.name} is delayed!');
         Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
-          _setDialogText('${widget.mage.name} took $damage damage!');
+          _executeEnemyActions(index + 1);
+        });
+        return;
+      }
 
-          Future.delayed(const Duration(milliseconds: 800), () {
+      // Step 3: Now show the damage/effect after HP has been updated
+      if (result.actionType == EnemyActionType.attack) {
+        // Show floating damage number
+        _onDamageDealt(0, result.damage, true); // isPlayer = true
+
+        // Trigger UI rebuild to show new HP
+        setState(() {});
+
+        // Show result message
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (!mounted) return;
+          _setDialogText('${widget.mage.name} took ${result.damage} damage!');
+
+          Future.delayed(const Duration(milliseconds: 600), () {
             if (!mounted) return;
 
             // Check if player died
@@ -353,9 +406,17 @@ class _BattleScreenState extends State<BattleScreen> {
             _executeEnemyActions(index + 1);
           });
         });
-      } else {
-        // Non-attack actions (defend, debuff)
-        Future.delayed(const Duration(milliseconds: 800), () {
+      } else if (result.actionType == EnemyActionType.defend) {
+        // Show defense result
+        _setDialogText('${enemy.name} gained ${result.armorGained} armor!');
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (!mounted) return;
+          _executeEnemyActions(index + 1);
+        });
+      } else if (result.actionType == EnemyActionType.debuff) {
+        // Show debuff result
+        _setDialogText('${widget.mage.name} was weakened!');
+        Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
           _executeEnemyActions(index + 1);
         });
@@ -375,6 +436,9 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   void _startNewPlayerTurn() {
+    // A3.1: Unlock animation for player turn
+    _isAnimating = false;
+
     // Check for combat end
     if (_checkCombatEnd()) return;
 
@@ -479,7 +543,21 @@ class _BattleScreenState extends State<BattleScreen> {
                 Positioned(
                   bottom: zone4Height + 8,
                   right: 16,
-                  child: PokemonPlayerStatusPanel(mage: widget.mage),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PokemonPlayerStatusPanel(mage: widget.mage),
+                      // A2.2: Player status effects
+                      if (widget.mage.statusEffects.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: PlayerStatusEffects(
+                            effects: widget.mage.statusEffects,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
 
                 // ZONE 4: Dialog + Action panel

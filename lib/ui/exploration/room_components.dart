@@ -4,20 +4,10 @@ import '../../domain/enemy.dart';
 import 'exploration_room_world.dart';
 
 /// Room component types for future extensibility
-enum RoomComponentType {
-  enemy,
-  door,
-  chest,
-  shrine,
-  shop,
-}
+enum RoomComponentType { enemy, door, chest, shrine, shop }
 
 /// Door state enum
-enum DoorState {
-  locked,
-  available,
-  cleared,
-}
+enum DoorState { locked, available, cleared }
 
 /// Door data class
 class DoorData {
@@ -169,7 +159,10 @@ class InteractionPrompt extends StatelessWidget {
             GestureDetector(
               onTap: onTap,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF238636),
                   borderRadius: BorderRadius.circular(4),
@@ -227,7 +220,10 @@ class EnemyPreviewPanel extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF161b22).withValues(alpha: 0.95),
-        border: Border.all(color: _elementColor.withValues(alpha: 0.5), width: 2),
+        border: Border.all(
+          color: _elementColor.withValues(alpha: 0.5),
+          width: 2,
+        ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -245,10 +241,7 @@ class EnemyPreviewPanel extends StatelessWidget {
             children: [
               Text(
                 enemy.element.displayName,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: _elementColor,
-                ),
+                style: TextStyle(fontSize: 16, color: _elementColor),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -267,15 +260,27 @@ class EnemyPreviewPanel extends StatelessWidget {
           const SizedBox(height: 12),
 
           // Stats
-          _StatRow(label: 'HP', value: '${enemy.currentHP}/${enemy.maxHP}', color: const Color(0xFF3fb950)),
+          _StatRow(
+            label: 'HP',
+            value: '${enemy.currentHP}/${enemy.maxHP}',
+            color: const Color(0xFF3fb950),
+          ),
           const SizedBox(height: 4),
-          _StatRow(label: 'ATK', value: '${enemy.attackDamage}', color: const Color(0xFFf85149)),
+          _StatRow(
+            label: 'ATK',
+            value: '${enemy.attackDamage}',
+            color: const Color(0xFFf85149),
+          ),
           const SizedBox(height: 4),
-          _StatRow(label: 'DEF', value: '${enemy.armorGain}', color: const Color(0xFF58a6ff)),
+          _StatRow(
+            label: 'DEF',
+            value: '${enemy.armorGain}',
+            color: const Color(0xFF58a6ff),
+          ),
 
           const SizedBox(height: 12),
 
-          // Intent
+          // A2.3: Vague Intent (not exact)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -285,21 +290,16 @@ class EnemyPreviewPanel extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(enemy.intent.icon, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 4),
                 Text(
-                  'Intent: ',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 10,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-                Text(
-                  enemy.intent.displayName,
+                  enemy.intent.vagueDescription,
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: _elementColor,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
@@ -387,11 +387,7 @@ class _ActionButton extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
 
-  const _ActionButton({
-    required this.label,
-    required this.color,
-    this.onTap,
-  });
+  const _ActionButton({required this.label, required this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -507,7 +503,10 @@ class DoorConfirmation extends StatelessWidget {
                 GestureDetector(
                   onTap: onCancel,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFF30363d)),
                       borderRadius: BorderRadius.circular(4),
@@ -526,7 +525,10 @@ class DoorConfirmation extends StatelessWidget {
                 GestureDetector(
                   onTap: onEnter,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: stateColor.withValues(alpha: 0.2),
                       border: Border.all(color: stateColor),

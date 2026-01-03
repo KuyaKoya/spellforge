@@ -21,6 +21,31 @@ enum EnemyIntent {
         return 'Intends to debuff';
     }
   }
+
+  /// A2.3: Vague intent description for strategic planning without exact numbers.
+  /// Examples: "Preparing a heavy attack", "Gathering energy", "Defensive stance"
+  String get vagueDescription {
+    switch (this) {
+      case EnemyIntent.attack:
+        return 'Preparing to strike';
+      case EnemyIntent.defend:
+        return 'Defensive stance';
+      case EnemyIntent.debuff:
+        return 'Gathering dark energy';
+    }
+  }
+
+  /// Intent icon for UI display.
+  String get icon {
+    switch (this) {
+      case EnemyIntent.attack:
+        return '⚔️';
+      case EnemyIntent.defend:
+        return '🛡️';
+      case EnemyIntent.debuff:
+        return '💀';
+    }
+  }
 }
 
 /// Represents an enemy in combat.

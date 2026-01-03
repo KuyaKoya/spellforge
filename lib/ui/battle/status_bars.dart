@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
+import 'status_effect_icons.dart';
 
 /// ═══════════════════════════════════════════════════════════════════════════
 /// POKÉMON-STYLE ENEMY STATUS PANEL
@@ -200,6 +201,9 @@ class _PokemonEnemyCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  // A2.2: Status effect icons under HP bar
+                  if (enemy.statusEffects.isNotEmpty)
+                    EnemyStatusEffects(effects: enemy.statusEffects),
                 ],
               ),
             ),

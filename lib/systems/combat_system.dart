@@ -6,6 +6,9 @@ import 'spell_system.dart';
 /// Represents the state of an ongoing combat.
 enum CombatPhase { playerTurn, enemyTurn, statusResolution, victory, defeat }
 
+/// Type of enemy action for UI display.
+enum EnemyActionType { attack, defend, debuff, skipped }
+
 /// Result of a combat encounter.
 class CombatResult {
   final bool playerWon;
@@ -16,6 +19,23 @@ class CombatResult {
     required this.playerWon,
     required this.fullLog,
     required this.turnsElapsed,
+  });
+}
+
+/// Result of a single enemy action (for UI sync).
+class EnemyActionResult {
+  final Enemy enemy;
+  final EnemyActionType actionType;
+  final int damage;
+  final int armorGained;
+  final bool wasDelayed;
+
+  EnemyActionResult({
+    required this.enemy,
+    required this.actionType,
+    this.damage = 0,
+    this.armorGained = 0,
+    this.wasDelayed = false,
   });
 }
 
@@ -124,16 +144,9 @@ class CombatSystem {
     combatLog.add('');
   }
 
-  /// Gets a descriptive intent string for an enemy.
+  /// Gets a descriptive intent string for an enemy (A2.3: vague, not exact).
   String _getIntentDescription(Enemy enemy) {
-    switch (enemy.intent) {
-      case EnemyIntent.attack:
-        return '⚔️  Attack (${enemy.getEffectiveDamage()} damage)';
-      case EnemyIntent.defend:
-        return '🛡️  Defend (+${enemy.armorGain} armor)';
-      case EnemyIntent.debuff:
-        return '💀 Debuff (Weaken -15%)';
-    }
+    return '${enemy.intent.icon} ${enemy.intent.vagueDescription}';
   }
 
   /// Casts a spell at a target. Returns the detailed result.
@@ -170,7 +183,8 @@ class CombatSystem {
     return result;
   }
 
-  /// Ends the player's turn.
+  /// Ends the player's turn (transitions phase, does NOT auto-execute enemy actions).
+  /// Use beginEnemyPhase() and executeEnemyActionAtIndex() for UI-driven execution.
   void endPlayerTurn() {
     if (!isPlayerTurn) return;
 
@@ -179,7 +193,12 @@ class CombatSystem {
 
     _playerTurnHeaderLogged = false;
     phase = CombatPhase.enemyTurn;
-    _executeEnemyTurn();
+
+    // Log enemy turn header
+    combatLog.add('┌──────────────────────────────────────┐');
+    combatLog.add('│  TURN $currentTurn - ENEMY TURN');
+    combatLog.add('└──────────────────────────────────────┘');
+    combatLog.add('');
   }
 
   /// Automatically ends the turn (when no actions/mana left).
@@ -188,44 +207,59 @@ class CombatSystem {
     endPlayerTurn();
   }
 
-  /// Executes all enemy actions.
-  void _executeEnemyTurn() {
-    combatLog.add('┌──────────────────────────────────────┐');
-    combatLog.add('│  TURN $currentTurn - ENEMY TURN');
-    combatLog.add('└──────────────────────────────────────┘');
+  /// Executes a single enemy's action at the given index.
+  /// Returns the result for UI display, or null if invalid.
+  /// This is called by the UI to sync damage display with HP bar updates.
+  EnemyActionResult? executeEnemyActionAtIndex(int index) {
+    final living = livingEnemies;
+    if (index < 0 || index >= living.length) return null;
+
+    final enemy = living[index];
+
+    if (enemy.isDelayed) {
+      combatLog.add('⏸️  ${enemy.name} is delayed and skips their turn.');
+      combatLog.add('');
+      return EnemyActionResult(
+        enemy: enemy,
+        actionType: EnemyActionType.skipped,
+        damage: 0,
+        wasDelayed: true,
+      );
+    }
+
+    combatLog.add('► ${enemy.name}\'s action:');
+    final result = _executeEnemyActionWithResult(enemy);
     combatLog.add('');
 
-    final living = livingEnemies;
-    for (int i = 0; i < living.length; i++) {
-      final enemy = living[i];
+    return result;
+  }
 
-      if (enemy.isDelayed) {
-        combatLog.add('⏸️  ${enemy.name} is delayed and skips their turn.');
-        combatLog.add('');
-        continue;
-      }
-
-      combatLog.add('► ${enemy.name}\'s action:');
-      _executeEnemyAction(enemy);
-      combatLog.add('');
-
-      if (!mage.isAlive) {
-        _endCombat(playerWon: false);
-        return;
-      }
+  /// Finishes the enemy phase after all enemy actions have been executed.
+  /// Resolves status effects and prepares for new player turn.
+  void finishEnemyPhase() {
+    if (!mage.isAlive) {
+      _endCombat(playerWon: false);
+      return;
     }
 
     _resolveStatusEffects();
   }
 
-  /// Executes a single enemy's action based on intent.
-  void _executeEnemyAction(Enemy enemy) {
+  /// Executes a single enemy's action based on intent (returns result for UI).
+  EnemyActionResult _executeEnemyActionWithResult(Enemy enemy) {
+    EnemyActionResult result;
+
     switch (enemy.intent) {
       case EnemyIntent.attack:
         final damage = enemy.getEffectiveDamage();
         final actualDamage = mage.takeDamage(damage);
         combatLog.add('  ⚔️  Attacks ${mage.name} for $actualDamage damage!');
         combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+        result = EnemyActionResult(
+          enemy: enemy,
+          actionType: EnemyActionType.attack,
+          damage: actualDamage,
+        );
         break;
 
       case EnemyIntent.defend:
@@ -233,6 +267,12 @@ class CombatSystem {
           Effect(type: EffectType.armor, value: enemy.armorGain, duration: 2),
         );
         combatLog.add('  🛡️  Defends, gaining ${enemy.armorGain} armor.');
+        result = EnemyActionResult(
+          enemy: enemy,
+          actionType: EnemyActionType.defend,
+          damage: 0,
+          armorGained: enemy.armorGain,
+        );
         break;
 
       case EnemyIntent.debuff:
@@ -240,11 +280,17 @@ class CombatSystem {
           Effect(type: EffectType.weaken, value: 15, duration: 2),
         );
         combatLog.add('  💀 Weakens ${mage.name}! (-15% damage for 2 turns)');
+        result = EnemyActionResult(
+          enemy: enemy,
+          actionType: EnemyActionType.debuff,
+          damage: 0,
+        );
         break;
     }
 
     // Choose next intent
     enemy.chooseNextIntent();
+    return result;
   }
 
   /// Resolves status effects at turn boundary.
