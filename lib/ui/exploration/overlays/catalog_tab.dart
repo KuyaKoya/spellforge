@@ -124,6 +124,25 @@ class _CatalogTabState extends State<CatalogTab>
                   ),
                 ),
                 const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: spell.effects
+                      .map(
+                        (e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text(
+                            spell.getEffectLine(e),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 13,
+                              color: Colors.amberAccent,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 4,
                   children: [

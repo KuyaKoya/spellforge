@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../game/spellforge_game.dart';
 import '../game/game_state.dart';
@@ -107,6 +108,14 @@ class _TextGameWidgetState extends State<TextGameWidget> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: _handleBackPress,
+      child: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
     // Show spell selection screen
     if (widget.game.gameState.currentScreen == GameScreen.spellSelect &&
         widget.game.gameState.spellChoices != null) {
@@ -341,6 +350,76 @@ class _TextGameWidgetState extends State<TextGameWidget> {
 
     // Fallback Container
     return const SizedBox.shrink();
+  }
+
+  void _handleBackPress(bool didPop) {
+    if (didPop) return;
+
+    final gameState = widget.game.gameState;
+    final screen = gameState.currentScreen;
+
+    // Case: Initial Spell Selection -> Back to Home
+    if (screen == GameScreen.spellSelect) {
+      widget.game.gameState.returnToMainMenu();
+      _onGameStateChanged();
+      return;
+    }
+
+    // Case: Target Selection -> Cancel to Combat
+    if (screen == GameScreen.targetSelect) {
+      widget.game.gameState.cancelTargetSelection();
+      _onGameStateChanged();
+      return;
+    }
+
+    // Case: Home or Exploring -> Exit Game Confirmation
+    // "Exploring" covers all gameplay screens: exploration, combat, nodes, etc.
+    _showExitGameDialog();
+  }
+
+  Future<void> _showExitGameDialog() async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161b22),
+        title: const Text(
+          'Exit Game',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to exit? Any unsaved progress will be lost.',
+          style: TextStyle(fontFamily: 'monospace', color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(fontFamily: 'monospace', color: Colors.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'EXIT',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldExit == true) {
+      SystemNavigator.pop();
+    }
   }
 
   Widget _buildExplorationScreen() {

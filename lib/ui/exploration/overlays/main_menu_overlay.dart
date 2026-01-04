@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'catalog_tab.dart';
 
-class MainMenuOverlay extends StatelessWidget {
+class MainMenuOverlay extends StatefulWidget {
   final VoidCallback onNewGame;
   final int totalRuns;
   final int bestDepth;
@@ -18,44 +18,81 @@ class MainMenuOverlay extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Container(
-        color: const Color(0xFF0d1117),
-        child: Column(
-          children: [
-            // Top Tab Bar
-            Container(
-              color: const Color(0xFF0d1117),
-              child: const TabBar(
-                dividerColor: Colors.transparent,
-                indicatorColor: Colors.amber,
-                labelColor: Colors.amber,
-                unselectedLabelColor: Colors.grey,
-                labelStyle: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-                tabs: [
-                  Tab(text: 'HOME'),
-                  Tab(text: 'CATALOG'),
-                ],
-              ),
-            ),
+  State<MainMenuOverlay> createState() => _MainMenuOverlayState();
+}
 
-            // Tab Content
-            Expanded(
-              child: TabBarView(
-                physics: const NeverScrollableScrollPhysics(), // Prevent swipe
-                children: [_buildHomeTab(), const CatalogTab()],
-              ),
+class _MainMenuOverlayState extends State<MainMenuOverlay> {
+  int _selectedIndex = 1; // Default to Home
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0d1117),
+      body: SafeArea(child: _buildBody()),
+      bottomNavigationBar: Theme(
+        data: Theme.of(context).copyWith(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: BottomNavigationBar(
+          backgroundColor: const Color(0xFF161b22),
+          selectedItemColor: Colors.amber,
+          unselectedItemColor: Colors.grey,
+          currentIndex: _selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          selectedLabelStyle: const TextStyle(
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.bold,
+          ),
+          unselectedLabelStyle: const TextStyle(fontFamily: 'monospace'),
+          onTap: (index) {
+            // Character tab (index 0) is currently disabled
+            if (index == 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Character customization coming soon!',
+                    style: TextStyle(fontFamily: 'monospace'),
+                  ),
+                  duration: Duration(seconds: 1),
+                  backgroundColor: Color(0xFF161b22),
+                ),
+              );
+              return;
+            }
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.person,
+                color: Colors.grey,
+              ), // Visual cue for disabled
+              activeIcon: Icon(Icons.person),
+              label: 'CHARACTER',
+            ),
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.menu_book),
+              label: 'CATALOG',
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 1:
+        return _buildHomeTab();
+      case 2:
+        return const CatalogTab();
+      default:
+        return _buildHomeTab();
+    }
   }
 
   Widget _buildHomeTab() {
@@ -95,7 +132,7 @@ class MainMenuOverlay extends StatelessWidget {
 
           // Start Button
           ElevatedButton(
-            onPressed: onNewGame,
+            onPressed: widget.onNewGame,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF238636),
               foregroundColor: Colors.white,
@@ -136,18 +173,18 @@ class MainMenuOverlay extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildStat('TOTAL RUNS', '$totalRuns'),
+                      _buildStat('TOTAL RUNS', '${widget.totalRuns}'),
                       const SizedBox(width: 32),
-                      _buildStat('BEST DEPTH', '$bestDepth'),
+                      _buildStat('BEST DEPTH', '${widget.bestDepth}'),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildStat('FRAGMENTS', '$totalFragments 💎'),
+                      _buildStat('FRAGMENTS', '${widget.totalFragments} 💎'),
                       const SizedBox(width: 32),
-                      _buildStat('CRYSTALS', '$totalCrystals ✨'),
+                      _buildStat('CRYSTALS', '${widget.totalCrystals} ✨'),
                     ],
                   ),
                 ],
