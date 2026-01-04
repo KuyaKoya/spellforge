@@ -11,6 +11,7 @@ import '../components/node_breadcrumbs.dart';
 import '../battle/director_subtitle_overlay.dart';
 import 'exploration_hud.dart';
 import 'preview_panels/preview_panels.dart';
+import '../../systems/shop_system.dart';
 
 /// Simplified tap-based exploration screen.
 ///
@@ -35,6 +36,9 @@ class ExplorationScreenV2 extends StatefulWidget {
   /// Run number (for Director context).
   final int runNumber;
 
+  /// Temporary buffs active on the player.
+  final List<TemporaryBuff>? temporaryBuffs;
+
   /// Callback when player engages an enemy.
   final void Function(Enemy enemy, bool isElite)? onEngageEnemy;
 
@@ -58,6 +62,7 @@ class ExplorationScreenV2 extends StatefulWidget {
     required this.currentDepth,
     required this.totalDepths,
     this.runNumber = 1,
+    this.temporaryBuffs,
     this.onEngageEnemy,
     this.onTravel,
     this.onInteractableTapped,
@@ -283,6 +288,7 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
             child: ExplorationHUD(
               mage: widget.mage,
               directorActive: _controller.directorMessage != null,
+              temporaryBuffs: widget.temporaryBuffs,
             ),
           ),
         ],

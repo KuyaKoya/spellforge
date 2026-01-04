@@ -21,12 +21,12 @@ class RandomEventOverlay extends StatelessWidget {
         width: 600,
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: const Color(0xFF161b22).withOpacity(0.98),
+          color: const Color(0xFF161b22).withValues(alpha: 0.98),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.amber.shade700, width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.7),
+              color: Colors.black.withValues(alpha: 0.7),
               blurRadius: 30,
               offset: const Offset(0, 10),
             ),

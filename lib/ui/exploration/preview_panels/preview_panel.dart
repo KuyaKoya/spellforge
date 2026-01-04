@@ -63,6 +63,11 @@ abstract class PreviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Get screen height to limit panel size
+    final screenHeight = MediaQuery.of(context).size.height;
+    final maxContentHeight =
+        screenHeight * 0.5; // Max 50% of screen for content
+
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
       decoration: BoxDecoration(
@@ -89,10 +94,13 @@ abstract class PreviewPanel extends StatelessWidget {
           // Header
           _buildHeader(),
 
-          // Content
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: buildContent(context),
+          // Scrollable content area with max height
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxContentHeight),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: buildContent(context),
+            ),
           ),
 
           // Risk hint

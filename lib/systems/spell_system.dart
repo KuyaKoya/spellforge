@@ -3,7 +3,6 @@ import '../domain/element.dart';
 import '../domain/enemy.dart';
 import '../domain/mage.dart';
 import '../domain/spell.dart';
-import '../domain/status_effect.dart';
 
 /// Result of a spell cast, containing all log messages.
 class SpellCastResult {
@@ -28,12 +27,14 @@ class SpellSystem {
 
   /// Casts a spell from the mage at the specified target(s).
   /// [targetIndex] is the index within the LIVING enemies list, not the full list.
+  /// [damageMultiplier] is applied to all damage dealt (e.g. from temporary buffs).
   /// Returns a detailed result with all logs.
   static SpellCastResult castSpell({
     required Mage caster,
     required Spell spell,
     required List<Enemy> enemies,
     int? targetIndex,
+    double damageMultiplier = 1.0,
   }) {
     final logs = <String>[];
     int totalDamage = 0;
@@ -66,6 +67,7 @@ class SpellSystem {
         spell: spell,
         livingEnemies: livingEnemies,
         targetIndex: targetIndex,
+        damageMultiplier: damageMultiplier,
       );
 
       for (final log in effectLogs) {
@@ -110,6 +112,7 @@ class SpellSystem {
     required Spell spell,
     required List<Enemy> livingEnemies,
     int? targetIndex,
+    double damageMultiplier = 1.0,
   }) {
     final logs = <String>[];
 
@@ -146,17 +149,10 @@ class SpellSystem {
     if (effect.targetRule == TargetRule.self) {
       switch (effect.type) {
         case EffectType.armor:
-          // Compatible with old: also apply to legacy list in mage.dart's applyStatusEffect
           caster.applyStatusEffect(effect);
-
-          // Phase 7.2: Apply new Shield status
-          final newShield = StatusEffect.shield(
-            shieldValue: effect.value,
-            sourceId: spell.id,
+          logs.add(
+            '${caster.name} gains ${effect.value} Armor for ${effect.duration} turn(s)',
           );
-          caster.applyNewStatusEffect(newShield);
-
-          logs.add('${caster.name} gains ${effect.value} Shield');
           break;
         case EffectType.actionGain:
           caster.actionsRemaining += effect.value;
@@ -179,78 +175,65 @@ class SpellSystem {
             target.element,
           );
           final baseDamage = effect.value;
-          final finalDamage = (baseDamage * multiplier).round();
+
+          // Calculate weaken status on caster
+          double weakenMultiplier = 1.0;
+          for (final status in caster.statusEffects) {
+            if (status.type == EffectType.weaken) {
+              weakenMultiplier *= (100 - status.value) / 100.0;
+            }
+          }
+
+          // Apply elemental multiplier, temporary buff multiplier, and weaken
+          final finalDamage =
+              (baseDamage * multiplier * damageMultiplier * weakenMultiplier)
+                  .round();
+
+          final initialArmor = target.statusEffects
+              .where((e) => e.type == EffectType.armor)
+              .fold(0, (sum, e) => sum + e.value);
+
           final actualDamage = target.takeDamage(finalDamage);
 
           logs.add('${spell.displayName} hits ${target.name}');
-          if (multiplier != 1.0) {
+
+          // Only show effectiveness if damage reached the enemy's HP (wasn't fully absorbed)
+          if (actualDamage > 0 && multiplier != 1.0) {
             logs.add(effectivenessText);
           }
-          logs.add('Damage: $actualDamage');
+
+          if (actualDamage > 0) {
+            logs.add('Damage: $actualDamage');
+          } else if (initialArmor > 0 && finalDamage > 0) {
+            logs.add('Damage fully absorbed by Armor!');
+          } else {
+            logs.add('Damage: 0');
+          }
           break;
 
         case EffectType.burn:
           target.applyStatusEffect(effect);
-
-          // Phase 7.2: Apply new Burn status
-          final newBurn = StatusEffect.burn(
-            duration: effect.duration,
-            damagePerStack: effect.value,
-            sourceId: spell.id,
-          );
-          final burnMsg = target.applyNewStatusEffect(newBurn);
-
           logs.add(
             'Burn applied to ${target.name} (${effect.value}/turn for ${effect.duration} turns)',
           );
-          if (burnMsg != null) logs.add(burnMsg);
           break;
 
         case EffectType.slow:
           target.applyStatusEffect(effect);
-
-          // Phase 7.2: Apply new Slow status
-          final newSlow = StatusEffect.slow(
-            duration: effect.duration,
-            sourceId: spell.id,
+          logs.add(
+            'Slow applied to ${target.name} (${effect.value} actions for ${effect.duration} turns)',
           );
-          final slowMsg = target.applyNewStatusEffect(newSlow);
-
-          logs.add('Slow applied to ${target.name} (${effect.duration} turns)');
-          if (slowMsg != null) logs.add(slowMsg);
           break;
 
         case EffectType.weaken:
           target.applyStatusEffect(effect);
-
-          // Phase 7.2: Apply new Weaken status
-          final newWeaken = StatusEffect.weaken(
-            duration: effect.duration,
-            percentage: effect.value,
-            sourceId: spell.id,
-          );
-          target.applyNewStatusEffect(newWeaken);
-
           logs.add(
-            'Weaken applied to ${target.name} (-${effect.value}% output for ${effect.duration} turns)',
+            'Weaken applied to ${target.name} (-${effect.value}% damage for ${effect.duration} turns)',
           );
           break;
 
         case EffectType.delay:
-          target.isDelayed = true; // Legacy
-
-          // Phase 7.2: New Delay status (optional but good for consistency)
-          final newDelay = StatusEffect(
-            id: 'delay_${DateTime.now().millisecondsSinceEpoch}',
-            type: StatusEffectType.delay,
-            value: 1,
-            duration: effect
-                .value, // Effect value is duration for delay? Or standard?
-            source: StatusSource.spell,
-            sourceId: spell.id,
-          );
-          target.applyNewStatusEffect(newDelay);
-
+          target.isDelayed = true;
           logs.add('${target.name} is delayed!');
           break;
 
@@ -263,11 +246,25 @@ class SpellSystem {
   }
 
   /// Calculates the effective damage of a spell against a target (for preview).
-  static int calculateDamage(Spell spell, Element targetElement) {
+  static int calculateDamage(
+    Spell spell,
+    Element targetElement, [
+    Mage? caster,
+  ]) {
     final multiplier = spell.element.getMultiplierAgainst(targetElement);
     final damageEffect = spell.effects
         .where((e) => e.type == EffectType.damage)
         .fold(0, (sum, e) => sum + e.value);
-    return (damageEffect * multiplier).round();
+
+    double weakenMultiplier = 1.0;
+    if (caster != null) {
+      for (final status in caster.statusEffects) {
+        if (status.type == EffectType.weaken) {
+          weakenMultiplier *= (100 - status.value) / 100.0;
+        }
+      }
+    }
+
+    return (damageEffect * multiplier * weakenMultiplier).round();
   }
 }

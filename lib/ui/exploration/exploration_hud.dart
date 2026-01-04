@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/spell.dart';
 import '../../domain/element.dart' as game_element;
+import '../../systems/shop_system.dart';
+import '../components/spell_inspection_panel.dart';
 
 /// Minimal, icon-driven exploration HUD.
 ///
@@ -20,11 +22,15 @@ class ExplorationHUD extends StatelessWidget {
   /// Callback when a spell is tapped for inspection.
   final void Function(int index)? onSpellTap;
 
+  /// Temporary buffs active on the player.
+  final List<TemporaryBuff>? temporaryBuffs;
+
   const ExplorationHUD({
     super.key,
     required this.mage,
     this.directorActive = false,
     this.onSpellTap,
+    this.temporaryBuffs,
   });
 
   @override
@@ -35,7 +41,7 @@ class ExplorationHUD extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Player status (left)
-          _PlayerStatusCompact(mage: mage),
+          _PlayerStatusCompact(mage: mage, temporaryBuffs: temporaryBuffs),
 
           const SizedBox(width: 16),
 
@@ -62,8 +68,9 @@ class ExplorationHUD extends StatelessWidget {
 /// Compact player status display.
 class _PlayerStatusCompact extends StatelessWidget {
   final Mage mage;
+  final List<TemporaryBuff>? temporaryBuffs;
 
-  const _PlayerStatusCompact({required this.mage});
+  const _PlayerStatusCompact({required this.mage, this.temporaryBuffs});
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +103,7 @@ class _PlayerStatusCompact extends StatelessWidget {
                   color: Color(0xFFc9d1d9),
                 ),
               ),
+              if (temporaryBuffs != null) ..._buildBuffIcons(),
             ],
           ),
           const SizedBox(height: 8),
@@ -132,6 +140,53 @@ class _PlayerStatusCompact extends StatelessWidget {
       case game_element.Element.air:
         return '💨';
     }
+  }
+
+  List<Widget> _buildBuffIcons() {
+    final activeBuffs = temporaryBuffs?.where((b) => b.isActive).toList() ?? [];
+    if (activeBuffs.isEmpty) return [];
+
+    return activeBuffs.map((buff) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 8),
+        child: Tooltip(
+          message: buff.displayText,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3fb950).withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFF3fb950), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('⚡', style: TextStyle(fontSize: 9)),
+                const SizedBox(width: 2),
+                Text(
+                  '+${buff.value}%',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3fb950),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  '${buff.remainingNodes}',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 8,
+                    color: Color(0xFF3fb950),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
   }
 }
 
@@ -265,45 +320,50 @@ class _SpellSlot extends StatelessWidget {
       return _buildEmptySlot();
     }
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: canCast
-              ? _getElementColor(spell!.element).withValues(alpha: 0.2)
-              : const Color(0xFF21262d),
-          border: Border.all(
+    // Wrap with SpellInspectionWrapper for long-press details
+    return SpellInspectionWrapper(
+      spell: spell!,
+      enabled: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
             color: canCast
-                ? _getElementColor(spell!.element)
-                : const Color(0xFF30363d),
-            width: 2,
+                ? _getElementColor(spell!.element).withValues(alpha: 0.2)
+                : const Color(0xFF21262d),
+            border: Border.all(
+              color: canCast
+                  ? _getElementColor(spell!.element)
+                  : const Color(0xFF30363d),
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(6),
           ),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              spell!.elementIcon,
-              style: TextStyle(
-                fontSize: 14,
-                color: canCast ? null : Colors.grey.shade600,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                spell!.elementIcon,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: canCast ? null : Colors.grey.shade600,
+                ),
               ),
-            ),
-            Text(
-              '${spell!.manaCost}',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 7,
-                fontWeight: FontWeight.w600,
-                color: canCast
-                    ? _getElementColor(spell!.element)
-                    : Colors.grey.shade600,
+              Text(
+                '${spell!.manaCost}',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 7,
+                  fontWeight: FontWeight.w600,
+                  color: canCast
+                      ? _getElementColor(spell!.element)
+                      : Colors.grey.shade600,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

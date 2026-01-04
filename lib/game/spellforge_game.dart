@@ -221,6 +221,9 @@ class SpellforgeGame extends FlameGame {
   void _handleRunEndInput(String input) {
     if (input == 'M') {
       gameLoop.returnToMenu();
+    } else if (input == 'N') {
+      // Play Again - go directly to spell selection
+      gameState.showSpellSelection();
     }
   }
 }

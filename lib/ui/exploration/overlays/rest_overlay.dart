@@ -26,12 +26,12 @@ class RestOverlay extends StatelessWidget {
         width: 400,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF161b22).withOpacity(0.95),
+          color: const Color(0xFF161b22).withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFF30363d), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -171,11 +171,11 @@ class RestOverlay extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
-        hoverColor: color.withOpacity(0.1),
+        hoverColor: color.withValues(alpha: 0.1),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           decoration: BoxDecoration(
-            border: Border.all(color: color.withOpacity(0.5)),
+            border: Border.all(color: color.withValues(alpha: 0.5)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -206,7 +206,7 @@ class RestOverlay extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: color.withOpacity(0.5)),
+              Icon(Icons.chevron_right, color: color.withValues(alpha: 0.5)),
             ],
           ),
         ),

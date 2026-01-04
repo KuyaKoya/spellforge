@@ -41,12 +41,12 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
         constraints: const BoxConstraints(maxHeight: 800),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF161b22).withOpacity(0.95),
+          color: const Color(0xFF161b22).withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFF30363d), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -215,7 +215,7 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
         width: 600,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF161b22).withOpacity(0.95),
+          color: const Color(0xFF161b22).withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.orange.shade800, width: 2),
           boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 30)],

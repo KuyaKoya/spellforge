@@ -6,7 +6,6 @@ import '../domain/spell.dart';
 import '../domain/effect.dart';
 import '../domain/element.dart';
 import '../systems/combat_system.dart';
-import '../systems/telemetry_service.dart';
 import '../nodes/nodes.dart';
 import '../systems/node_resolver.dart';
 import '../systems/progression_system.dart';
@@ -119,12 +118,6 @@ class GameState {
     // Generate the run with the new node map system
     nodeMapSystem.generateRun(maxDepth: 10);
     progression.startNewRun();
-
-    // A5: Start telemetry tracking for this run
-    TelemetryService.instance.startRun(
-      mageId: mage!.id,
-      startingElement: mage!.primaryElement.name,
-    );
 
     // Give starting spell based on element
     final startingSpells = SpellDefinitions.getByElement(
@@ -317,7 +310,11 @@ class GameState {
     currentEnemies = enemies;
     isEliteCombat = isElite;
 
-    currentCombat = CombatSystem(mage: mage!, enemies: currentEnemies!);
+    currentCombat = CombatSystem(
+      mage: mage!,
+      enemies: currentEnemies!,
+      damageMultiplier: temporaryBuffMultiplier,
+    );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;
   }
@@ -334,7 +331,11 @@ class GameState {
 
   /// Starts the elite combat after confirmation.
   void confirmEliteCombat() {
-    currentCombat = CombatSystem(mage: mage!, enemies: currentEnemies!);
+    currentCombat = CombatSystem(
+      mage: mage!,
+      enemies: currentEnemies!,
+      damageMultiplier: temporaryBuffMultiplier,
+    );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;
   }
@@ -430,7 +431,7 @@ class GameState {
   /// For Act 1: Defeating the Gatekeepers does not end the loop.
   /// Player returns to the beginning. Fragments and crystals persist.
   /// Narrative certainty does not.
-  void endRun({required bool victory, String? deathCause}) {
+  void endRun({required bool victory}) {
     currentScreen = GameScreen.runEnd;
 
     // Calculate rewards
@@ -445,14 +446,6 @@ class GameState {
       fragmentsEarned: fragmentsEarned,
       crystalsEarned: crystalsEarned,
     );
-
-    // A5: End telemetry tracking for this run
-    TelemetryService.instance.endRun(
-      victory: victory,
-      depth: currentDepth,
-      deathCause: deathCause,
-    );
-
     if (victory) {
       // Act 1 Victory - calm, incomplete, slightly unsettling
     } else {

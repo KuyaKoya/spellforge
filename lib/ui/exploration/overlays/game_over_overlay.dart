@@ -37,10 +37,10 @@ class GameOverOverlay extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF161b22),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.5), width: 2),
+            border: Border.all(color: color.withValues(alpha: 0.5), width: 2),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 blurRadius: 50,
                 spreadRadius: 5,
               ),

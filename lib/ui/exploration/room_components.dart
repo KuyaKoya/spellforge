@@ -280,7 +280,7 @@ class EnemyPreviewPanel extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // A2.3: Vague Intent (not exact)
+          // Intent
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -290,16 +290,21 @@ class EnemyPreviewPanel extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(enemy.intent.icon, style: const TextStyle(fontSize: 12)),
-                const SizedBox(width: 4),
                 Text(
-                  enemy.intent.vagueDescription,
+                  'Intent: ',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 10,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+                Text(
+                  enemy.intent.displayName,
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: _elementColor,
-                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],

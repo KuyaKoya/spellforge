@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
-import 'status_effect_icons.dart';
+import '../../systems/shop_system.dart';
+import 'status_icons.dart';
 
 /// ═══════════════════════════════════════════════════════════════════════════
 /// POKÉMON-STYLE ENEMY STATUS PANEL
@@ -201,9 +202,11 @@ class _PokemonEnemyCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  // A2.2: Status effect icons under HP bar
-                  if (enemy.statusEffects.isNotEmpty)
-                    EnemyStatusEffects(effects: enemy.statusEffects),
+                  // Phase 7 A2.2: Status effect icons under HP bar
+                  if (enemy.statusEffects.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    StatusIconsRow(effects: enemy.statusEffects, compact: true),
+                  ],
                 ],
               ),
             ),
@@ -260,8 +263,13 @@ class _PokemonEnemyCard extends StatelessWidget {
 /// ═══════════════════════════════════════════════════════════════════════════
 class PokemonPlayerStatusPanel extends StatelessWidget {
   final Mage mage;
+  final List<TemporaryBuff>? temporaryBuffs;
 
-  const PokemonPlayerStatusPanel({super.key, required this.mage});
+  const PokemonPlayerStatusPanel({
+    super.key,
+    required this.mage,
+    this.temporaryBuffs,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -381,10 +389,13 @@ class PokemonPlayerStatusPanel extends StatelessWidget {
                           color: Color(0xFF484848),
                         ),
                       ),
-                      // Buff/debuff icons placeholder
+                      // Buff/debuff icons
                       Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: _buildStatusIcons(),
+                        children: [
+                          ..._buildBuffIcons(),
+                          ..._buildStatusIcons(),
+                        ],
                       ),
                     ],
                   ),
@@ -502,9 +513,58 @@ class PokemonPlayerStatusPanel extends StatelessWidget {
   }
 
   List<Widget> _buildStatusIcons() {
-    // Placeholder for buff/debuff icons
-    // TODO: Integrate with mage status effects
-    return [];
+    // Phase 7 A2.2: Status effect icons next to player panel
+    if (mage.statusEffects.isEmpty) {
+      return [];
+    }
+    return [StatusIconsRow(effects: mage.statusEffects, compact: true)];
+  }
+
+  List<Widget> _buildBuffIcons() {
+    final activeBuffs = temporaryBuffs?.where((b) => b.isActive).toList() ?? [];
+    if (activeBuffs.isEmpty) return [];
+
+    return activeBuffs.map((buff) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Tooltip(
+          message: buff.displayText,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3fb950).withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFF3fb950), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('⚡', style: TextStyle(fontSize: 8)),
+                const SizedBox(width: 2),
+                Text(
+                  '+${buff.value}%',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3fb950),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  '${buff.remainingNodes}',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 7,
+                    color: Color(0xFF3fb950),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
   }
 }
 

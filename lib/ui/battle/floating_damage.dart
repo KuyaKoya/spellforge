@@ -1,17 +1,9 @@
 import 'package:flutter/material.dart';
-
-/// Types of floating damage for visual distinction.
-enum FloatingDamageType {
-  damage, // Normal damage - red/orange
-  burn, // DoT damage - darker red, smaller
-  healing, // HP restoration - green
-  shieldAbsorb, // Damage blocked by shield - blue/gray
-  status, // Status effect text - gray
-  critical, // Critical hit - larger, yellow
-  mana, // Mana gain/loss - blue
-}
+import '../../domain/element.dart' as game_element;
 
 /// Controller for floating damage numbers.
+///
+/// Phase 7 - A2.1: Damage Feedback
 ///
 /// Visual Priority (LOCKED):
 /// 1. Animation
@@ -19,85 +11,90 @@ enum FloatingDamageType {
 /// 3. Status Icons
 /// 4. Combat Log
 ///
-/// Damage Numbers (A2.1 Spec):
-/// - Damage: red/orange
+/// Damage Numbers:
+/// - Color-coded by damage type
+/// - Directional movement based on source
+/// - Appear near target
+/// - Fade quickly
+///
+/// Color Rules:
+/// - Damage: red/orange (element-colored optional)
 /// - Burn/DoT: darker red, smaller
 /// - Healing: green
 /// - Shield absorb: blue/gray
-/// - Appear near target with directional movement
-/// - Fade quickly
 class FloatingDamageController {
   final List<_FloatingDamageData> _activeNumbers = [];
   int _idCounter = 0;
 
-  /// Shows damage number near target with type-specific styling.
+  /// Shows damage number near target.
   void showDamage({
     required int targetIndex,
     required int damage,
     required bool isPlayer,
-    FloatingDamageType damageType = FloatingDamageType.damage,
+    DamageType damageType = DamageType.direct,
+    game_element.Element? element,
   }) {
     final id = _idCounter++;
-    final prefix = damageType == FloatingDamageType.healing ? '+' : '-';
-
     _activeNumbers.add(
       _FloatingDamageData(
         id: id,
-        text: '$prefix$damage',
+        value: damage,
+        text: '-$damage',
         isPlayer: isPlayer,
         targetIndex: targetIndex,
+        type: _FloatingType.damage,
         damageType: damageType,
+        element: element,
       ),
     );
 
     // Auto-remove after animation
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    final duration = damageType == DamageType.burn ? 1200 : 1500;
+    Future.delayed(Duration(milliseconds: duration), () {
       _activeNumbers.removeWhere((n) => n.id == id);
     });
   }
 
-  /// Shows burn/DoT damage (smaller, darker)
-  void showBurnDamage({
-    required int targetIndex,
-    required int damage,
-    required bool isPlayer,
-  }) {
-    showDamage(
-      targetIndex: targetIndex,
-      damage: damage,
-      isPlayer: isPlayer,
-      damageType: FloatingDamageType.burn,
-    );
-  }
-
-  /// Shows healing amount (green)
+  /// Shows healing number near target.
   void showHealing({
     required int targetIndex,
     required int amount,
     required bool isPlayer,
   }) {
-    showDamage(
-      targetIndex: targetIndex,
-      damage: amount,
-      isPlayer: isPlayer,
-      damageType: FloatingDamageType.healing,
+    final id = _idCounter++;
+    _activeNumbers.add(
+      _FloatingDamageData(
+        id: id,
+        value: amount,
+        text: '+$amount',
+        isPlayer: isPlayer,
+        targetIndex: targetIndex,
+        type: _FloatingType.damage,
+        damageType: DamageType.healing,
+      ),
     );
+
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      _activeNumbers.removeWhere((n) => n.id == id);
+    });
   }
 
-  /// Shows shield absorption (blue/gray)
+  /// Shows shield absorb number near target.
   void showShieldAbsorb({
     required int targetIndex,
-    required int absorbed,
+    required int amount,
     required bool isPlayer,
   }) {
     final id = _idCounter++;
     _activeNumbers.add(
       _FloatingDamageData(
         id: id,
-        text: '🛡️ $absorbed',
+        value: amount,
+        text: '🛡️$amount',
         isPlayer: isPlayer,
         targetIndex: targetIndex,
-        damageType: FloatingDamageType.shieldAbsorb,
+        type: _FloatingType.damage,
+        damageType: DamageType.shieldAbsorb,
       ),
     );
 
@@ -111,15 +108,18 @@ class FloatingDamageController {
     required int targetIndex,
     required String status,
     required bool isPlayer,
+    StatusCategory category = StatusCategory.debuff,
   }) {
     final id = _idCounter++;
     _activeNumbers.add(
       _FloatingDamageData(
         id: id,
+        value: 0,
         text: status,
         isPlayer: isPlayer,
         targetIndex: targetIndex,
-        damageType: FloatingDamageType.status,
+        type: _FloatingType.status,
+        statusCategory: category,
       ),
     );
 
@@ -136,19 +136,44 @@ class FloatingDamageController {
   }
 }
 
+/// Type of damage for color coding.
+enum DamageType {
+  direct, // Standard damage - red/orange
+  burn, // DoT damage - darker red, smaller
+  healing, // Healing - green
+  shieldAbsorb, // Shield blocked - blue/gray
+}
+
+/// Category of status effect.
+enum StatusCategory {
+  buff, // Positive - green tint
+  debuff, // Negative - red tint
+  neutral, // Neutral - gray
+}
+
+enum _FloatingType { damage, status }
+
 class _FloatingDamageData {
   final int id;
+  final int value;
   final String text;
   final bool isPlayer;
   final int targetIndex;
-  final FloatingDamageType damageType;
+  final _FloatingType type;
+  final DamageType damageType;
+  final StatusCategory statusCategory;
+  final game_element.Element? element;
 
   _FloatingDamageData({
     required this.id,
+    required this.value,
     required this.text,
     required this.isPlayer,
     required this.targetIndex,
-    required this.damageType,
+    required this.type,
+    this.damageType = DamageType.direct,
+    this.statusCategory = StatusCategory.neutral,
+    this.element,
   });
 }
 
@@ -167,13 +192,18 @@ class _FloatingNumberState extends State<_FloatingNumber>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
 
+    // Burn damage animates faster
+    final isBurn = widget.data.damageType == DamageType.burn;
+    final duration = isBurn ? 1000 : 1200;
+
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: Duration(milliseconds: duration),
       vsync: this,
     );
 
@@ -184,12 +214,47 @@ class _FloatingNumberState extends State<_FloatingNumber>
       ),
     );
 
+    // Directional slide based on damage type
+    final slideEnd = _getSlideDirection();
     _slideAnimation = Tween<Offset>(
       begin: Offset.zero,
-      end: const Offset(0, -1.5),
+      end: slideEnd,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
+    // Pop-in effect for big damage
+    final isLargeDamage = widget.data.value >= 20;
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0.5, end: isLargeDamage ? 1.3 : 1.1),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: isLargeDamage ? 1.3 : 1.1, end: 1.0),
+        weight: 30,
+      ),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
     _controller.forward();
+  }
+
+  Offset _getSlideDirection() {
+    switch (widget.data.damageType) {
+      case DamageType.healing:
+        // Healing floats up
+        return const Offset(0, -1.5);
+      case DamageType.shieldAbsorb:
+        // Shield absorb slides sideways
+        return const Offset(-0.5, -0.8);
+      case DamageType.burn:
+        // Burn floats up slowly with slight sway
+        return const Offset(0.2, -1.0);
+      case DamageType.direct:
+        // Direct damage: player attacks go up-right, enemy attacks go up-left
+        return widget.data.isPlayer
+            ? const Offset(0.3, -1.2) // Damage to player
+            : const Offset(-0.3, -1.2); // Damage to enemy
+    }
   }
 
   @override
@@ -199,38 +264,63 @@ class _FloatingNumberState extends State<_FloatingNumber>
   }
 
   Color get _color {
+    if (widget.data.type == _FloatingType.status) {
+      switch (widget.data.statusCategory) {
+        case StatusCategory.buff:
+          return const Color(0xFF3fb950); // Green
+        case StatusCategory.debuff:
+          return const Color(0xFFf85149); // Red
+        case StatusCategory.neutral:
+          return const Color(0xFF8b949e); // Gray
+      }
+    }
+
     switch (widget.data.damageType) {
-      case FloatingDamageType.damage:
-        return const Color(0xFFf85149); // Red/orange for damage
-      case FloatingDamageType.burn:
-        return const Color(0xFFbd3a3a); // Darker red for burn/DoT
-      case FloatingDamageType.healing:
-        return const Color(0xFF3fb950); // Green for healing
-      case FloatingDamageType.shieldAbsorb:
-        return const Color(0xFF79c0ff); // Blue/gray for shield
-      case FloatingDamageType.status:
-        return const Color(0xFF8b949e); // Gray for status
-      case FloatingDamageType.critical:
-        return const Color(0xFFe3b341); // Yellow for critical
-      case FloatingDamageType.mana:
-        return const Color(0xFF58a6ff); // Blue for mana
+      case DamageType.direct:
+        // Element-based color if provided
+        if (widget.data.element != null) {
+          return _getElementColor(widget.data.element!);
+        }
+        return const Color(0xFFf85149); // Default red
+      case DamageType.burn:
+        return const Color(0xFFb33a2c); // Darker red
+      case DamageType.healing:
+        return const Color(0xFF3fb950); // Green
+      case DamageType.shieldAbsorb:
+        return const Color(0xFF58a6ff); // Blue
+    }
+  }
+
+  Color _getElementColor(game_element.Element element) {
+    switch (element) {
+      case game_element.Element.fire:
+        return const Color(0xFFf85149);
+      case game_element.Element.water:
+        return const Color(0xFF58a6ff);
+      case game_element.Element.earth:
+        return const Color(0xFF7c6f4a);
+      case game_element.Element.air:
+        return const Color(0xFF79c0ff);
     }
   }
 
   double get _fontSize {
+    if (widget.data.type == _FloatingType.status) {
+      return 14;
+    }
+
     switch (widget.data.damageType) {
-      case FloatingDamageType.damage:
-      case FloatingDamageType.healing:
-        return 24;
-      case FloatingDamageType.critical:
-        return 28;
-      case FloatingDamageType.burn:
+      case DamageType.burn:
         return 18; // Smaller for DoT
-      case FloatingDamageType.shieldAbsorb:
-      case FloatingDamageType.mana:
+      case DamageType.shieldAbsorb:
         return 16;
-      case FloatingDamageType.status:
-        return 14;
+      case DamageType.healing:
+        return 22;
+      case DamageType.direct:
+        // Scale with damage
+        if (widget.data.value >= 30) return 32;
+        if (widget.data.value >= 20) return 28;
+        return 24;
     }
   }
 
@@ -245,7 +335,7 @@ class _FloatingNumberState extends State<_FloatingNumber>
       top = MediaQuery.of(context).size.height - 200;
       left = 100;
     } else {
-      // Enemy damage appears top-right area
+      // Enemy damage appears top-right area with offset per enemy
       top = 100 + (widget.data.targetIndex * 50);
       left = MediaQuery.of(context).size.width - 250;
     }
@@ -257,21 +347,39 @@ class _FloatingNumberState extends State<_FloatingNumber>
         position: _slideAnimation,
         child: FadeTransition(
           opacity: _fadeAnimation,
-          child: IgnorePointer(
-            child: Text(
-              widget.data.text,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: _fontSize,
-                fontWeight: FontWeight.bold,
-                color: _color,
-                shadows: const [
-                  Shadow(
-                    color: Colors.black,
-                    blurRadius: 4,
-                    offset: Offset(1, 1),
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration:
+                    widget.data.damageType == DamageType.healing ||
+                        widget.data.damageType == DamageType.shieldAbsorb
+                    ? BoxDecoration(
+                        color: _color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      )
+                    : null,
+                child: Text(
+                  widget.data.text,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: _fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: _color,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        blurRadius: 4,
+                        offset: const Offset(2, 2),
+                      ),
+                      Shadow(
+                        color: _color.withValues(alpha: 0.5),
+                        blurRadius: 8,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

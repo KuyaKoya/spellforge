@@ -290,6 +290,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         journeyLog: _journeyLog,
         currentDepth: widget.game.gameState.currentDepth,
         totalDepths: widget.game.gameState.nodeMapSystem.totalDepths,
+        temporaryBuffs: widget.game.gameState.temporaryBuffs,
         runNumber: 1,
         onCombatEnd: () {
           widget.game.gameLoop.handleCombatEnd();
@@ -444,6 +445,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       nodeMapSystem: gameState.nodeMapSystem,
       currentDepth: gameState.currentDepth,
       totalDepths: gameState.nodeMapSystem.totalDepths,
+      temporaryBuffs: gameState.temporaryBuffs,
       runNumber: 1,
       onEngageEnemy: (enemy, isElite) {
         // Start combat using the new direct method

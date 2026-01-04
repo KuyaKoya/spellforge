@@ -1,5 +1,7 @@
+import '../data/passive_definitions.dart';
+import '../domain/boss_enemy.dart';
 import '../domain/element.dart';
-import '../domain/enemy.dart';
+import '../domain/elite_enemy.dart';
 
 /// The Twin Gatekeepers - Act 1 Boss.
 /// Gatekeeper A: Fire + Earth
@@ -11,7 +13,7 @@ class TwinGatekeepers {
   TwinGatekeepers._();
 
   /// Creates the Twin Gatekeepers encounter.
-  static List<Enemy> createEncounter({int difficultyLevel = 1}) {
+  static List<BossEnemy> createEncounter({int difficultyLevel = 1}) {
     return [
       gatekeeperPyre(difficultyLevel: difficultyLevel),
       gatekeeperTide(difficultyLevel: difficultyLevel),
@@ -19,34 +21,50 @@ class TwinGatekeepers {
   }
 
   /// Gatekeeper of Pyre (Fire + Earth) - tanky, deals burn.
-  static Enemy gatekeeperPyre({int difficultyLevel = 1}) {
+  /// Passives:
+  /// - Immune to Burn (modifier)
+  /// - Resistant to Fire (modifier)
+  /// - Forge of Endurance (systemic passive)
+  static BossEnemy gatekeeperPyre({int difficultyLevel = 1}) {
     final baseHp = 60;
     final hpBonus = (baseHp * 0.15 * (difficultyLevel - 1)).round();
 
-    return Enemy(
+    return BossEnemy(
       id: 'gatekeeper_pyre',
       name: 'Gatekeeper of Pyre',
+      title: 'Gatekeeper of Pyre',
       element: Element.fire,
       currentHP: baseHp + hpBonus,
       maxHP: baseHp + hpBonus,
       attackDamage: 8 + (difficultyLevel - 1),
       armorGain: 10,
+      modifiers: [EliteModifier.burnImmune, EliteModifier.resistant],
+      resistantElement: Element.fire,
+      passives: PassiveDefinitions.gatekeeperPyrePassives(),
     );
   }
 
   /// Gatekeeper of Tide (Water + Air) - fast, deals control.
-  static Enemy gatekeeperTide({int difficultyLevel = 1}) {
+  /// Passives:
+  /// - Immune to Slow (modifier)
+  /// - Resistant to Water (modifier)
+  /// - Tidal Reversal (systemic passive)
+  static BossEnemy gatekeeperTide({int difficultyLevel = 1}) {
     final baseHp = 50;
     final hpBonus = (baseHp * 0.15 * (difficultyLevel - 1)).round();
 
-    return Enemy(
+    return BossEnemy(
       id: 'gatekeeper_tide',
       name: 'Gatekeeper of Tide',
+      title: 'Gatekeeper of Tide',
       element: Element.water,
       currentHP: baseHp + hpBonus,
       maxHP: baseHp + hpBonus,
       attackDamage: 6 + (difficultyLevel - 1),
       armorGain: 5,
+      modifiers: [EliteModifier.slowImmune, EliteModifier.resistant],
+      resistantElement: Element.water,
+      passives: PassiveDefinitions.gatekeeperTidePassives(),
     );
   }
 

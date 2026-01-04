@@ -15,6 +15,4 @@ export 'battle_action_menu.dart';
 export 'director_subtitle_overlay.dart';
 export 'floating_damage.dart';
 export 'sprite_overlay.dart';
-// Phase 7 additions
-export 'turn_banner.dart';
-export 'status_effect_icons.dart';
+export 'status_icons.dart';

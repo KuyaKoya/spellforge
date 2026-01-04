@@ -282,7 +282,7 @@ class _SpellButton extends StatelessWidget {
           boxShadow: canCast
               ? [
                   BoxShadow(
-                    color: _elementColor.withOpacity(0.3),
+                    color: _elementColor.withValues(alpha: 0.3),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),

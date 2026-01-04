@@ -9,5 +9,5 @@ export 'journey_log_panel.dart';
 export 'combat_log_panel.dart';
 export 'spell_inspection_panel.dart';
 export 'narrative_display.dart';
-// Phase 7: Interaction affordances
-export 'interaction_affordances.dart';
+export 'passive_inspection_widget.dart';
+export 'battle_inspection_overlay.dart';

@@ -1,0 +1,65 @@
+﻿Analyzing spellforge...                                         
+
+   info - Dangling library doc comment - lib\data\balance_constants.dart:14:1 - dangling_library_doc_comments
+warning - The value of the local variable 'oldSpell' isn't used - lib\game\game_loop.dart:330:11 - unused_local_variable
+warning - The value of the local variable 'upgraded' isn't used - lib\game\game_loop.dart:369:11 - unused_local_variable
+warning - The value of the local variable 'actual' isn't used - lib\game\game_loop.dart:420:15 - unused_local_variable
+warning - The value of the local variable 'actualHeal' isn't used - lib\game\game_loop.dart:456:11 - unused_local_variable
+warning - The value of the local variable 'spell' isn't used - lib\game\game_loop.dart:473:15 - unused_local_variable
+warning - The value of the local variable 'actual' isn't used - lib\game\game_loop.dart:533:17 - unused_local_variable
+warning - The value of the local variable 'node' isn't used - lib\game\game_state.dart:212:13 - unused_local_variable
+   info - Don't invoke 'print' in production code - lib\game\game_state.dart:220:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\game\game_state.dart:223:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\game\game_state.dart:228:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\game\game_state.dart:240:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\game\game_state.dart:246:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\game\game_state.dart:298:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\game\game_state.dart:301:5 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\battle\battle_action_menu.dart:285:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\battle\battle_screen.dart:787:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\battle\battle_screen.dart:788:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\battle\battle_screen.dart:1007:29 - deprecated_member_use
+   info - The import of '../../nodes/node_map_system.dart' is unnecessary because all of the used elements are also provided by the import of '../../nodes/nodes.dart' - lib\ui\exploration\exploration_screen_v2.dart:9:8 - unnecessary_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\elite_reward_overlay.dart:23:13 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\elite_reward_overlay.dart:28:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\elite_reward_overlay.dart:117:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\elite_reward_overlay.dart:122:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\enhancement_shrine_overlay.dart:29:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\enhancement_shrine_overlay.dart:34:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\enhancement_shrine_overlay.dart:79:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\enhancement_shrine_overlay.dart:214:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\enhancement_shrine_overlay.dart:216:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\enhancement_shrine_overlay.dart:250:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\game_over_overlay.dart:40:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\game_over_overlay.dart:43:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\main_menu_overlay.dart:71:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\random_event_overlay.dart:24:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\random_event_overlay.dart:29:35 - deprecated_member_use
+   info - Unnecessary use of 'toList' in a spread - lib\ui\exploration\overlays\random_event_overlay.dart:97:16 - unnecessary_to_list_in_spreads
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\rest_overlay.dart:29:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\rest_overlay.dart:34:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\rest_overlay.dart:174:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\rest_overlay.dart:178:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\rest_overlay.dart:209:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\shop_overlay.dart:26:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\shop_overlay.dart:31:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\spell_shrine_overlay.dart:44:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\spell_shrine_overlay.dart:49:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\exploration\overlays\spell_shrine_overlay.dart:218:42 - deprecated_member_use
+
+flutter : 46 issues found. 
+(ran in 2.5s)
+At line:1 char:1
++ flutter analyze --no-pub 
+2>&1 | Out-File -FilePath 
+analyze_output_utf ...
++ 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (46 issu  
+  es found. (ran in 2.5s):   
+ String) [], RemoteExcept    
+ion
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 

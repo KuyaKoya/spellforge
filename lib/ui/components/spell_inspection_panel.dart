@@ -259,26 +259,35 @@ class _SpellInspectionWrapperState extends State<SpellInspectionWrapper> {
     final size = renderBox.size;
     final screenSize = MediaQuery.of(context).size;
 
-    // Side-mounted positioning - LOCKED
-    // Position to the right of the element if possible, otherwise left
+    const double panelWidth = 240;
+    const double panelHeight = 280; // Estimated max height
+    const double margin = 16;
+
+    // Calculate best position
     double left;
+    double top;
     bool alignRight = false;
 
-    if (position.dx + size.width + 250 < screenSize.width) {
-      // Show to the right
+    // Try to position to the right of the element
+    if (position.dx + size.width + panelWidth + margin < screenSize.width) {
       left = position.dx + size.width + 8;
-    } else {
-      // Show to the left
-      left = position.dx - 248;
+    }
+    // Try to position to the left of the element
+    else if (position.dx - panelWidth - 8 > margin) {
+      left = position.dx - panelWidth - 8;
       alignRight = true;
     }
-
-    // Vertical positioning - align with element
-    double top = position.dy - 20;
-    if (top < 50) top = 50;
-    if (top + 200 > screenSize.height - 50) {
-      top = screenSize.height - 250;
+    // Center horizontally if neither side works
+    else {
+      left = (screenSize.width - panelWidth) / 2;
     }
+
+    // Vertical positioning - try to align with element center
+    top = position.dy + size.height / 2 - panelHeight / 2;
+
+    // Clamp to screen bounds with margins
+    left = left.clamp(margin, screenSize.width - panelWidth - margin);
+    top = top.clamp(margin, screenSize.height - panelHeight - margin);
 
     _overlayEntry = OverlayEntry(
       builder: (context) => Stack(
@@ -292,15 +301,21 @@ class _SpellInspectionWrapperState extends State<SpellInspectionWrapper> {
             ),
           ),
 
-          // Side-mounted overlay - LOCKED
+          // Positioned overlay with screen bounds
           Positioned(
             left: left,
             top: top,
-            child: Material(
-              color: Colors.transparent,
-              child: SpellInspectionPanel(
-                spell: widget.spell,
-                isRightAligned: !alignRight,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: panelWidth,
+                maxHeight: screenSize.height - margin * 2,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: SpellInspectionPanel(
+                  spell: widget.spell,
+                  isRightAligned: !alignRight,
+                ),
               ),
             ),
           ),

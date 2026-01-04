@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
 
 import '../../systems/combat_system.dart';
+import '../../systems/shop_system.dart';
 import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
 import '../../domain/spell.dart';
 import '../../domain/effect.dart';
-import '../../domain/status_effect.dart';
 import '../../narrative/journey_log.dart';
 import '../../nodes/node_map_system.dart';
 import '../components/components.dart';
@@ -16,7 +16,6 @@ import 'status_bars.dart';
 import 'battle_action_menu.dart';
 import 'floating_damage.dart';
 import 'sprite_overlay.dart';
-import 'status_effect_icons.dart';
 
 /// Combat phases for Pokémon-style sequential combat.
 enum CombatPhase {
@@ -43,6 +42,7 @@ class BattleScreen extends StatefulWidget {
   final int currentDepth;
   final int totalDepths;
   final int runNumber;
+  final List<TemporaryBuff>? temporaryBuffs;
   final VoidCallback? onCombatEnd;
   final VoidCallback? onRetreat;
   final void Function(String)? onInput;
@@ -57,6 +57,7 @@ class BattleScreen extends StatefulWidget {
     required this.currentDepth,
     required this.totalDepths,
     this.runNumber = 1,
+    this.temporaryBuffs,
     this.onCombatEnd,
     this.onRetreat,
     this.onInput,
@@ -71,9 +72,6 @@ class _BattleScreenState extends State<BattleScreen> {
 
   // Combat phase state machine
   CombatPhase _phase = CombatPhase.playerSelect;
-
-  // A3.1: Animation lock - prevents state mutation during animations
-  bool _isAnimating = false;
 
   // UI State
   BattleMenuState _menuState = BattleMenuState.root;
@@ -90,22 +88,11 @@ class _BattleScreenState extends State<BattleScreen> {
   final List<CombatLogEntry> _combatLogEntries = [];
   bool _showCombatLog = false;
 
+  // Battle inspection overlay
+  bool _showBattleInspection = false;
+
   // Floating damage controller
   final FloatingDamageController _damageController = FloatingDamageController();
-
-  /// A3.1: Centralized input lock check.
-  /// Returns true if all player input should be disabled.
-  bool get _isInputLocked {
-    // Lock during enemy turn
-    if (_phase == CombatPhase.enemyAction) return true;
-    // Lock during animations
-    if (_isAnimating) return true;
-    // Lock during combat end
-    if (_phase == CombatPhase.combatEnd) return true;
-    // Lock during turn transition
-    if (_phase == CombatPhase.turnTransition) return true;
-    return false;
-  }
 
   @override
   void initState() {
@@ -156,8 +143,6 @@ class _BattleScreenState extends State<BattleScreen> {
   // ==================== MENU ACTIONS ====================
 
   void _handleMenuAction(BattleMenuAction action) {
-    // A3.1: Turn locking - reject all input when locked
-    if (_isInputLocked) return;
     if (_phase != CombatPhase.playerSelect) return;
 
     switch (action) {
@@ -166,8 +151,7 @@ class _BattleScreenState extends State<BattleScreen> {
         _setDialogText('Choose a spell to cast.');
         break;
       case BattleMenuAction.inspect:
-        setState(() => _menuState = BattleMenuState.inspect);
-        _setDialogText('View battle information.');
+        setState(() => _showBattleInspection = true);
         break;
       case BattleMenuAction.items:
         _setDialogText('No items available.');
@@ -189,8 +173,6 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   void _handleSpellSelect(Spell spell) {
-    // A3.1: Turn locking
-    if (_isInputLocked) return;
     if (_phase != CombatPhase.playerSelect) return;
 
     if (!widget.mage.canCast(spell)) {
@@ -214,8 +196,6 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   void _handleTargetSelect(int enemyIndex) {
-    // A3.1: Turn locking
-    if (_isInputLocked) return;
     if (_pendingSpell != null) {
       _executePlayerSpell(_pendingSpell!, enemyIndex);
     }
@@ -224,9 +204,6 @@ class _BattleScreenState extends State<BattleScreen> {
   // ==================== PLAYER ACTION PHASE ====================
 
   void _executePlayerSpell(Spell spell, int targetIndex) {
-    // A3.1: Prevent spell execution during animation
-    if (_isAnimating) return;
-
     final spellIndex = widget.mage.spellLoadout.indexOf(spell);
     if (spellIndex < 0) return;
 
@@ -240,7 +217,6 @@ class _BattleScreenState extends State<BattleScreen> {
       _phase = CombatPhase.playerAction;
       _menuState = BattleMenuState.root;
       _pendingSpell = null;
-      _isAnimating = true; // A3.1: Lock during animation
     });
 
     // Step 1: Show spell cast message
@@ -314,9 +290,6 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   void _afterPlayerAction() {
-    // A3.1: Unlock animation
-    _isAnimating = false;
-
     // Check for combat end
     if (_checkCombatEnd()) return;
 
@@ -333,114 +306,61 @@ class _BattleScreenState extends State<BattleScreen> {
 
   // ==================== ENEMY ACTION PHASE ====================
 
-  void _startEnemyPhase() {
-    setState(() {
-      _phase = CombatPhase.enemyAction;
-      _isAnimating = true; // A3.1: Lock during enemy turn
-    });
+  /// Cached enemy intents captured BEFORE endPlayerTurn changes them.
+  List<EnemyIntent> _cachedEnemyIntents = [];
 
-    // End player turn in combat system (now just transitions phase, doesn't apply damage)
+  void _startEnemyPhase() {
+    setState(() => _phase = CombatPhase.enemyAction);
+
+    // IMPORTANT: Capture enemy intents BEFORE endPlayerTurn executes their actions
+    // because endPlayerTurn calls chooseNextIntent() which changes the intent
+    _cachedEnemyIntents = widget.combat.livingEnemies
+        .map((e) => e.intent)
+        .toList();
+
+    // End player turn in combat system (this executes all enemy actions)
     widget.combat.endPlayerTurn();
     _logCombat(CombatLogBuilder.turnMarker(widget.combat.currentTurn));
 
-    // Execute each living enemy's action sequentially
+    // Check if combat ended during enemy turn resolution
+    if (_checkCombatEnd()) return;
+
+    // Execute each living enemy's action sequentially (for animation only)
     _executeEnemyActions(0);
   }
 
   void _executeEnemyActions(int index) {
     final enemies = widget.combat.livingEnemies;
 
-    if (index >= enemies.length) {
-      // All enemies have acted, finish enemy phase and start new player turn
-      widget.combat.finishEnemyPhase();
-
-      // Check if player died from status effects
-      if (_checkCombatEnd()) return;
-
+    if (index >= enemies.length || index >= _cachedEnemyIntents.length) {
+      // All enemies have acted, return to player select
+      _cachedEnemyIntents = [];
       _startNewPlayerTurn();
       return;
     }
 
     final enemy = enemies[index];
+    // Use the CACHED intent (from before endPlayerTurn changed it)
+    final cachedIntent = _cachedEnemyIntents[index];
 
-    // Phase 7.2: Process enemy's burn/status effects at the START of their action
-    final statusLogs = widget.combat.processEnemyTurnStartEffects(enemy);
-
-    if (statusLogs.isNotEmpty) {
-      // Show burn damage first
-      _setDialogText(statusLogs.first);
-
-      // Show floating damage for burn if applicable
-      if (enemy.statusEffects.any((e) => e.type == EffectType.burn) ||
-          enemy.statusManager.hasEffect(StatusEffectType.burn)) {
-        // Update enemy HP display
-        setState(() {});
-      }
-
-      // Check if enemy died from burn
-      if (!enemy.isAlive) {
-        _setDialogText('${enemy.name} was defeated by burn!');
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (!mounted) return;
-          if (_checkCombatEnd()) return;
-          _executeEnemyActions(index + 1);
-        });
-        return;
-      }
-
-      // Wait before showing enemy action
-      Future.delayed(const Duration(milliseconds: 800), () {
-        if (!mounted) return;
-        _executeEnemyAction(enemy, index);
-      });
-      return;
-    }
-
-    // No status effects, proceed to action
-    _executeEnemyAction(enemy, index);
-  }
-
-  /// Executes a single enemy's action after status effects are processed.
-  void _executeEnemyAction(Enemy enemy, int index) {
-    // Show enemy intent text FIRST (before damage is applied)
-    final intentText = _getEnemyIntentText(enemy);
+    // Show enemy intent using cached value
+    final intentText = cachedIntent.vagueDescription;
     _setDialogText('${enemy.name} $intentText');
 
-    // Wait, then apply the action (which updates HP)
-    Future.delayed(const Duration(milliseconds: 800), () {
+    Future.delayed(const Duration(milliseconds: 1000), () {
       if (!mounted) return;
 
-      // Now execute the action - this applies the damage to player
-      final result = widget.combat.executeEnemyActionAtIndex(
-        widget.combat.livingEnemies
-            .indexOf(enemy)
-            .clamp(0, widget.combat.livingEnemies.length - 1),
-      );
+      // Use cached intent to determine what animation to show
+      // Damage was already applied in endPlayerTurn
+      if (cachedIntent == EnemyIntent.attack) {
+        final damage = enemy.getEffectiveDamage();
+        _onDamageDealt(0, damage, true); // isPlayer = true
 
-      if (result == null || result.wasDelayed) {
-        // Enemy was delayed, skip to next
-        _setDialogText('${enemy.name} is delayed!');
         Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
-          _executeEnemyActions(index + 1);
-        });
-        return;
-      }
+          _setDialogText('${widget.mage.name} took $damage damage!');
 
-      // Step 3: Now show the damage/effect after HP has been updated
-      if (result.actionType == EnemyActionType.attack) {
-        // Show floating damage number
-        _onDamageDealt(0, result.damage, true); // isPlayer = true
-
-        // Trigger UI rebuild to show new HP
-        setState(() {});
-
-        // Show result message
-        Future.delayed(const Duration(milliseconds: 400), () {
-          if (!mounted) return;
-          _setDialogText('${widget.mage.name} took ${result.damage} damage!');
-
-          Future.delayed(const Duration(milliseconds: 600), () {
+          Future.delayed(const Duration(milliseconds: 800), () {
             if (!mounted) return;
 
             // Check if player died
@@ -450,17 +370,23 @@ class _BattleScreenState extends State<BattleScreen> {
             _executeEnemyActions(index + 1);
           });
         });
-      } else if (result.actionType == EnemyActionType.defend) {
-        // Show defense result
-        _setDialogText('${enemy.name} gained ${result.armorGained} armor!');
-        Future.delayed(const Duration(milliseconds: 600), () {
+      } else if (cachedIntent == EnemyIntent.defend) {
+        // Show defend message
+        _setDialogText('${enemy.name} is defending!');
+        Future.delayed(const Duration(milliseconds: 800), () {
           if (!mounted) return;
           _executeEnemyActions(index + 1);
         });
-      } else if (result.actionType == EnemyActionType.debuff) {
-        // Show debuff result
-        _setDialogText('${widget.mage.name} was weakened!');
-        Future.delayed(const Duration(milliseconds: 600), () {
+      } else if (cachedIntent == EnemyIntent.debuff) {
+        // Show debuff message
+        _setDialogText('${enemy.name} weakens ${widget.mage.name}!');
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (!mounted) return;
+          _executeEnemyActions(index + 1);
+        });
+      } else {
+        // Fallback for any other case
+        Future.delayed(const Duration(milliseconds: 800), () {
           if (!mounted) return;
           _executeEnemyActions(index + 1);
         });
@@ -468,21 +394,7 @@ class _BattleScreenState extends State<BattleScreen> {
     });
   }
 
-  String _getEnemyIntentText(Enemy enemy) {
-    switch (enemy.intent) {
-      case EnemyIntent.attack:
-        return 'attacks!';
-      case EnemyIntent.defend:
-        return 'is defending!';
-      case EnemyIntent.debuff:
-        return 'uses a dark curse!';
-    }
-  }
-
   void _startNewPlayerTurn() {
-    // A3.1: Unlock animation for player turn
-    _isAnimating = false;
-
     // Check for combat end
     if (_checkCombatEnd()) return;
 
@@ -587,20 +499,9 @@ class _BattleScreenState extends State<BattleScreen> {
                 Positioned(
                   bottom: zone4Height + 8,
                   right: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      PokemonPlayerStatusPanel(mage: widget.mage),
-                      // A2.2: Player status effects
-                      if (widget.mage.statusEffects.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: PlayerStatusEffects(
-                            effects: widget.mage.statusEffects,
-                          ),
-                        ),
-                    ],
+                  child: PokemonPlayerStatusPanel(
+                    mage: widget.mage,
+                    temporaryBuffs: widget.temporaryBuffs,
                   ),
                 ),
 
@@ -616,6 +517,17 @@ class _BattleScreenState extends State<BattleScreen> {
                 // Spell inspection overlay
                 if (_inspectedSpell != null)
                   Positioned.fill(child: _buildSpellInspectionOverlay()),
+
+                // Battle inspection overlay (Player/Enemy details)
+                if (_showBattleInspection)
+                  Positioned.fill(
+                    child: BattleInspectionOverlay(
+                      mage: widget.mage,
+                      enemies: widget.combat.livingEnemies,
+                      onClose: () =>
+                          setState(() => _showBattleInspection = false),
+                    ),
+                  ),
 
                 // Combat log overlay
                 if (_showCombatLog)
@@ -754,50 +666,55 @@ class _BattleScreenState extends State<BattleScreen> {
     final canCast = widget.mage.canCast(spell);
     final textColor = _getSpellTextColor(spell, canCast);
 
-    return GestureDetector(
-      onTap: canCast ? () => _handleSpellSelect(spell) : null,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: canCast
-              ? LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [const Color(0xFF2d333b), const Color(0xFF22272e)],
-                )
-              : null,
-          color: canCast ? null : const Color(0xFF161b22),
-          border: Border.all(
-            color: canCast
-                ? _getElementColor(spell.element.name)
-                : const Color(0xFF30363d),
-            width: canCast ? 2 : 1,
+    // Wrap with SpellInspectionWrapper for long-press details
+    return SpellInspectionWrapper(
+      spell: spell,
+      enabled: true,
+      child: GestureDetector(
+        onTap: canCast ? () => _handleSpellSelect(spell) : null,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: canCast
+                ? LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [const Color(0xFF2d333b), const Color(0xFF22272e)],
+                  )
+                : null,
+            color: canCast ? null : const Color(0xFF161b22),
+            border: Border.all(
+              color: canCast
+                  ? _getElementColor(spell.element.name)
+                  : const Color(0xFF30363d),
+              width: canCast ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
           ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(spell.elementIcon, style: const TextStyle(fontSize: 20)),
-              const SizedBox(height: 2),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    spell.name,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(spell.elementIcon, style: const TextStyle(fontSize: 20)),
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      spell.name,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -894,8 +811,8 @@ class _BattleScreenState extends State<BattleScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              _getElementColor(enemy.element.name).withOpacity(0.3),
-              _getElementColor(enemy.element.name).withOpacity(0.1),
+              _getElementColor(enemy.element.name).withValues(alpha: 0.3),
+              _getElementColor(enemy.element.name).withValues(alpha: 0.1),
             ],
           ),
           border: Border.all(
@@ -1114,7 +1031,7 @@ class _BattleScreenState extends State<BattleScreen> {
     return GestureDetector(
       onTap: _hideSpellInspection,
       child: Container(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         child: Center(
           child: GestureDetector(
             onTap: () {},

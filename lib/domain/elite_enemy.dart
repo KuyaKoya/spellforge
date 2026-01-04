@@ -1,12 +1,17 @@
+import 'combat_event.dart';
 import 'element.dart';
 import 'enemy.dart';
+import 'enemy_passive.dart';
+import '../data/passive_definitions.dart';
 
 /// Modifiers that elite enemies can have.
 enum EliteModifier {
   empowered, // Increased damage
   resistant, // Reduced damage from one element
   relentless, // Acts twice every X turns
-  adaptive; // Gains resistance to repeated elements
+  adaptive, // Gains resistance to repeated elements
+  burnImmune, // Immune to Burn status
+  slowImmune; // Immune to Slow status
 
   String get displayName {
     switch (this) {
@@ -18,6 +23,10 @@ enum EliteModifier {
         return 'Relentless';
       case EliteModifier.adaptive:
         return 'Adaptive';
+      case EliteModifier.burnImmune:
+        return 'Burn Immune';
+      case EliteModifier.slowImmune:
+        return 'Slow Immune';
     }
   }
 
@@ -31,6 +40,10 @@ enum EliteModifier {
         return 'Acts twice every 3 turns';
       case EliteModifier.adaptive:
         return 'Gains resistance to repeated element attacks';
+      case EliteModifier.burnImmune:
+        return 'Cannot be burned';
+      case EliteModifier.slowImmune:
+        return 'Cannot be slowed';
     }
   }
 
@@ -44,16 +57,33 @@ enum EliteModifier {
         return '⚡';
       case EliteModifier.adaptive:
         return '🔄';
+      case EliteModifier.burnImmune:
+        return '🔥';
+      case EliteModifier.slowImmune:
+        return '❄️';
     }
   }
 }
 
-/// Represents an elite enemy with special modifiers and enhanced stats.
+/// Represents an elite enemy with special modifiers, passives, and enhanced stats.
 class EliteEnemy extends Enemy {
   final List<EliteModifier> modifiers;
   final Element? resistantElement;
+
+  /// Phase 7.5: Passive abilities for this elite.
+  final List<EnemyPassive> passives;
+
+  /// Phase 7.5: State tracked by passives during combat.
+  final PassiveState passiveState;
+
   int _turnsSinceRelentless = 0;
   final Map<Element, int> _elementHitCount = {};
+
+  /// Damage taken this turn (for Immutable Form passive).
+  int _damageTakenThisTurn = 0;
+
+  /// Max damage per turn (20% of maxHP for Immutable Form).
+  int get _maxDamagePerTurn => (maxHP * 0.2).round();
 
   EliteEnemy({
     required super.id,
@@ -66,7 +96,10 @@ class EliteEnemy extends Enemy {
     super.intent = EnemyIntent.attack,
     required this.modifiers,
     this.resistantElement,
-  });
+    List<EnemyPassive>? passives,
+    PassiveState? passiveState,
+  }) : passives = passives ?? PassiveDefinitions.getPassivesForEnemy(id),
+       passiveState = passiveState ?? PassiveState();
 
   /// Whether this elite has a specific modifier.
   bool hasModifier(EliteModifier modifier) => modifiers.contains(modifier);
@@ -108,9 +141,47 @@ class EliteEnemy extends Enemy {
     return damage.clamp(0, 999);
   }
 
-  /// Takes damage with elite modifier considerations.
-  int takeDamageWithElement(int damage, Element attackElement) {
-    final adjustedDamage = calculateDamageTaken(damage, attackElement);
+  /// Takes damage with elite modifier considerations and triggers passives.
+  int takeDamageWithElement(
+    int damage,
+    Element attackElement, {
+    int turnNumber = 0,
+  }) {
+    passiveState.spellsThisTurn++;
+
+    // Trigger passives for damage taken
+    final event = CombatEvent.damageTaken(
+      source: this,
+      damage: damage,
+      element: attackElement,
+      turnNumber: turnNumber,
+    );
+
+    int modifiedDamage = damage;
+    for (final passive in passives) {
+      if (passive.shouldTrigger(CombatEventType.damageTaken)) {
+        final result = passive.effect(event, passiveState);
+        if (result.damageModifier != null) {
+          modifiedDamage += result.damageModifier!;
+        }
+      }
+    }
+
+    // Apply Immutable Form check if enemy has that passive
+    if (hasPassive('immutableForm')) {
+      final remainingCap = _maxDamagePerTurn - _damageTakenThisTurn;
+      if (remainingCap <= 0) {
+        modifiedDamage = 0;
+      } else {
+        modifiedDamage = modifiedDamage.clamp(0, remainingCap);
+      }
+    }
+
+    final adjustedDamage = calculateDamageTaken(
+      modifiedDamage.clamp(0, 999),
+      attackElement,
+    );
+    _damageTakenThisTurn += adjustedDamage;
     return takeDamage(adjustedDamage);
   }
 
@@ -124,6 +195,44 @@ class EliteEnemy extends Enemy {
       return true;
     }
     return false;
+  }
+
+  /// Whether this elite has a specific passive by ID.
+  bool hasPassive(String passiveId) => passives.any((p) => p.id == passiveId);
+
+  /// Triggers all passives for a given event type.
+  List<PassiveResult> triggerPassives(CombatEvent event) {
+    final results = <PassiveResult>[];
+    for (final passive in passives) {
+      if (passive.shouldTrigger(event.type)) {
+        final result = passive.effect(event, passiveState);
+        if (result.hasEffect) {
+          results.add(result);
+        }
+      }
+    }
+    return results;
+  }
+
+  /// Resets per-turn state for passives.
+  void resetTurnState() {
+    _damageTakenThisTurn = 0;
+    passiveState.resetTurn();
+  }
+
+  /// Gets passive descriptions for UI display.
+  List<Map<String, String>> get passiveDescriptions {
+    return passives
+        .map(
+          (p) => {
+            'icon': p.icon,
+            'name': p.name,
+            'description': p.description,
+            'trigger': p.triggerHint,
+            'category': p.category.name,
+          },
+        )
+        .toList();
   }
 
   /// Gets all modifier display strings.
@@ -144,10 +253,19 @@ class EliteEnemy extends Enemy {
   @override
   String get statusDisplay {
     final base = super.statusDisplay;
-    if (modifiers.isEmpty) return base;
+    final parts = <String>[base];
 
-    final modifierText = modifierDescriptions.join(', ');
-    return '$base | Modifiers: $modifierText';
+    if (modifiers.isNotEmpty) {
+      final modifierText = modifierDescriptions.join(', ');
+      parts.add('Modifiers: $modifierText');
+    }
+
+    if (passives.isNotEmpty) {
+      final passiveText = passives.map((p) => p.toString()).join(', ');
+      parts.add('Passives: $passiveText');
+    }
+
+    return parts.join(' | ');
   }
 
   /// Creates a copy of this elite enemy.
@@ -164,6 +282,8 @@ class EliteEnemy extends Enemy {
       intent: intent,
       modifiers: List.from(modifiers),
       resistantElement: resistantElement,
+      passives: passives.toList(),
+      passiveState: passiveState.copy(),
     );
   }
 }

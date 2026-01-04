@@ -20,12 +20,12 @@ class EliteRewardOverlay extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(
             0xFF2d1b2e,
-          ).withOpacity(0.95), // Purplish for Elite
+          ).withValues(alpha: 0.95), // Purplish for Elite
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.purple.shade300, width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.purple.withOpacity(0.3),
+              color: Colors.purple.withValues(alpha: 0.3),
               blurRadius: 30,
               offset: const Offset(0, 0),
             ),
@@ -114,12 +114,12 @@ class EliteRewardOverlay extends StatelessWidget {
       child: InkWell(
         onTap: () => onSelect(index),
         borderRadius: BorderRadius.circular(8),
-        hoverColor: color.withOpacity(0.1),
+        hoverColor: color.withValues(alpha: 0.1),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.black26,
-            border: Border.all(color: color.withOpacity(0.5)),
+            border: Border.all(color: color.withValues(alpha: 0.5)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(

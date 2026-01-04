@@ -26,12 +26,12 @@ class EnhancementShrineOverlay extends StatelessWidget {
         constraints: const BoxConstraints(maxHeight: 700),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF161b22).withOpacity(0.95),
+          color: const Color(0xFF161b22).withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFF30363d), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -76,7 +76,7 @@ class EnhancementShrineOverlay extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.teal.shade900.withOpacity(0.5),
+                    color: Colors.teal.shade900.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.teal.shade700),
                   ),
@@ -211,9 +211,9 @@ class EnhancementShrineOverlay extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
               ),
               child: const Text(
                 'MAXED',
@@ -247,7 +247,7 @@ class EnhancementShrineOverlay extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       color: canAfford
-                          ? Colors.white.withOpacity(0.9)
+                          ? Colors.white.withValues(alpha: 0.9)
                           : Colors.grey,
                     ),
                   ),

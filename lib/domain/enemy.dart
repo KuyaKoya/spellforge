@@ -1,7 +1,5 @@
 import 'effect.dart';
 import 'element.dart';
-import 'status_effect.dart';
-import 'status_effect_manager.dart';
 
 /// Enemy intent types - simple enum as per specification.
 enum EnemyIntent {
@@ -24,21 +22,24 @@ enum EnemyIntent {
     }
   }
 
-  /// A2.3: Vague intent description for strategic planning without exact numbers.
-  /// Examples: "Preparing a heavy attack", "Gathering energy", "Defensive stance"
+  /// Phase 7 - A2.3: Vague Enemy Intent
+  ///
+  /// Returns a vague description of the intent category.
+  /// Purpose: Strategic planning without revealing exact moves.
+  /// Avoids pure RNG frustration while maintaining mystery.
   String get vagueDescription {
     switch (this) {
       case EnemyIntent.attack:
-        return 'Preparing to strike';
+        return 'Gathering energy...';
       case EnemyIntent.defend:
-        return 'Defensive stance';
+        return 'Takes a defensive stance';
       case EnemyIntent.debuff:
-        return 'Gathering dark energy';
+        return 'Dark energy swirls...';
     }
   }
 
-  /// Intent icon for UI display.
-  String get icon {
+  /// Icon representing the vague intent.
+  String get vagueIcon {
     switch (this) {
       case EnemyIntent.attack:
         return '⚔️';
@@ -61,8 +62,7 @@ class Enemy {
   final int attackDamage;
   final int armorGain;
   EnemyIntent intent;
-  final List<ActiveStatusEffect> statusEffects; // Legacy
-  late final StatusEffectManager statusManager; // Phase 7.2
+  final List<ActiveStatusEffect> statusEffects;
   bool isDelayed;
 
   Enemy({
@@ -76,9 +76,7 @@ class Enemy {
     this.intent = EnemyIntent.attack,
     List<ActiveStatusEffect>? statusEffects,
     this.isDelayed = false,
-  }) : statusEffects = statusEffects ?? [] {
-    statusManager = StatusEffectManager(ownerName: name);
-  }
+  }) : statusEffects = statusEffects ?? [];
 
   /// Whether the enemy is alive.
   bool get isAlive => currentHP > 0;
@@ -117,22 +115,25 @@ class Enemy {
 
     for (final armor in armorEffects) {
       if (remainingDamage <= 0) break;
+
+      // Calculate how much this armor stack can absorb
       final absorbed = remainingDamage.clamp(0, armor.value);
-      armor.remainingDuration--;
+
+      // Reduce armor value
+      armor.value -= absorbed;
+
+      // Reduce remaining damage
       remainingDamage -= absorbed;
-      if (armor.remainingDuration <= 0) {
+
+      // If armor is fully depleted, remove it
+      if (armor.value <= 0) {
         statusEffects.remove(armor);
       }
+
+      // Note: Do not decrement duration here
     }
 
     final actualDamage = remainingDamage.clamp(0, currentHP);
-    currentHP -= actualDamage;
-    return actualDamage;
-  }
-
-  /// Takes burn damage (ignores shields per C1 spec).
-  int takeBurnDamage(int damage) {
-    final actualDamage = damage.clamp(0, currentHP);
     currentHP -= actualDamage;
     return actualDamage;
   }
@@ -155,39 +156,14 @@ class Enemy {
     );
   }
 
-  /// Applies a new-style status effect.
-  String? applyNewStatusEffect(StatusEffect effect) {
-    return statusManager.applyEffect(effect);
-  }
-
   /// Processes status effects at turn boundary. Returns log messages.
-  /// Legacy method - also processes new system effects.
   List<String> processStatusEffects() {
     final logs = <String>[];
 
-    // Phase 7.2: Process new status effects
-    final turnStartResults = statusManager.processTurnStart();
-    for (final result in turnStartResults) {
-      if (result.damage > 0) {
-        // C1 Spec: Burn ignores shields
-        final actualDamage = takeBurnDamage(result.damage);
-        logs.add('$name takes $actualDamage burn damage');
-      }
-      if (result.healing > 0) {
-        currentHP = (currentHP + result.healing).clamp(0, maxHP);
-        logs.add('$name regenerates ${result.healing} HP');
-      }
-    }
-
-    // Process turn end for new effects
-    final expiredMessages = statusManager.processTurnEnd();
-    logs.addAll(expiredMessages);
-
-    // Legacy: Process old status effects for compatibility
     for (final effect in List.from(statusEffects)) {
       switch (effect.type) {
         case EffectType.burn:
-          final damage = takeBurnDamage(effect.value);
+          final damage = takeDamage(effect.value);
           logs.add('$name takes $damage burn damage');
           break;
         default:

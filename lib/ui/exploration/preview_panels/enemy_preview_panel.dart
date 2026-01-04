@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../domain/boss_enemy.dart';
+import '../../../domain/elite_enemy.dart';
 import '../../../domain/enemy.dart';
 import '../../../domain/element.dart' as game_element;
+import '../../components/passive_inspection_widget.dart';
 import 'preview_panel.dart';
 
 /// Enhanced enemy preview panel (shown when approaching an enemy).
@@ -84,13 +87,18 @@ class EnemyPreviewPanel extends PreviewPanel {
 
   @override
   Widget buildContent(BuildContext context) {
+    // Check if this is an elite or boss enemy with passives
+    final isBoss = enemy is BossEnemy;
+    final eliteEnemy = enemy is EliteEnemy ? enemy as EliteEnemy : null;
+    final hasPassives = eliteEnemy != null && eliteEnemy.passives.isNotEmpty;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
 
-        // Element and Elite badges
+        // Element, Elite, and Boss badges
         Row(
           children: [
             PreviewTag(
@@ -101,7 +109,14 @@ class EnemyPreviewPanel extends PreviewPanel {
                 style: const TextStyle(fontSize: 10),
               ),
             ),
-            if (isElite) ...[
+            if (isBoss) ...[
+              const SizedBox(width: 8),
+              const PreviewTag(
+                text: 'BOSS',
+                color: Color(0xFFbc8cff),
+                icon: Text('⚔️', style: TextStyle(fontSize: 10)),
+              ),
+            ] else if (isElite) ...[
               const SizedBox(width: 8),
               const PreviewTag(
                 text: 'ELITE',
@@ -186,6 +201,18 @@ class EnemyPreviewPanel extends PreviewPanel {
         if (playerSpellElements != null && playerSpellElements!.isNotEmpty) ...[
           const SizedBox(height: 12),
           _buildEffectivenessHints(),
+        ],
+
+        // Phase 7.5: Passive display for elite and boss enemies
+        if (hasPassives) ...[
+          const SizedBox(height: 12),
+          PassiveInspectionWidget(
+            passives: eliteEnemy.passives,
+            alwaysVisible: isBoss,
+            accentColor: isBoss
+                ? const Color(0xFFbc8cff)
+                : const Color(0xFFffd700),
+          ),
         ],
 
         const SizedBox(height: 8),

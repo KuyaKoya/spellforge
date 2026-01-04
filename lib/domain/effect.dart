@@ -115,7 +115,7 @@ class Effect {
 /// Represents an active status effect on an entity.
 class ActiveStatusEffect {
   final EffectType type;
-  final int value;
+  int value;
   int remainingDuration;
 
   ActiveStatusEffect({
