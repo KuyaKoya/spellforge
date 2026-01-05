@@ -117,11 +117,11 @@ class GameLoop {
   }
 
   /// Ends the player's turn in combat.
-  void endTurn() {
+  Future<void> endTurn() async {
     if (state.currentScreen != GameScreen.combat) return;
     if (state.currentCombat == null) return;
 
-    state.currentCombat!.endPlayerTurn();
+    await state.currentCombat!.endPlayerTurn();
     if (!state.currentCombat!.isOngoing) {
       _handleCombatEnd();
     }
@@ -689,8 +689,8 @@ class GameLoop {
         }
         return ['[1] Continue'];
 
-      case GameScreen.spellSelect:
-        return ['Select a spell to begin your journey'];
+      case GameScreen.elementSelect:
+        return ['Choose your starting element'];
 
       case GameScreen.runEnd:
         return ['[M] Main Menu'];

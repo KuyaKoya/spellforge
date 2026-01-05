@@ -7,6 +7,7 @@ import '../domain/enemy.dart';
 import '../domain/elite_enemy.dart';
 import '../domain/mage.dart';
 import '../domain/spell.dart';
+import '../nodes/spell_tier_scaling.dart';
 import 'difficulty_scaler.dart';
 import 'shop_system.dart';
 
@@ -17,7 +18,11 @@ class NodeResolver {
   // ==================== COMBAT GENERATION ====================
 
   /// Generates a standard combat encounter for the given depth.
-  static List<Enemy> generateCombatEncounter(int depth) {
+  /// Phase 7.6.3: Accepts [startingElement] for biased generation.
+  static List<Enemy> generateCombatEncounter(
+    int depth, {
+    Element? startingElement,
+  }) {
     final minEnemies = DifficultyScaler.getMinEnemies(depth);
     final maxEnemies = DifficultyScaler.getMaxEnemies(depth);
     final hpMultiplier = DifficultyScaler.getHPMultiplier(depth);
@@ -27,6 +32,7 @@ class NodeResolver {
       minEnemies: minEnemies,
       maxEnemies: maxEnemies,
       difficultyLevel: 1,
+      biasElement: startingElement,
     );
 
     // Apply depth scaling
@@ -47,8 +53,15 @@ class NodeResolver {
   }
 
   /// Generates an elite encounter for the given depth.
-  static List<EliteEnemy> generateEliteEncounter(int depth) {
-    return EliteDefinitions.getScaledEliteEncounter(depth: depth);
+  /// Phase 7.6.3: Accepts [startingElement] for filtered generation.
+  static List<EliteEnemy> generateEliteEncounter(
+    int depth, {
+    Element? startingElement,
+  }) {
+    return EliteDefinitions.getScaledEliteEncounter(
+      depth: depth,
+      biasElement: startingElement,
+    );
   }
 
   /// Generates a boss encounter for the final depth.
@@ -92,24 +105,48 @@ class NodeResolver {
   // ==================== SPELL GENERATION ====================
 
   /// Generates spell choices for a spell learn node.
-  static List<Spell> generateSpellChoices(Mage mage, int depth) {
-    // Determine max rarity based on depth
-    SpellRarity maxRarity;
-    if (depth < 3) {
-      maxRarity = SpellRarity.common;
-    } else if (depth < 6) {
-      maxRarity = SpellRarity.uncommon;
-    } else {
-      maxRarity = SpellRarity.rare;
+  /// Phase 7.6: Uses depth-based tier scaling, star upgrade injection,
+  /// and starting element bias.
+  static List<Spell> generateSpellChoices(Mage mage, int depth, {int? seed}) {
+    // Get IDs of current loadout to exclude
+    final excludeIds = mage.spellLoadout.map((s) => s.id).toSet();
+
+    // Get all available spells (base pool)
+    final allSpells = SpellDefinitions.allSpells
+        .where((s) => !excludeIds.contains(s.id))
+        .toList();
+
+    if (allSpells.isEmpty) {
+      return [];
     }
 
-    // Get IDs of current loadout to exclude
-    final excludeIds = mage.spellLoadout.map((s) => s.id).toList();
+    // Use the Phase 7.6 SpellLearnSelector for weighted selection
+    final selector = SpellLearnSelector(seed: seed);
 
-    return SpellDefinitions.getRandomSelection(
+    // Determine weakness element (opposite of primary)
+    // Fire <-> Water, Earth <-> Air
+    Element? weaknessElement;
+    switch (mage.primaryElement) {
+      case Element.fire:
+        weaknessElement = Element.water;
+        break;
+      case Element.water:
+        weaknessElement = Element.fire;
+        break;
+      case Element.earth:
+        weaknessElement = Element.air;
+        break;
+      case Element.air:
+        weaknessElement = Element.earth;
+        break;
+    }
+
+    return selector.selectSpellChoices(
+      depth: depth,
+      availableSpells: allSpells,
+      startingElement: mage.primaryElement,
+      weaknessElement: weaknessElement,
       count: 3,
-      maxRarity: maxRarity,
-      excludeIds: excludeIds,
     );
   }
 
@@ -243,14 +280,82 @@ class NodeResolver {
   // ==================== ELITE REWARDS ====================
 
   /// Generates elite rewards (guaranteed).
-  static Map<String, dynamic> generateEliteRewards(int depth) {
-    // depth is used for potential future scaling
-    final _ = depth;
-
+  /// Phase 7.6.5: Guarantees a higher-tier spell of the player's starting type.
+  ///
+  /// [depth] - Current run depth for scaling
+  /// [startingElement] - Player's chosen starting element (Phase 7.6.1)
+  static Map<String, dynamic> generateEliteRewards(
+    int depth, {
+    Element? startingElement,
+  }) {
     // Generate 3 reward options, player chooses 1
     final rewards = <Map<String, dynamic>>[];
 
-    // Option 1: Spell Crystal
+    // Option 1: Guaranteed higher-tier spell of starting element (Phase 7.6.5)
+    Spell? guaranteedSpell;
+    if (startingElement != null) {
+      // Get uncommon or rare spells of the starting element
+      final elementSpells = SpellDefinitions.getByElement(startingElement)
+          .where(
+            (s) =>
+                s.rarity == SpellRarity.uncommon ||
+                s.rarity == SpellRarity.rare,
+          )
+          .toList();
+
+      if (elementSpells.isNotEmpty) {
+        // Prefer rare spells at higher depths
+        final rareSpells = elementSpells
+            .where((s) => s.rarity == SpellRarity.rare)
+            .toList();
+        if (depth >= 5 && rareSpells.isNotEmpty) {
+          rareSpells.shuffle();
+          guaranteedSpell = rareSpells.first;
+        } else {
+          elementSpells.shuffle();
+          guaranteedSpell = elementSpells.first;
+        }
+      }
+    }
+
+    if (guaranteedSpell != null) {
+      rewards.add({
+        'type': 'spell',
+        'name':
+            '${guaranteedSpell.displayName} (${startingElement!.displayName})',
+        'icon': guaranteedSpell.elementIcon,
+        'description':
+            'A powerful ${startingElement.displayName} spell awaits you.',
+        'spell': guaranteedSpell,
+        'isGuaranteed': true, // Mark as the guaranteed element reward
+      });
+    } else {
+      // Fallback: random rare spell if no element match found
+      final rareSpells = SpellDefinitions.getRandomSelection(
+        count: 1,
+        maxRarity: SpellRarity.rare,
+      );
+      if (rareSpells.isNotEmpty) {
+        final spell = rareSpells.first;
+        rewards.add({
+          'type': 'spell',
+          'name': spell.displayName,
+          'icon': spell.elementIcon,
+          'description': 'Learn this powerful spell.',
+          'spell': spell,
+        });
+      } else {
+        rewards.add({
+          'type': 'fragments',
+          'name': 'Fragment Hoard',
+          'icon': '💎',
+          'description': 'A large pile of spell fragments.',
+          'value': 75,
+        });
+      }
+    }
+
+    // Option 2: Spell Crystal
     rewards.add({
       'type': 'crystal',
       'name': 'Spell Crystal',
@@ -258,30 +363,6 @@ class NodeResolver {
       'description': 'A rare crystal with immense magical power.',
       'value': 1,
     });
-
-    // Option 2: Rare Spell Offer
-    final rareSpells = SpellDefinitions.getRandomSelection(
-      count: 1,
-      maxRarity: SpellRarity.rare,
-    );
-    if (rareSpells.isNotEmpty) {
-      final spell = rareSpells.first;
-      rewards.add({
-        'type': 'spell',
-        'name': spell.displayName,
-        'icon': spell.elementIcon,
-        'description': 'Learn this powerful spell.',
-        'spell': spell,
-      });
-    } else {
-      rewards.add({
-        'type': 'fragments',
-        'name': 'Fragment Hoard',
-        'icon': '💎',
-        'description': 'A large pile of spell fragments.',
-        'value': 75,
-      });
-    }
 
     // Option 3: Free spell upgrade
     rewards.add({

@@ -10,15 +10,16 @@ import '../nodes/nodes.dart';
 import '../systems/node_resolver.dart';
 import '../systems/progression_system.dart';
 import '../systems/shop_system.dart';
+import '../director/director_system.dart';
 
 /// The current screen/mode of the game.
 enum GameScreen {
   mainMenu,
-  spellSelect, // NEW: Spell selection instead of mage selection
-  mageSelect,
+  elementSelect, // Phase 7.6.1: Choose starting element type
+  mageSelect, // Legacy - kept for compatibility
   nodeMap,
   nodeChoice,
-  exploration, // NEW: Spatial exploration room before combat
+  exploration, // Spatial exploration room before combat
   combat,
   targetSelect,
   spellLearn,
@@ -36,6 +37,10 @@ class GameState {
   // Systems
   final ProgressionSystem progression;
   final NodeMapSystem nodeMapSystem;
+  final DirectorSystem director;
+
+  /// Callback for UI updates
+  Future<void> Function()? onStateChanged;
 
   // Current screen
   GameScreen currentScreen;
@@ -71,9 +76,13 @@ class GameState {
   int spellsLearned = 0;
   int spellsUpgraded = 0;
 
-  GameState({required this.progression, NodeMapSystem? nodeMapSystem})
-    : nodeMapSystem = nodeMapSystem ?? NodeMapSystem(),
-      currentScreen = GameScreen.mainMenu;
+  GameState({
+    required this.progression,
+    NodeMapSystem? nodeMapSystem,
+    DirectorSystem? director,
+  }) : nodeMapSystem = nodeMapSystem ?? NodeMapSystem(),
+       director = director ?? DirectorSystem(),
+       currentScreen = GameScreen.mainMenu;
 
   /// Whether the player is alive.
   bool get isPlayerAlive => mage?.isAlive ?? false;
@@ -118,6 +127,11 @@ class GameState {
     // Generate the run with the new node map system
     nodeMapSystem.generateRun(maxDepth: 10);
     progression.startNewRun();
+    director.initialize(
+      seed: DateTime.now().millisecondsSinceEpoch,
+      ascensionLevel: 0,
+      startingElement: mage!.primaryElement,
+    );
 
     // Give starting spell based on element
     final startingSpells = SpellDefinitions.getByElement(
@@ -131,35 +145,31 @@ class GameState {
     currentScreen = GameScreen.exploration;
   }
 
-  /// Shows spell selection screen with one spell from each element.
-  void showSpellSelection() {
-    currentScreen = GameScreen.spellSelect;
-
-    // Get one common spell from each element
-    spellChoices = [
-      SpellDefinitions.getByElement(
-        Element.fire,
-      ).where((s) => s.rarity == SpellRarity.common).first,
-      SpellDefinitions.getByElement(
-        Element.water,
-      ).where((s) => s.rarity == SpellRarity.common).first,
-      SpellDefinitions.getByElement(
-        Element.earth,
-      ).where((s) => s.rarity == SpellRarity.common).first,
-      SpellDefinitions.getByElement(
-        Element.air,
-      ).where((s) => s.rarity == SpellRarity.common).first,
-    ];
+  /// Shows element selection screen (Phase 7.6.1).
+  /// Player chooses a starting element type instead of a specific spell.
+  void showElementSelection() {
+    currentScreen = GameScreen.elementSelect;
+    // No spell choices needed - element selection is UI-driven
+    spellChoices = null;
   }
 
-  /// Selects a starting spell and creates a default mage based on its element.
-  void selectStartingSpell(Spell selectedSpell) {
-    // Create a default mage based on spell element
-    final elementalMage = _createMageForElement(selectedSpell.element);
-
-    // Give the mage the selected spell
+  /// Selects a starting element type (Phase 7.6.1).
+  /// Creates a mage of that element and gives them the basic spell.
+  void selectStartingElement(Element element) {
+    // Create a mage for the chosen element
+    final elementalMage = _createMageForElement(element);
     mage = elementalMage;
-    mage!.learnSpell(selectedSpell);
+
+    // Give the mage the basic spell of their element
+    final startingSpells = SpellDefinitions.getByElement(
+      element,
+    ).where((s) => s.rarity == SpellRarity.common).toList();
+    if (startingSpells.isNotEmpty) {
+      mage!.learnSpell(startingSpells.first);
+    }
+
+    // Record starting element for Director influence
+    _startingElement = element;
 
     // Start the run
     combatsWon = 0;
@@ -173,9 +183,19 @@ class GameState {
 
     nodeMapSystem.generateRun(maxDepth: 10);
     progression.startNewRun();
+    director.initialize(
+      seed: DateTime.now().millisecondsSinceEpoch,
+      ascensionLevel: 0,
+      startingElement: _startingElement,
+    );
     // Go to exploration mode
     currentScreen = GameScreen.exploration;
   }
+
+  /// The starting element chosen by the player (Phase 7.6.1).
+  /// Used for Director influence on spell/enemy generation.
+  Element? _startingElement;
+  Element? get startingElement => _startingElement;
 
   /// Creates a mage for the given element.
   Mage _createMageForElement(Element element) {
@@ -297,7 +317,10 @@ class GameState {
   void _setupCombat(int depth) {
     print('DEBUG: Setting up combat for depth $depth');
     // Generate enemy for exploration room
-    currentEnemies = NodeResolver.generateCombatEncounter(depth).cast<Enemy>();
+    currentEnemies = NodeResolver.generateCombatEncounter(
+      depth,
+      startingElement: _startingElement,
+    ).cast<Enemy>();
     print('DEBUG: Generated ${currentEnemies?.length} enemies');
     isEliteCombat = false;
 
@@ -314,6 +337,7 @@ class GameState {
       mage: mage!,
       enemies: currentEnemies!,
       damageMultiplier: temporaryBuffMultiplier,
+      onStateChanged: onStateChanged,
     );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;
@@ -321,7 +345,10 @@ class GameState {
 
   void _setupEliteCombat(int depth) {
     // Generate elite enemy for exploration room
-    final elites = NodeResolver.generateEliteEncounter(depth);
+    final elites = NodeResolver.generateEliteEncounter(
+      depth,
+      startingElement: _startingElement,
+    );
     currentEnemies = elites.cast<Enemy>();
     isEliteCombat = true;
 
@@ -335,6 +362,7 @@ class GameState {
       mage: mage!,
       enemies: currentEnemies!,
       damageMultiplier: temporaryBuffMultiplier,
+      onStateChanged: onStateChanged,
     );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;
@@ -379,8 +407,12 @@ class GameState {
   }
 
   /// Shows elite reward selection.
+  /// Phase 7.6.5: Passes starting element for guaranteed element-matched spell.
   void showEliteRewards() {
-    currentEliteRewards = NodeResolver.generateEliteRewards(currentDepth);
+    currentEliteRewards = NodeResolver.generateEliteRewards(
+      currentDepth,
+      startingElement: _startingElement,
+    );
     currentScreen = GameScreen.eliteReward;
   }
 

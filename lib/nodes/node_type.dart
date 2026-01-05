@@ -87,4 +87,26 @@ enum NodeType {
       this == NodeType.enhancementShrine ||
       this == NodeType.shop ||
       this == NodeType.rest;
+
+  /// Whether this node type is non-combat (Phase 7.6).
+  /// Used for pre-elite and pre-boss path safety checks.
+  bool get isNonCombat =>
+      this == NodeType.rest ||
+      this == NodeType.shop ||
+      this == NodeType.enhancementShrine ||
+      this == NodeType.randomEvent ||
+      this == NodeType.spellLearn;
+
+  /// Whether this node type is allowed before elites/bosses (Phase 7.6).
+  /// These are guaranteed prep nodes. Includes non-hostile events.
+  bool get isAllowedBeforeEliteOrBoss =>
+      this == NodeType.rest ||
+      this == NodeType.shop ||
+      this == NodeType.enhancementShrine ||
+      this == NodeType.spellLearn ||
+      this == NodeType.randomEvent; // Non-hostile events allowed
+
+  /// Whether this node type is a high-danger encounter.
+  bool get isEliteOrBoss =>
+      this == NodeType.elite || this == NodeType.bossCombat;
 }

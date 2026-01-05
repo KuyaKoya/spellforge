@@ -57,6 +57,7 @@ class NodeMapSystem {
   // ==================== RUN GENERATION ====================
 
   /// Generates a new run with strategic node placement.
+  /// Implements Phase 7.6: Pre-elite and pre-boss path safety.
   ///
   /// [maxDepth] - Number of depths to generate (default: 10)
   void generateRun({int maxDepth = defaultMaxDepth}) {
@@ -64,14 +65,79 @@ class NodeMapSystem {
     _currentDepth = 0;
     _nodeSelector.reset();
 
+    // ========== PHASE 7.6: TWO-PASS GENERATION ==========
+    // Pass 1: Pre-plan where elites will appear
+    // Pass 2: Generate nodes with path safety context
+
+    // Pre-determine elite positions (roughy every 3-4 depths after depth 4)
+    final eliteDepths = _planEliteDepths(maxDepth);
+
     for (int d = 0; d < maxDepth; d++) {
-      final nodeChoices = _generateNodesForDepth(d, maxDepth);
+      // Set path safety context for this depth
+      final isPreBoss = d == maxDepth - 2; // Depth before boss
+      final nextDepthHasElite = eliteDepths.contains(d + 1);
+      final nextDepthIsBoss = d == maxDepth - 2;
+
+      _nodeSelector.setPathSafetyContext(
+        nextDepthHasEliteOrBoss: nextDepthHasElite || nextDepthIsBoss,
+        isPreBossDepth: isPreBoss,
+      );
+
+      final nodeChoices = _generateNodesForDepth(
+        d,
+        maxDepth,
+        forceElite: eliteDepths.contains(d),
+        isPreBoss: isPreBoss,
+      );
       _depths.add(DepthLevel(depth: d + 1, nodeChoices: nodeChoices));
     }
   }
 
+  /// Pre-plans where elite nodes should appear based on depth distribution.
+  /// Returns a set of depth indices (0-indexed) that should have elites.
+  Set<int> _planEliteDepths(int maxDepth) {
+    final eliteDepths = <int>{};
+
+    // Elites can appear starting at depth 4 (index 3)
+    // Roughly one elite every 3-4 depths, with some randomness
+    // Guaranteed 1-2 elites in a standard 10-depth run
+
+    int nextPossibleElite = 3; // First possible elite at depth 4
+
+    while (nextPossibleElite < maxDepth - 1) {
+      // Don't place on the depth before boss
+      if (nextPossibleElite == maxDepth - 2) break;
+
+      // ~40% chance of elite at eligible depths
+      if (_random.nextDouble() < 0.4) {
+        eliteDepths.add(nextPossibleElite);
+        nextPossibleElite += 3; // Minimum 3 depths between elites
+      } else {
+        nextPossibleElite++;
+      }
+    }
+
+    // Ensure at least one elite if none were placed
+    if (eliteDepths.isEmpty && maxDepth > 5) {
+      // Place elite at depth 5 or 6 (index 4 or 5)
+      final fallbackDepth = _random.nextBool() ? 4 : 5;
+      if (fallbackDepth < maxDepth - 2) {
+        eliteDepths.add(fallbackDepth);
+      }
+    }
+
+    return eliteDepths;
+  }
+
   /// Generates 1-2 node choices for a specific depth.
-  List<MapNode> _generateNodesForDepth(int depthIndex, int maxDepth) {
+  /// [forceElite] - If true, this depth must contain an elite encounter.
+  /// [isPreBoss] - If true, this is the pre-boss depth (Phase 7.6 calm before gate).
+  List<MapNode> _generateNodesForDepth(
+    int depthIndex,
+    int maxDepth, {
+    bool forceElite = false,
+    bool isPreBoss = false,
+  }) {
     final depth = depthIndex + 1; // 1-indexed
 
     // Final depth is always boss
@@ -83,6 +149,31 @@ class NodeMapSystem {
       );
       _nodeSelector.onNodeCompleted(bossNode.type);
       return [bossNode];
+    }
+
+    // Force elite if this depth was pre-planned for elite
+    if (forceElite) {
+      final eliteNode = MapNode(
+        depth: depth,
+        pathIndex: 0,
+        type: NodeType.elite,
+      );
+      _nodeSelector.onNodeCompleted(eliteNode.type);
+      return [eliteNode];
+    }
+
+    // Pre-boss depth: single guaranteed non-combat node (Phase 7.6)
+    // No choices - player must take the calm before the gate
+    if (isPreBoss) {
+      final nodeType = _nodeSelector.selectNodeType(depth);
+      final preBossNode = MapNode(
+        depth: depth,
+        pathIndex: 0,
+        type: nodeType,
+        isPreBoss: true,
+      );
+      _nodeSelector.onNodeCompleted(preBossNode.type);
+      return [preBossNode];
     }
 
     // Determine node count (1 or 2)

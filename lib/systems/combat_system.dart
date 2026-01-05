@@ -1,7 +1,11 @@
 import '../domain/effect.dart';
 import '../domain/enemy.dart';
+import '../domain/elite_enemy.dart';
+import '../domain/boss_enemy.dart';
+import '../domain/combat_event.dart';
 import '../domain/mage.dart';
 import 'spell_system.dart';
+import 'audio_system.dart';
 
 /// Represents the state of an ongoing combat.
 enum CombatPhase { playerTurn, enemyTurn, statusResolution, victory, defeat }
@@ -25,6 +29,9 @@ class CombatSystem {
   final List<Enemy> enemies;
   final List<String> combatLog;
 
+  /// Callback to notify system of state changes (for UI updates during async operations)
+  final Future<void> Function()? onStateChanged;
+
   /// Damage multiplier from temporary buffs (e.g. Rest Site Train).
   final double damageMultiplier;
 
@@ -36,6 +43,7 @@ class CombatSystem {
     required this.mage,
     required this.enemies,
     this.damageMultiplier = 1.0,
+    this.onStateChanged,
   }) : combatLog = [],
        phase = CombatPhase.playerTurn,
        currentTurn = 1;
@@ -77,6 +85,19 @@ class CombatSystem {
     combatLog.add(
       '${mage.name} encounters ${enemies.length} ${enemies.length == 1 ? 'enemy' : 'enemies'}!',
     );
+    combatLog.add('');
+    // Phase 7.6.8: Trigger battle start passives for elites
+    for (final enemy in enemies) {
+      if (enemy is EliteEnemy) {
+        enemy.resetTurnState(); // Ensure cleaner start
+        final results = enemy.triggerPassives(CombatEvent.battleStart(enemy));
+        for (final result in results) {
+          if (result.logMessage != null) {
+            combatLog.add('  ⚠️ ${result.logMessage}');
+          }
+        }
+      }
+    }
     combatLog.add('');
 
     // Log the first player turn
@@ -149,6 +170,9 @@ class CombatSystem {
 
     final spell = mage.spellLoadout[spellIndex];
 
+    // Play spell sound
+    AudioSystem.playSpellSound(spell.id);
+
     final result = SpellSystem.castSpell(
       caster: mage,
       spell: spell,
@@ -156,6 +180,19 @@ class CombatSystem {
       targetIndex: targetIndex ?? 0,
       damageMultiplier: damageMultiplier,
     );
+
+    // Play enemy death sound if any died
+    if (result.enemiesDefeated > 0) {
+      AudioSystem.playEnemyDeath();
+    }
+
+    // Play debuff sound if applied
+    for (final log in result.logs) {
+      if (log.contains('Slow applied') || log.contains('Weaken applied')) {
+        AudioSystem.playDebuff();
+        break; // Play once per cast even if multiple applied
+      }
+    }
 
     combatLog.addAll(result.logs);
     combatLog.add('');
@@ -178,7 +215,7 @@ class CombatSystem {
   }
 
   /// Ends the player's turn.
-  void endPlayerTurn() {
+  Future<void> endPlayerTurn() async {
     if (!isPlayerTurn) return;
 
     combatLog.add('${mage.name} ends their turn.');
@@ -186,35 +223,76 @@ class CombatSystem {
 
     _playerTurnHeaderLogged = false;
     phase = CombatPhase.enemyTurn;
-    _executeEnemyTurn();
+
+    // Notify UI before enemy turn starts
+    await onStateChanged?.call();
+
+    await _executeEnemyTurn();
   }
 
   /// Automatically ends the turn (when no actions/mana left).
-  void autoEndTurn() {
+  Future<void> autoEndTurn() async {
     combatLog.add('⚠️  No more actions available.');
-    endPlayerTurn();
+    await endPlayerTurn();
   }
 
-  /// Executes all enemy actions.
-  void _executeEnemyTurn() {
+  /// Executes all enemy actions asynchronously.
+  Future<void> _executeEnemyTurn() async {
     combatLog.add('┌──────────────────────────────────────┐');
     combatLog.add('│  TURN $currentTurn - ENEMY TURN');
     combatLog.add('└──────────────────────────────────────┘');
     combatLog.add('');
 
+    await onStateChanged?.call();
+    await Future.delayed(const Duration(milliseconds: 500));
+
     final living = livingEnemies;
+
+    // Phase 7.6.8: Trigger turn start passives for elites
+    for (final enemy in living) {
+      if (enemy is EliteEnemy) {
+        final results = enemy.triggerPassives(
+          CombatEvent.turnStart(source: enemy, turnNumber: currentTurn),
+        );
+        for (final result in results) {
+          if (result.logMessage != null) {
+            combatLog.add('  ⚠️ ${result.logMessage}');
+          }
+        }
+      }
+    }
+
     for (int i = 0; i < living.length; i++) {
       final enemy = living[i];
+
+      // Delay between enemies
+      if (i > 0) {
+        await Future.delayed(const Duration(milliseconds: 800));
+      }
 
       if (enemy.isDelayed) {
         combatLog.add('⏸️  ${enemy.name} is delayed and skips their turn.');
         combatLog.add('');
+        await onStateChanged?.call();
         continue;
       }
 
       combatLog.add('► ${enemy.name}\'s action:');
-      _executeEnemyAction(enemy);
+      await onStateChanged?.call();
+
+      await _executeEnemyAction(enemy);
+
+      // Phase 7.6.8: Handle Relentless elite modifier (double action)
+      if (enemy is EliteEnemy && mage.isAlive && enemy.isAlive) {
+        if (enemy.canActTwice()) {
+          await Future.delayed(const Duration(milliseconds: 600));
+          combatLog.add('⚡ ${enemy.name} is Relentless and acts again!');
+          await _executeEnemyAction(enemy);
+        }
+      }
+
       combatLog.add('');
+      await onStateChanged?.call();
 
       if (!mage.isAlive) {
         _endCombat(playerWon: false);
@@ -222,31 +300,59 @@ class CombatSystem {
       }
     }
 
+    // Phase 7.6.8: Trigger turn end passives for elites
+    for (final enemy in living) {
+      if (enemy is EliteEnemy && enemy.isAlive) {
+        final results = enemy.triggerPassives(
+          CombatEvent.turnEnd(source: enemy, turnNumber: currentTurn),
+        );
+        for (final result in results) {
+          if (result.logMessage != null) {
+            combatLog.add('  ⚠️ ${result.logMessage}');
+          }
+        }
+      }
+    }
+
+    await Future.delayed(const Duration(milliseconds: 500));
     _resolveStatusEffects();
   }
 
-  /// Executes a single enemy's action based on intent.
-  void _executeEnemyAction(Enemy enemy) {
+  /// Executes a single enemy's action based on intent asynchronously.
+  Future<void> _executeEnemyAction(Enemy enemy) async {
     switch (enemy.intent) {
       case EnemyIntent.attack:
+        // Sync point: Sound -> Wait -> Damage -> Update
+        AudioSystem.playEnemyAttack();
+
+        // Wait for impact
+        await Future.delayed(const Duration(milliseconds: 400));
+
         final damage = enemy.getEffectiveDamage();
         final actualDamage = mage.takeDamage(damage);
         combatLog.add('  ⚔️  Attacks ${mage.name} for $actualDamage damage!');
         combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+
+        // Trigger UI update immediately after damage
+        onStateChanged?.call();
         break;
 
       case EnemyIntent.defend:
+        AudioSystem.playBuff();
         enemy.applyStatusEffect(
           Effect(type: EffectType.armor, value: enemy.armorGain, duration: 2),
         );
         combatLog.add('  🛡️  Defends, gaining ${enemy.armorGain} armor.');
+        onStateChanged?.call();
         break;
 
       case EnemyIntent.debuff:
+        AudioSystem.playDebuff();
         mage.applyStatusEffect(
           Effect(type: EffectType.weaken, value: 15, duration: 2),
         );
         combatLog.add('  💀 Weakens ${mage.name}! (-15% damage for 2 turns)');
+        onStateChanged?.call();
         break;
     }
 
@@ -271,6 +377,9 @@ class CombatSystem {
         combatLog.add('${mage.name}:');
         final mageLogs = mage.processStatusEffects();
         for (final log in mageLogs) {
+          if (log.contains('burn damage')) {
+            AudioSystem.playBurn();
+          }
           combatLog.add('  $log');
         }
         combatLog.add('');
@@ -287,10 +396,14 @@ class CombatSystem {
           combatLog.add('${enemy.name}:');
           final enemyLogs = enemy.processStatusEffects();
           for (final log in enemyLogs) {
+            if (log.contains('burn damage')) {
+              AudioSystem.playBurn();
+            }
             combatLog.add('  $log');
           }
 
           if (!enemy.isAlive) {
+            AudioSystem.playEnemyDeath();
             combatLog.add('  💀 ${enemy.name} is defeated by status effects!');
           }
           combatLog.add('');
@@ -306,6 +419,9 @@ class CombatSystem {
 
     // Start new turn
     _startNewTurn();
+
+    // Final UI update
+    onStateChanged?.call();
   }
 
   /// Starts a new player turn.
@@ -314,6 +430,13 @@ class CombatSystem {
     phase = CombatPhase.playerTurn;
     _playerTurnHeaderLogged = false;
     mage.resetActions();
+
+    // Reset periodic state for enemies (e.g. Elite damage caps)
+    for (final enemy in enemies) {
+      if (enemy is EliteEnemy) {
+        enemy.resetTurnState();
+      }
+    }
 
     // Restore some mana each turn
     final manaRestored = mage.restoreMana(2);
@@ -335,16 +458,25 @@ class CombatSystem {
     combatLog.add('');
     combatLog.add('╔══════════════════════════════════════╗');
     if (playerWon) {
+      // Check if boss win
+      if (enemies.any((e) => e is BossEnemy)) {
+        AudioSystem.playBossWin();
+      }
+
       combatLog.add('║         🎉 VICTORY! 🎉               ║');
       combatLog.add('╚══════════════════════════════════════╝');
       combatLog.add('');
       combatLog.add('${mage.name} is triumphant!');
     } else {
+      AudioSystem.playBattleDefeat();
       combatLog.add('║         💀 DEFEAT 💀                 ║');
       combatLog.add('╚══════════════════════════════════════╝');
       combatLog.add('');
       combatLog.add('${mage.name} has fallen...');
     }
+
+    // Final update for combat end
+    onStateChanged?.call();
   }
 
   /// Gets the combat result (only valid after combat ends).

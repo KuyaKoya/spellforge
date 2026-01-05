@@ -99,6 +99,24 @@ class _NodeBreadcrumbsState extends State<NodeBreadcrumbs>
   List<Widget> _buildBreadcrumbs() {
     final widgets = <Widget>[];
 
+    // Phase 7.6: Pre-scan for elite and boss positions
+    final eliteDepths = <int>{};
+    final bossDepth = widget.totalDepths; // Boss is always at final depth
+
+    for (int depth = 1; depth <= widget.totalDepths; depth++) {
+      final depthLevel = widget.nodeMapSystem.getDepthAt(depth - 1);
+      if (depthLevel != null) {
+        final hasElite = depthLevel.nodeChoices.any(
+          (n) => n.type == NodeType.elite,
+        );
+        final hasBoss = depthLevel.nodeChoices.any(
+          (n) => n.type == NodeType.bossCombat,
+        );
+        if (hasElite) eliteDepths.add(depth);
+        if (hasBoss) eliteDepths.add(depth); // Treat boss positions similarly
+      }
+    }
+
     for (int depth = 1; depth <= widget.totalDepths; depth++) {
       final isPast = depth < widget.currentDepth;
       final isCurrent = depth == widget.currentDepth;
@@ -115,6 +133,13 @@ class _NodeBreadcrumbsState extends State<NodeBreadcrumbs>
         }
       }
 
+      // Phase 7.6: Determine path safety visual states
+      final isEliteNode = eliteDepths.contains(depth);
+      final isPreBoss = depth == bossDepth - 1;
+      final isPreElite = eliteDepths.contains(depth + 1) && !isPreBoss;
+      final isGuaranteedSafe =
+          (isPreBoss || isPreElite) && nodeType?.isNonCombat == true;
+
       widgets.add(
         _buildNodeIcon(
           depth: depth,
@@ -122,12 +147,17 @@ class _NodeBreadcrumbsState extends State<NodeBreadcrumbs>
           isPast: isPast,
           isCurrent: isCurrent,
           isFuture: isFuture,
+          isElite: isEliteNode,
+          isPreBoss: isPreBoss,
+          isGuaranteedSafe: isGuaranteedSafe,
         ),
       );
 
       // Connector (except after last)
       if (depth < widget.totalDepths) {
-        widgets.add(_buildConnector(isPast: isPast));
+        widgets.add(
+          _buildConnector(isPast: isPast, isPreBoss: depth == bossDepth - 1),
+        );
       }
     }
 
@@ -140,6 +170,9 @@ class _NodeBreadcrumbsState extends State<NodeBreadcrumbs>
     required bool isPast,
     required bool isCurrent,
     required bool isFuture,
+    bool isElite = false,
+    bool isPreBoss = false,
+    bool isGuaranteedSafe = false,
   }) {
     return AnimatedBuilder(
       animation: _glowAnimation,
@@ -152,20 +185,32 @@ class _NodeBreadcrumbsState extends State<NodeBreadcrumbs>
             isCurrent: isCurrent,
             isFuture: isFuture,
             glowOpacity: isCurrent ? _glowAnimation.value : 0.0,
+            isElite: isElite,
+            isPreBoss: isPreBoss,
+            isGuaranteedSafe: isGuaranteedSafe,
           ),
         );
       },
     );
   }
 
-  Widget _buildConnector({required bool isPast}) {
+  /// Phase 7.6: Connector with calm motif before boss
+  Widget _buildConnector({required bool isPast, bool isPreBoss = false}) {
+    // Before boss: calm, muted visual motif (Rule 16)
+    final color = isPreBoss
+        ? const Color(0xFF3d4a5c).withValues(alpha: 0.4)
+        : (isPast
+              ? const Color(0xFF30363d).withValues(alpha: 0.5)
+              : const Color(0xFF21262d).withValues(alpha: 0.3));
+
     return Container(
       width: 12,
-      height: 1,
+      height: isPreBoss ? 2 : 1,
       margin: const EdgeInsets.symmetric(horizontal: 2),
-      color: isPast
-          ? const Color(0xFF30363d).withValues(alpha: 0.5)
-          : const Color(0xFF21262d).withValues(alpha: 0.3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: isPreBoss ? BorderRadius.circular(1) : null,
+      ),
     );
   }
 
@@ -187,12 +232,17 @@ class _NodeBreadcrumbsState extends State<NodeBreadcrumbs>
 
 /// Custom painter for abstract node icons.
 /// LOCKED ICONOGRAPHY - No literal representations.
+/// Phase 7.6 additions: Elite, pre-boss, and guaranteed-safe indicators.
 class _NodeIconPainter extends CustomPainter {
   final NodeType? nodeType;
   final bool isPast;
   final bool isCurrent;
   final bool isFuture;
   final double glowOpacity;
+  // Phase 7.6 path safety indicators
+  final bool isElite;
+  final bool isPreBoss;
+  final bool isGuaranteedSafe;
 
   _NodeIconPainter({
     required this.nodeType,
@@ -200,12 +250,31 @@ class _NodeIconPainter extends CustomPainter {
     required this.isCurrent,
     required this.isFuture,
     required this.glowOpacity,
+    this.isElite = false,
+    this.isPreBoss = false,
+    this.isGuaranteedSafe = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final baseColor = _getBaseColor();
+
+    // Phase 7.6: Guaranteed safe node glow (faint, protective)
+    if (isGuaranteedSafe && !isPast) {
+      final safeGlowPaint = Paint()
+        ..color = const Color(0xFF58a6ff).withValues(alpha: 0.15)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      canvas.drawCircle(center, 11, safeGlowPaint);
+    }
+
+    // Phase 7.6: Elite node danger glow
+    if (isElite && !isPast) {
+      final eliteGlowPaint = Paint()
+        ..color = const Color(0xFFf85149).withValues(alpha: 0.2)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawCircle(center, 9, eliteGlowPaint);
+    }
 
     // Glow effect for current node only
     if (isCurrent && glowOpacity > 0) {
@@ -218,7 +287,7 @@ class _NodeIconPainter extends CustomPainter {
     final paint = Paint()
       ..color = baseColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isCurrent ? 1.5 : 1.0;
+      ..strokeWidth = isCurrent ? 1.5 : (isElite ? 1.5 : 1.0);
 
     final fillPaint = Paint()
       ..color = baseColor.withValues(alpha: isPast ? 0.1 : 0.0)
@@ -232,14 +301,26 @@ class _NodeIconPainter extends CustomPainter {
   }
 
   Color _getBaseColor() {
-    // LOCKED: No color coding by element - all symbols use neutral palette
+    // LOCKED: No element color coding - but Phase 7.6 adds danger/calm tinting
     if (isPast) {
       return const Color(
         0xFF484f58,
       ).withValues(alpha: 0.6); // Low opacity, desaturated
     } else if (isCurrent) {
-      return const Color(0xFF8b949e); // Brighter stroke
+      // Phase 7.6: Danger tint for elite, calm tint for pre-boss
+      if (isElite) {
+        return const Color(0xFFf85149); // Danger red
+      } else if (isPreBoss) {
+        return const Color(0xFF58a6ff); // Calm blue
+      }
+      return const Color(0xFF8b949e); // Brighter stroke (standard)
     } else {
+      // Future nodes
+      if (isElite) {
+        return const Color(0xFFf85149).withValues(alpha: 0.5); // Faded danger
+      } else if (isPreBoss) {
+        return const Color(0xFF58a6ff).withValues(alpha: 0.4); // Faded calm
+      }
       return const Color(0xFF30363d).withValues(alpha: 0.4); // Abstracted
     }
   }

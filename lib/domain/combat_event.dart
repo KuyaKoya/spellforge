@@ -39,11 +39,15 @@ enum CombatEventType {
 
   /// Fired when the player casts any spell.
   playerSpellCast,
+
+  /// Fired at the start of battle.
+  battleStart,
 }
 
 /// Represents a combat event that can trigger passives.
 class CombatEvent {
   final CombatEventType type;
+  // ... (rest of class)
 
   /// The enemy that owns the passive being triggered.
   final Enemy? source;
@@ -171,6 +175,23 @@ class CombatEvent {
       damage: damage,
       turnNumber: turnNumber,
       context: {'isFirstSpellThisTurn': isFirstSpellThisTurn},
+    );
+  }
+
+  /// Factory for battle start events.
+  factory CombatEvent.battleStart(Enemy source) {
+    return CombatEvent(type: CombatEventType.battleStart, source: source);
+  }
+
+  /// Factory for turn end events.
+  factory CombatEvent.turnEnd({
+    required Enemy source,
+    required int turnNumber,
+  }) {
+    return CombatEvent(
+      type: CombatEventType.turnEnd,
+      source: source,
+      turnNumber: turnNumber,
     );
   }
 

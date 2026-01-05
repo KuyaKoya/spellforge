@@ -6,6 +6,7 @@ class ProgressionSystem {
   static const String _crystalsKey = 'spell_crystals';
   static const String _totalRunsKey = 'total_runs';
   static const String _bestNodeKey = 'best_node_reached';
+  static const String _lastRunElementKey = 'last_run_element';
 
   SharedPreferences? _prefs;
 
@@ -25,6 +26,10 @@ class ProgressionSystem {
   int _bestNodeReached = 0;
   int get bestNodeReached => _bestNodeReached;
 
+  /// Last run starting element (for UI display).
+  String? _lastRunElement;
+  String? get lastRunElement => _lastRunElement;
+
   /// Run-transient state.
   int _currentRunLevel = 1;
   int get currentRunLevel => _currentRunLevel;
@@ -43,6 +48,7 @@ class ProgressionSystem {
     _spellCrystals = _prefs?.getInt(_crystalsKey) ?? 0;
     _totalRuns = _prefs?.getInt(_totalRunsKey) ?? 0;
     _bestNodeReached = _prefs?.getInt(_bestNodeKey) ?? 0;
+    _lastRunElement = _prefs?.getString(_lastRunElementKey);
   }
 
   Future<void> _saveData() async {
@@ -50,6 +56,9 @@ class ProgressionSystem {
     await _prefs?.setInt(_crystalsKey, _spellCrystals);
     await _prefs?.setInt(_totalRunsKey, _totalRuns);
     await _prefs?.setInt(_bestNodeKey, _bestNodeReached);
+    if (_lastRunElement != null) {
+      await _prefs?.setString(_lastRunElementKey, _lastRunElement!);
+    }
   }
 
   /// Starts a new run, resetting transient state.
@@ -64,6 +73,7 @@ class ProgressionSystem {
     required bool victory,
     required int fragmentsEarned,
     int crystalsEarned = 0,
+    String? startingElement,
   }) async {
     _totalRuns++;
     _spellFragments += fragmentsEarned;
@@ -71,6 +81,10 @@ class ProgressionSystem {
 
     if (nodesCompleted > _bestNodeReached) {
       _bestNodeReached = nodesCompleted;
+    }
+
+    if (startingElement != null) {
+      _lastRunElement = startingElement;
     }
 
     await _saveData();
@@ -130,6 +144,7 @@ Spell Fragments: $_spellFragments
 Spell Crystals: $_spellCrystals
 Total Runs: $_totalRuns
 Best Node Reached: $_bestNodeReached
+Last Start Element: ${_lastRunElement ?? 'None'}
 ''';
   }
 
@@ -139,6 +154,7 @@ Best Node Reached: $_bestNodeReached
     _spellCrystals = 0;
     _totalRuns = 0;
     _bestNodeReached = 0;
+    _lastRunElement = null;
     await _saveData();
   }
 }

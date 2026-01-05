@@ -110,14 +110,40 @@ class EliteDefinitions {
   ];
 
   /// Generates a random elite encounter scaled by depth.
+  /// Phase 7.6.3: [biasElement] can be used to prevent unfair matchups at low depths.
   static List<EliteEnemy> generateEliteEncounter({
     required int depth,
     int? seed,
+    Element? biasElement,
   }) {
     final random = seed != null ? Random(seed) : Random();
 
     // Choose an encounter
-    final generators = List.from(allEliteEncounters);
+    var generators = List.from(allEliteEncounters);
+
+    // Filter unfair matchups at lower depths
+    if (biasElement != null && depth < 6) {
+      generators = generators.where((gen) {
+        final dummyList = gen();
+        final dummy = dummyList.first;
+        // Avoid Resistant to player's element
+        if (dummy.hasModifier(EliteModifier.resistant) &&
+            dummy.resistantElement == biasElement) {
+          return false;
+        }
+        // Avoid Adaptive at low levels (hard counter to mono-element)
+        if (dummy.hasModifier(EliteModifier.adaptive)) {
+          return false;
+        }
+        return true;
+      }).toList();
+
+      // Fallback if we filtered everything out (unlikely but safe)
+      if (generators.isEmpty) {
+        generators = List.from(allEliteEncounters);
+      }
+    }
+
     final encounter = generators[random.nextInt(generators.length)]();
 
     // Scale by depth (depths 4+)
@@ -136,13 +162,45 @@ class EliteDefinitions {
   }
 
   /// Gets an elite encounter with proper scaling.
+  /// Phase 7.6.3: Supports [biasElement].
   static List<EliteEnemy> getScaledEliteEncounter({
     required int depth,
     int? encounterIndex,
+    Element? biasElement,
   }) {
     final random = Random();
-    final index = encounterIndex ?? random.nextInt(allEliteEncounters.length);
-    final baseEncounter = allEliteEncounters[index]();
+
+    List<List<EliteEnemy> Function()> generators;
+    if (encounterIndex != null) {
+      generators = [allEliteEncounters[encounterIndex]];
+    } else {
+      generators = List.from(allEliteEncounters);
+
+      // Phase 7.6.3: Filter unfair matchups at lower depths
+      if (biasElement != null && depth < 6) {
+        generators = generators.where((gen) {
+          final dummyList = gen();
+          final dummy = dummyList.first;
+          // Avoid Resistant to player's element
+          if (dummy.hasModifier(EliteModifier.resistant) &&
+              dummy.resistantElement == biasElement) {
+            return false;
+          }
+          // Avoid Adaptive at low levels
+          if (dummy.hasModifier(EliteModifier.adaptive)) {
+            return false;
+          }
+          return true;
+        }).toList();
+
+        if (generators.isEmpty) {
+          generators = List.from(allEliteEncounters);
+        }
+      }
+    }
+
+    final index = random.nextInt(generators.length);
+    final baseEncounter = generators[index]();
 
     // Scale stats based on depth
     final depthBonus = ((depth - 4) * 0.15).clamp(0.0, 1.0);

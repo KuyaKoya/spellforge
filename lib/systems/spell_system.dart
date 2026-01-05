@@ -1,6 +1,7 @@
 import '../domain/effect.dart';
 import '../domain/element.dart';
 import '../domain/enemy.dart';
+import '../domain/elite_enemy.dart';
 import '../domain/mage.dart';
 import '../domain/spell.dart';
 
@@ -193,7 +194,16 @@ class SpellSystem {
               .where((e) => e.type == EffectType.armor)
               .fold(0, (sum, e) => sum + e.value);
 
-          final actualDamage = target.takeDamage(finalDamage);
+          // Phase 7.6.8: Use elite-specific damage method for passive triggering
+          int actualDamage;
+          if (target is EliteEnemy) {
+            actualDamage = target.takeDamageWithElement(
+              finalDamage,
+              spell.element,
+            );
+          } else {
+            actualDamage = target.takeDamage(finalDamage);
+          }
 
           logs.add('${spell.displayName} hits ${target.name}');
 

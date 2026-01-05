@@ -223,12 +223,12 @@ class SpellDefinitions {
   );
 
   static const tsunami = Spell(
-    id: 'tsunami',
-    name: 'Tsunami',
+    id: 'typhoon',
+    name: 'Typhoon',
     element: Element.water,
     rarity: SpellRarity.signature,
     starLevel: 1,
-    baseDescription: 'An overwhelming wave that devastates all.',
+    baseDescription: 'An overwhelming storm that devastates all.',
     manaCost: 6,
     effects: [
       Effect(type: EffectType.damage, value: 12, targetRule: TargetRule.all),

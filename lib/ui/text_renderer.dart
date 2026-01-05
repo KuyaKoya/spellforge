@@ -9,7 +9,6 @@ import '../nodes/nodes.dart';
 import '../narrative/journey_log.dart';
 import 'battle/battle.dart';
 import 'exploration/exploration_screen_v2.dart';
-import 'spell_selection_screen.dart';
 import 'exploration/overlays/rest_overlay.dart';
 import 'exploration/overlays/enhancement_shrine_overlay.dart';
 import 'exploration/overlays/spell_shrine_overlay.dart';
@@ -18,6 +17,7 @@ import 'exploration/overlays/elite_reward_overlay.dart';
 import 'exploration/overlays/random_event_overlay.dart';
 import 'exploration/overlays/game_over_overlay.dart';
 import 'exploration/overlays/main_menu_overlay.dart';
+import 'exploration/overlays/element_selection_overlay.dart';
 
 /// The main game UI renderer.
 class TextGameWidget extends StatefulWidget {
@@ -116,13 +116,11 @@ class _TextGameWidgetState extends State<TextGameWidget> {
   }
 
   Widget _buildBody() {
-    // Show spell selection screen
-    if (widget.game.gameState.currentScreen == GameScreen.spellSelect &&
-        widget.game.gameState.spellChoices != null) {
-      return SpellSelectionScreen(
-        spellChoices: widget.game.gameState.spellChoices!,
-        onSpellSelected: (spell) {
-          widget.game.gameState.selectStartingSpell(spell);
+    // Show element selection screen (Phase 7.6.1)
+    if (widget.game.gameState.currentScreen == GameScreen.elementSelect) {
+      return ElementSelectionOverlay(
+        onElementSelected: (element) {
+          widget.game.gameState.selectStartingElement(element);
           _onGameStateChanged();
         },
       );
@@ -320,6 +318,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         bestDepth: widget.game.progressionSystem.bestNodeReached,
         totalFragments: widget.game.progressionSystem.spellFragments,
         totalCrystals: widget.game.progressionSystem.spellCrystals,
+        lastRunElement: widget.game.progressionSystem.lastRunElement,
         onNewGame: () {
           widget.game.handleInput('N');
           _onGameStateChanged();
@@ -358,8 +357,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     final gameState = widget.game.gameState;
     final screen = gameState.currentScreen;
 
-    // Case: Initial Spell Selection -> Back to Home
-    if (screen == GameScreen.spellSelect) {
+    if (screen == GameScreen.elementSelect) {
       widget.game.gameState.returnToMainMenu();
       _onGameStateChanged();
       return;

@@ -116,18 +116,63 @@ class EnemyDefinitions {
   }
 
   /// Generates a random encounter of enemies.
+  /// Phase 7.6.3: Supports biased generation based on [biasElement].
   static List<Enemy> generateEncounter({
     int minEnemies = 1,
     int maxEnemies = 3,
     int difficultyLevel = 1,
+    Element? biasElement,
   }) {
     final count =
         minEnemies +
         (DateTime.now().millisecondsSinceEpoch % (maxEnemies - minEnemies + 1));
 
-    final generators = List<Enemy Function()>.from(allEnemies)..shuffle();
+    List<Enemy Function()> generators;
 
-    return generators.take(count).map((gen) {
+    if (biasElement != null) {
+      // Find elements that are weak to bias (Fun) and strong against bias (Challenge)
+      final weakToBias = Element.values
+          .where((e) => biasElement.getMultiplierAgainst(e) > 1.0)
+          .toList();
+      final strongAgainstBias = Element.values
+          .where((e) => e.getMultiplierAgainst(biasElement) > 1.0)
+          .toList();
+
+      final funEnemies = <Enemy Function()>[];
+      final challengeEnemies = <Enemy Function()>[];
+      final interactionEnemies = <Enemy Function()>[];
+
+      for (final gen in allEnemies) {
+        final dummy = gen();
+        if (weakToBias.contains(dummy.element)) {
+          funEnemies.add(gen);
+        } else if (strongAgainstBias.contains(dummy.element)) {
+          challengeEnemies.add(gen);
+        } else {
+          interactionEnemies.add(gen);
+        }
+      }
+
+      generators = [];
+      for (int i = 0; i < count; i++) {
+        final roll = DateTime.now().millisecondsSinceEpoch % 100;
+        if (roll < 35 && funEnemies.isNotEmpty) {
+          // 35% Chance for "Fun" (Weak to player)
+          generators.add(funEnemies[roll % funEnemies.length]);
+        } else if (roll < 65 && challengeEnemies.isNotEmpty) {
+          // 30% Chance for "Challenge" (Strong against player)
+          generators.add(challengeEnemies[roll % challengeEnemies.length]);
+        } else {
+          // Remainder: Random selection from full pool
+          generators.add(allEnemies[roll % allEnemies.length]);
+        }
+      }
+    } else {
+      generators = List<Enemy Function()>.from(allEnemies)..shuffle();
+      generators = generators.take(count).toList();
+    }
+
+    return generators.map((gen) {
       final enemy = gen();
       // Scale by difficulty
       if (difficultyLevel > 1) {

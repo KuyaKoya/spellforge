@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   flame: ^1.21.0
+  flame_audio: ^2.1.0
   shared_preferences: ^2.3.4
   collection: ^1.18.0
 
@@ -24,3 +25,4 @@ flutter:
     - assets/data/
     - assets/spellforge_logo.png
     - assets/enemy_sprites/
+    - assets/audio/sound_effects/

@@ -3,6 +3,7 @@ import 'package:flame/game.dart';
 import 'game_state.dart';
 import 'game_loop.dart';
 import '../systems/progression_system.dart';
+import '../systems/audio_system.dart';
 
 /// The main Flame game class that hosts the game loop.
 /// Uses Flame primarily for the game loop, not for rendering.
@@ -23,7 +24,18 @@ class SpellforgeGame extends FlameGame {
     progressionSystem = ProgressionSystem();
     await progressionSystem.initialize();
 
+    // Initialize Audio System
+    await AudioSystem.initialize();
+
+    // Start background music
+    AudioSystem.playMusic('main_bg');
+
     gameState = GameState(progression: progressionSystem);
+    // Wire up sync callback
+    gameState.onStateChanged = () async {
+      onStateChanged?.call();
+    };
+
     gameLoop = GameLoop(gameState);
 
     _initialized = true;
@@ -51,8 +63,8 @@ class SpellforgeGame extends FlameGame {
       case GameScreen.mainMenu:
         _handleMainMenuInput(upper);
         break;
-      case GameScreen.spellSelect:
-        // Spell selection is handled by SpellSelectionScreen widget
+      case GameScreen.elementSelect:
+        // Element selection is handled by ElementSelectionScreen widget
         break;
       case GameScreen.mageSelect:
         _handleMageSelectInput(upper);
@@ -104,7 +116,7 @@ class SpellforgeGame extends FlameGame {
 
   void _handleMainMenuInput(String input) {
     if (input == 'N') {
-      gameState.showSpellSelection();
+      gameState.showElementSelection();
     }
   }
 
@@ -223,7 +235,7 @@ class SpellforgeGame extends FlameGame {
       gameLoop.returnToMenu();
     } else if (input == 'N') {
       // Play Again - go directly to spell selection
-      gameState.showSpellSelection();
+      gameState.showElementSelection();
     }
   }
 }

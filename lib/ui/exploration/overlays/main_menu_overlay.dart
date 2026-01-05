@@ -7,6 +7,7 @@ class MainMenuOverlay extends StatefulWidget {
   final int bestDepth;
   final int totalFragments;
   final int totalCrystals;
+  final String? lastRunElement;
 
   const MainMenuOverlay({
     super.key,
@@ -15,6 +16,7 @@ class MainMenuOverlay extends StatefulWidget {
     required this.bestDepth,
     required this.totalFragments,
     required this.totalCrystals,
+    this.lastRunElement,
   });
 
   @override
@@ -146,7 +148,7 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: const Text(
-                'ENTER THE SPIRE',
+                'START EXPLORATION',
                 style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 24,
@@ -156,7 +158,16 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
               ),
             ),
           ),
-          const SizedBox(height: 64),
+          const SizedBox(height: 16),
+          Text(
+            'Phase 7.6 (Beta)',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 48),
 
           // Stats
           Container(
@@ -187,6 +198,13 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
                       _buildStat('CRYSTALS', '${widget.totalCrystals} ✨'),
                     ],
                   ),
+                  if (widget.lastRunElement != null) ...[
+                    const SizedBox(height: 16),
+                    _buildStat(
+                      'LAST ELEMENT',
+                      widget.lastRunElement!.toUpperCase(),
+                    ),
+                  ],
                 ],
               ),
             ),

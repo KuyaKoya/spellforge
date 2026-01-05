@@ -54,6 +54,7 @@ class NodeAvailabilityConfig {
 /// - Depth-based availability
 /// - Weight-based probability
 /// - Sequencing constraints (no repeats, combat frequency)
+/// - Pre-elite/pre-boss path safety (Phase 7.6)
 class NodeSelector {
   final Random _random;
 
@@ -66,7 +67,25 @@ class NodeSelector {
   /// Maximum turns allowed without combat.
   static const int maxTurnsWithoutCombat = 1;
 
+  /// Whether the next depth after current selection will have an elite/boss.
+  /// Used for pre-elite/pre-boss path safety (Phase 7.6).
+  bool _nextDepthHasEliteOrBoss = false;
+
+  /// Whether current depth is immediately before boss.
+  /// Used to enforce guaranteed non-combat before boss (Phase 7.6).
+  bool _isPreBossDepth = false;
+
   NodeSelector({int? seed}) : _random = seed != null ? Random(seed) : Random();
+
+  /// Sets the context for path safety enforcement (Phase 7.6).
+  /// Call this before selecting nodes for a depth when generating the map.
+  void setPathSafetyContext({
+    required bool nextDepthHasEliteOrBoss,
+    required bool isPreBossDepth,
+  }) {
+    _nextDepthHasEliteOrBoss = nextDepthHasEliteOrBoss;
+    _isPreBossDepth = isPreBossDepth;
+  }
 
   /// Selects a node type for the given depth.
   ///
@@ -102,9 +121,48 @@ class NodeSelector {
     return _applyConstraints(available, depth);
   }
 
-  /// Applies global sequencing constraints.
+  /// Applies global sequencing constraints and path safety rules (Phase 7.6).
   List<NodeType> _applyConstraints(List<NodeType> types, int depth) {
     var filtered = List<NodeType>.from(types);
+
+    // ========== PHASE 7.6: PATH SAFETY (highest priority) ==========
+
+    // Rule 13.2: Pre-Boss depth MUST be non-combat
+    // This cannot be overridden by any other constraint
+    if (_isPreBossDepth) {
+      final safeTypes = filtered
+          .where((t) => t.isAllowedBeforeEliteOrBoss)
+          .toList();
+      if (safeTypes.isNotEmpty) {
+        // Prefer Enhancement Shrine > Rest > Spell Learn > Shop
+        const preBossPreference = [
+          NodeType.enhancementShrine,
+          NodeType.rest,
+          NodeType.spellLearn,
+          NodeType.shop,
+        ];
+        for (final preferred in preBossPreference) {
+          if (safeTypes.contains(preferred)) {
+            return [preferred];
+          }
+        }
+        return safeTypes;
+      }
+      // Fallback: if no safe types available at this depth, force rest
+      return [NodeType.rest];
+    }
+
+    // Rule 13.1: If next depth has elite, ensure non-combat options available
+    // This ensures at least one adjacent non-combat node is reachable before elite
+    if (_nextDepthHasEliteOrBoss) {
+      final nonCombatTypes = filtered.where((t) => t.isNonCombat).toList();
+      if (nonCombatTypes.isNotEmpty) {
+        // Boost weight of non-combat but don't force - player has agency
+        filtered = nonCombatTypes;
+      }
+    }
+
+    // ========== STANDARD CONSTRAINTS ==========
 
     // Constraint: Same node type cannot appear twice in a row
     if (lastNodeType != null) {
@@ -112,12 +170,18 @@ class NodeSelector {
     }
 
     // Constraint: Combat must appear at least once every N depths
-    if (turnsSinceCombat >= maxTurnsWithoutCombat) {
+    // BUT this is overridden by pre-elite/pre-boss path safety
+    if (turnsSinceCombat >= maxTurnsWithoutCombat &&
+        !_nextDepthHasEliteOrBoss) {
       return [NodeType.combat];
     }
 
     // Ensure we still have options
     if (filtered.isEmpty) {
+      // If pre-elite, default to non-combat; otherwise default to combat
+      if (_nextDepthHasEliteOrBoss) {
+        return [NodeType.rest];
+      }
       filtered = [NodeType.combat];
     }
 
@@ -160,5 +224,7 @@ class NodeSelector {
   void reset() {
     lastNodeType = null;
     turnsSinceCombat = 0;
+    _nextDepthHasEliteOrBoss = false;
+    _isPreBossDepth = false;
   }
 }

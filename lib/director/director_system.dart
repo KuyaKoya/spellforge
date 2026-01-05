@@ -72,12 +72,17 @@ class DirectorSystem {
   // ==================== LIFECYCLE ====================
 
   /// Initializes the Director for a new run.
-  void initialize({required int seed, required int ascensionLevel}) {
+  void initialize({
+    required int seed,
+    required int ascensionLevel,
+    Element? startingElement,
+  }) {
     _state.reset();
     _logger.clear();
     _currentMetrics = null;
     _currentAdjustments = DirectorAdjustments.neutral;
     _ascensionLevel = ascensionLevel;
+    _startingElement = startingElement;
     _random = SeededRandom(seed);
 
     // Clear tracking data
@@ -249,6 +254,22 @@ class DirectorSystem {
   /// Whether the Director should favor an elite node.
   bool shouldFavorEliteNode() {
     return _state.pressureState == DirectorPressureState.aggressive;
+  }
+
+  /// Starting element chosen by the player.
+  Element? _startingElement;
+
+  /// Gets the weight multiplier for a given element.
+  /// Used to bias spell drops and enemy generation.
+  double getElementWeight(Element element) {
+    if (_startingElement == null) return 1.0;
+
+    // Bias: 1.2x for starting element (Phase 7.6.1)
+    if (element == _startingElement) {
+      return 1.2;
+    }
+
+    return 1.0;
   }
 
   // ==================== DEBUG ====================

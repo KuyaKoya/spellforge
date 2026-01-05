@@ -298,3 +298,133 @@ Phase 7 is complete when:
 - Deaths are traceable to decisions
 - No cheap shots or RNG deaths
 - Clear signals were given
+
+---
+
+## Phase 7.6: Pre-Elite & Pre-Boss Path Safety
+
+### Guaranteed Non-Combat Path Before Elites (13.1)
+
+**Rule**: Before every Elite node, the Director ensures at least one adjacent non-combat node is reachable.
+
+**Allowed Non-Combat Nodes**:
+
+- Rest
+- Shop
+- Enhancement Shrine
+- Event (non-hostile)
+- Spell Learn
+
+**Design Intent**:
+
+- Gives players agency before a difficulty spike
+- Enables preparation instead of brute forcing
+- Reduces frustration from sudden elite encounters
+
+### Guaranteed Non-Combat Before Boss (13.2)
+
+**Rule**: The node immediately before the Boss is always non-combat.
+
+This node:
+
+- Cannot be rerolled into combat
+- Is visible on breadcrumbs
+- Is narratively framed as "calm before the gate"
+
+**Recommended Node Types** (in priority order):
+
+1. Enhancement Shrine (preferred)
+2. Rest Node
+3. Spell Learn
+4. Shop
+
+### Director Enforcement Logic (13.3)
+
+Director validates node placement at generation time:
+
+```text
+If next node is Elite:
+  ensure previous node != Combat
+
+If next node is Boss:
+  enforce previous node = Non-Combat
+```
+
+Failure to satisfy forces reroll of the preceding node.
+
+---
+
+## Phase 7.6: Spell Learn Node Tier Scaling
+
+### Dynamic Spell Tier Advancement (14.1)
+
+Spell Learn nodes no longer offer flat rarity. Maximum tier increases with depth:
+
+| Run Depth | Max Spell Tier            |
+|-----------|---------------------------|
+| 1–2       | Common                    |
+| 3–4       | Uncommon                  |
+| 5–6       | Rare                      |
+| 7+        | Rare + Star Upgrade Chance|
+
+### Star Upgrade Injection (14.2)
+
+At deeper depths, Spell Learn nodes may offer:
+
+- ★★ versions of existing spells
+- Or a Rare spell with 1 modifier
+
+**Star Upgrade Chance by Depth**:
+
+| Depth | Chance |
+|-------|--------|
+| ≤6    | 0%     |
+| 7     | 15%    |
+| 8     | 25%    |
+| 9+    | 35%    |
+
+This replaces raw power creep with build refinement.
+
+### Director + Starting Type Bias Integration (14.3)
+
+Spell Learn weighting now stacks:
+
+```text
+Final Weight =
+  Base Weight
+  + Starting Type Bias
+  + Depth Tier Bias
+```
+
+Weakness penalties still apply but never reduce availability to zero.
+
+---
+
+## Phase 7.6: UI Updates
+
+### Spell Learn Node UI (15)
+
+Spell Learn UI must:
+
+- Display tier badge clearly (Common / Rare / ★★)
+- Animate higher-tier offerings distinctly (glow effect)
+- Indicate rarity through color coding
+
+### Breadcrumb Visualization Updates (16)
+
+Breadcrumbs visually show:
+
+- **Elite nodes**: Red danger tint
+- **Guaranteed non-combat nodes**: Faint blue protective glow
+- **Boss gate**: Calm visual motif (muted blue)
+- **Before boss**: Thicker calm-colored connector
+
+---
+
+## Phase 7.6 Completion Criteria
+
+✅ Player always has prep before elites
+✅ Boss approach feels deliberate
+✅ Spell progression matches run depth
+✅ Learn nodes feel exciting, not filler
+✅ Breadcrumbs communicate danger and safety
