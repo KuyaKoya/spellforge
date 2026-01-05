@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../domain/mage.dart';
 import '../../../systems/node_resolver.dart';
+import '../../../systems/audio_manager.dart';
 
-class EnhancementShrineOverlay extends StatelessWidget {
+class EnhancementShrineOverlay extends StatefulWidget {
   final Mage mage;
   final int spellFragments;
   final bool isActionCompleted;
@@ -17,6 +18,26 @@ class EnhancementShrineOverlay extends StatelessWidget {
     required this.onUpgrade,
     required this.onLeave,
   });
+
+  @override
+  State<EnhancementShrineOverlay> createState() =>
+      _EnhancementShrineOverlayState();
+}
+
+class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    // Phase 7.6.2: Play shrine open sound when overlay opens
+    AudioManager.instance.playShrineOpen();
+  }
+
+  /// Handle upgrade with audio feedback
+  Future<void> _handleUpgrade(int index) async {
+    // Phase 7.6.2: Play shrine upgrade sound
+    AudioManager.instance.playShrineUpgrade();
+    await widget.onUpgrade(index);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +106,7 @@ class EnhancementShrineOverlay extends StatelessWidget {
                       const Text('💎', style: TextStyle(fontSize: 16)),
                       const SizedBox(width: 8),
                       Text(
-                        '$spellFragments',
+                        '${widget.spellFragments}',
                         style: const TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 16,
@@ -103,13 +124,13 @@ class EnhancementShrineOverlay extends StatelessWidget {
             // Spell List
             Expanded(
               child: ListView.separated(
-                itemCount: mage.spellLoadout.length,
+                itemCount: widget.mage.spellLoadout.length,
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   return _buildSpellCard(
                     context,
-                    mage.spellLoadout[index],
+                    widget.mage.spellLoadout[index],
                     index,
                   );
                 },
@@ -120,7 +141,7 @@ class EnhancementShrineOverlay extends StatelessWidget {
             // Leave
             Center(
               child: TextButton(
-                onPressed: onLeave,
+                onPressed: widget.onLeave,
                 child: Text(
                   'Leave Shrine',
                   style: TextStyle(
@@ -139,7 +160,7 @@ class EnhancementShrineOverlay extends StatelessWidget {
   Widget _buildSpellCard(BuildContext context, dynamic spell, int index) {
     // Dynamic type to avoid strict Spell import if easy, but assume Spell type.
     final cost = NodeResolver.getUpgradeCost(spell);
-    final canAfford = spellFragments >= cost;
+    final canAfford = widget.spellFragments >= cost;
     final isMax = spell.starLevel >= 3;
 
     return Container(
@@ -226,11 +247,11 @@ class EnhancementShrineOverlay extends StatelessWidget {
             )
           else
             ElevatedButton(
-              onPressed: (canAfford && !isActionCompleted)
-                  ? () => onUpgrade(index)
+              onPressed: (canAfford && !widget.isActionCompleted)
+                  ? () => _handleUpgrade(index)
                   : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: (canAfford && !isActionCompleted)
+                backgroundColor: (canAfford && !widget.isActionCompleted)
                     ? Colors.amber.shade800
                     : Colors.grey.shade800,
                 disabledBackgroundColor: Colors.grey.shade900,

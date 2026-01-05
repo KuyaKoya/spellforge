@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../systems/audio_manager.dart';
 
-class RandomEventOverlay extends StatelessWidget {
+class RandomEventOverlay extends StatefulWidget {
   final Map<String, dynamic> event;
   final Function(String choiceKey) onChoice;
 
@@ -11,10 +12,36 @@ class RandomEventOverlay extends StatelessWidget {
   });
 
   @override
+  State<RandomEventOverlay> createState() => _RandomEventOverlayState();
+}
+
+class _RandomEventOverlayState extends State<RandomEventOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    // Phase 7.6.2: Play mystery event background music when overlay opens
+    AudioManager.instance.playMysteryEventMusic();
+  }
+
+  @override
+  void dispose() {
+    // Phase 7.6.2: Stop mystery event music when overlay closes
+    AudioManager.instance.stopMysteryEventMusic();
+    super.dispose();
+  }
+
+  /// Handle choice with audio transition
+  void _handleChoice(String choiceKey) {
+    // Stop music before callback (music will be fully stopped in dispose)
+    AudioManager.instance.stopMysteryEventMusic();
+    widget.onChoice(choiceKey);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final title = event['title'] as String? ?? 'Random Event';
-    final description = event['description'] as String? ?? '';
-    final choices = event['choices'] as List? ?? [];
+    final title = widget.event['title'] as String? ?? 'Random Event';
+    final description = widget.event['description'] as String? ?? '';
+    final choices = widget.event['choices'] as List? ?? [];
 
     return Center(
       child: Container(
@@ -78,7 +105,7 @@ class RandomEventOverlay extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: ElevatedButton(
-                  onPressed: () => onChoice(choiceMap['key']),
+                  onPressed: () => _handleChoice(choiceMap['key']),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF21262d),
                     foregroundColor: Colors.amber.shade200,
@@ -94,7 +121,7 @@ class RandomEventOverlay extends StatelessWidget {
                   ),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

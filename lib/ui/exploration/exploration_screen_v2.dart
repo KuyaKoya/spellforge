@@ -7,11 +7,12 @@ import '../../game/exploration/exploration_controller.dart';
 import '../../game/exploration/components/components.dart';
 import '../../nodes/nodes.dart';
 import '../../nodes/node_map_system.dart';
+import '../../systems/audio_manager.dart';
+import '../../systems/shop_system.dart';
 import '../components/node_breadcrumbs.dart';
 import '../battle/director_subtitle_overlay.dart';
 import 'exploration_hud.dart';
 import 'preview_panels/preview_panels.dart';
-import '../../systems/shop_system.dart';
 
 /// Simplified tap-based exploration screen.
 ///
@@ -74,16 +75,35 @@ class ExplorationScreenV2 extends StatefulWidget {
   State<ExplorationScreenV2> createState() => _ExplorationScreenV2State();
 }
 
-class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
+class _ExplorationScreenV2State extends State<ExplorationScreenV2>
+    with SingleTickerProviderStateMixin {
   late ExplorationController _controller;
 
   // Currently selected interactable type
   InteractableType? _selectedType;
 
+  // Phase 7.6.2: Fade animation for room entrance
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+
   @override
   void initState() {
     super.initState();
     _initController();
+    _initFadeAnimation();
+  }
+
+  void _initFadeAnimation() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeIn,
+    );
+    // Start with full opacity (first room load)
+    _fadeController.value = 1.0;
   }
 
   void _initController() {
@@ -98,6 +118,9 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
 
     // If room changed completely, reload the controller
     if (widget.roomConfig.roomId != oldWidget.roomConfig.roomId) {
+      // Phase 7.6.2: Play entering room sound and fade animation
+      AudioManager.instance.playEnteringRoom();
+      _triggerRoomFadeIn();
       _controller.loadRoom(config: widget.roomConfig, mage: widget.mage);
       _selectedType = null;
       return;
@@ -123,9 +146,16 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
 
   @override
   void dispose() {
+    _fadeController.dispose();
     _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Trigger fade-in animation for room entrance
+  void _triggerRoomFadeIn() {
+    _fadeController.reset();
+    _fadeController.forward();
   }
 
   void _onControllerUpdate() {
@@ -162,6 +192,8 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
   void _onEnemyTapped() {
     if (_controller.roomConfig?.enemy != null &&
         !_controller.roomConfig!.enemyDefeated) {
+      // Phase 7.6.2: Play enemy select sound when showing preview
+      AudioManager.instance.playEnemySelect();
       final interactable = EnemyInteractable(
         enemy: _controller.roomConfig!.enemy!,
         isElite: _controller.roomConfig!.isEliteEnemy,
@@ -177,6 +209,8 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
       return;
     }
 
+    // Phase 7.6.2: Play room select sound when showing preview
+    AudioManager.instance.playRoomSelect();
     final interactable = DoorInteractable(
       direction: doorConfig.direction,
       destinationId: doorConfig.destinationId,
@@ -199,99 +233,103 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF0d1117),
-      child: Stack(
-        children: [
-          // Layer 1: Room background
-          Positioned.fill(child: _buildRoomBackground()),
+    // Phase 7.6.2: Wrap in FadeTransition for room entrance animation
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Container(
+        color: const Color(0xFF0d1117),
+        child: Stack(
+          children: [
+            // Layer 1: Room background
+            Positioned.fill(child: _buildRoomBackground()),
 
-          // Layer 2: Breadcrumbs (top)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: NodeBreadcrumbs(
-              nodeMapSystem: widget.nodeMapSystem,
-              currentDepth: widget.currentDepth,
-              totalDepths: widget.totalDepths,
-              runNumber: widget.runNumber,
-            ),
-          ),
-
-          // Layer 3: Room title
-          if (widget.roomConfig.title != null)
+            // Layer 2: Breadcrumbs (top)
             Positioned(
-              top: 60,
+              top: 0,
               left: 0,
               right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF161b22).withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    widget.roomConfig.title!,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFc9d1d9),
-                      letterSpacing: 2,
+              child: NodeBreadcrumbs(
+                nodeMapSystem: widget.nodeMapSystem,
+                currentDepth: widget.currentDepth,
+                totalDepths: widget.totalDepths,
+                runNumber: widget.runNumber,
+              ),
+            ),
+
+            // Layer 3: Room title
+            if (widget.roomConfig.title != null)
+              Positioned(
+                top: 60,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161b22).withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      widget.roomConfig.title!,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFc9d1d9),
+                        letterSpacing: 2,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-          // Layer 4: Interactive elements (enemy, doors)
-          Positioned.fill(child: _buildInteractiveElements()),
+            // Layer 4: Interactive elements (enemy, doors)
+            Positioned.fill(child: _buildInteractiveElements()),
 
-          // Layer 5: Preview panel (center overlay)
-          if (_controller.isPaused && _controller.activeInteractable != null)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: _onCancelPreview, // Tap outside to cancel
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: () {}, // Prevent tap-through
-                      child: _buildPreviewPanel(),
+            // Layer 5: Preview panel (center overlay)
+            if (_controller.isPaused && _controller.activeInteractable != null)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: _onCancelPreview, // Tap outside to cancel
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () {}, // Prevent tap-through
+                        child: _buildPreviewPanel(),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-          // Layer 6: Director subtitle
-          if (_controller.directorMessage != null)
+            // Layer 6: Director subtitle
+            if (_controller.directorMessage != null)
+              Positioned(
+                bottom: 100,
+                left: 0,
+                right: 0,
+                child: DirectorSubtitleOverlay(
+                  message: _controller.directorMessage!,
+                ),
+              ),
+
+            // Layer 7: HUD (bottom)
             Positioned(
-              bottom: 100,
+              bottom: 0,
               left: 0,
               right: 0,
-              child: DirectorSubtitleOverlay(
-                message: _controller.directorMessage!,
+              child: ExplorationHUD(
+                mage: widget.mage,
+                directorActive: _controller.directorMessage != null,
+                temporaryBuffs: widget.temporaryBuffs,
               ),
             ),
-
-          // Layer 7: HUD (bottom)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: ExplorationHUD(
-              mage: widget.mage,
-              directorActive: _controller.directorMessage != null,
-              temporaryBuffs: widget.temporaryBuffs,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

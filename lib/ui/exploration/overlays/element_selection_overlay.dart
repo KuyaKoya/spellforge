@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../domain/element.dart' as game_element;
+import '../../../systems/audio_manager.dart';
 
 class ElementSelectionOverlay extends StatefulWidget {
   final Function(game_element.Element) onElementSelected;
@@ -154,7 +155,11 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _selectedElement != null
-                      ? () => widget.onElementSelected(_selectedElement!)
+                      ? () {
+                          // Phase 7.6.2: Play base_select on start exploration
+                          AudioManager.instance.playBaseSelect();
+                          widget.onElementSelected(_selectedElement!);
+                        }
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _selectedElement != null
@@ -267,6 +272,8 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
       top: 160 + radius * sin(angle) - (isSelected ? 40 : 30),
       child: GestureDetector(
         onTap: () {
+          // Phase 7.6.2: Play base_select when selecting an element
+          AudioManager.instance.playBaseSelect();
           setState(() {
             _selectedElement = element;
           });

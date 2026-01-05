@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../systems/shop_system.dart';
+import '../../../systems/audio_manager.dart';
 
-class ShopOverlay extends StatelessWidget {
+class ShopOverlay extends StatefulWidget {
   final ShopSystem shop;
   final int currentFragments;
   final Future<void> Function(int index) onPurchase;
@@ -14,6 +15,25 @@ class ShopOverlay extends StatelessWidget {
     required this.onPurchase,
     required this.onLeave,
   });
+
+  @override
+  State<ShopOverlay> createState() => _ShopOverlayState();
+}
+
+class _ShopOverlayState extends State<ShopOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    // Phase 7.6.2: Play shop entrance sound when overlay opens
+    AudioManager.instance.playShopEntrance();
+  }
+
+  /// Handle purchase with audio feedback
+  Future<void> _handlePurchase(int index) async {
+    await widget.onPurchase(index);
+    // Phase 7.6.2: Play shop purchase sound on successful purchase
+    AudioManager.instance.playShopPurchase();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +87,7 @@ class ShopOverlay extends StatelessWidget {
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          'Available Fragments: $currentFragments 💎',
+                          'Available Fragments: ${widget.currentFragments} 💎',
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 14,
@@ -80,7 +100,7 @@ class ShopOverlay extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  onPressed: onLeave,
+                  onPressed: widget.onLeave,
                   icon: const Icon(Icons.close, color: Colors.grey),
                 ),
               ],
@@ -89,7 +109,7 @@ class ShopOverlay extends StatelessWidget {
 
             // Items List
             Expanded(
-              child: shop.availableItems.isEmpty
+              child: widget.shop.availableItems.isEmpty
                   ? Center(
                       child: Text(
                         'Sold Out',
@@ -101,12 +121,12 @@ class ShopOverlay extends StatelessWidget {
                       ),
                     )
                   : ListView.separated(
-                      itemCount: shop.availableItems.length,
+                      itemCount: widget.shop.availableItems.length,
                       separatorBuilder: (context, index) =>
                           const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         return _buildShopItemCard(
-                          shop.availableItems[index],
+                          widget.shop.availableItems[index],
                           index,
                         );
                       },
@@ -115,7 +135,7 @@ class ShopOverlay extends StatelessWidget {
 
             const SizedBox(height: 16),
             TextButton(
-              onPressed: onLeave,
+              onPressed: widget.onLeave,
               child: Text(
                 'Leave Shop',
                 style: TextStyle(
@@ -131,7 +151,7 @@ class ShopOverlay extends StatelessWidget {
   }
 
   Widget _buildShopItemCard(ShopItem item, int index) {
-    final canAfford = currentFragments >= item.cost;
+    final canAfford = widget.currentFragments >= item.cost;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -199,7 +219,7 @@ class ShopOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: canAfford ? () => onPurchase(index) : null,
+                onPressed: canAfford ? () => _handlePurchase(index) : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green.shade800,
                   disabledBackgroundColor: Colors.grey.shade800,

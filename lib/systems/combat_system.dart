@@ -23,6 +23,21 @@ class CombatResult {
   });
 }
 
+/// Result of a single enemy action (for UI-controlled timing).
+class EnemyActionResult {
+  final int damageDealt;
+  final String? statusApplied;
+  final bool targetDefeated;
+  final bool skipped;
+
+  EnemyActionResult({
+    this.damageDealt = 0,
+    this.statusApplied,
+    this.targetDefeated = false,
+    this.skipped = false,
+  });
+}
+
 /// Manages turn-based combat between mage and enemies.
 class CombatSystem {
   final Mage mage;
@@ -164,14 +179,15 @@ class CombatSystem {
   }
 
   /// Casts a spell at a target. Returns the detailed result.
+  /// Note: Audio should be handled by the caller (BattleScreen) for proper timing.
   SpellCastResult? castSpell(int spellIndex, {int? targetIndex}) {
     if (!isPlayerTurn) return null;
     if (spellIndex < 0 || spellIndex >= mage.spellLoadout.length) return null;
 
     final spell = mage.spellLoadout[spellIndex];
 
-    // Play spell sound
-    AudioSystem.playSpellSound(spell.id);
+    // NOTE: Audio removed - BattleScreen handles audio with proper timing:
+    // Animation -> Sound -> Delay -> Damage
 
     final result = SpellSystem.castSpell(
       caster: mage,
@@ -181,18 +197,8 @@ class CombatSystem {
       damageMultiplier: damageMultiplier,
     );
 
-    // Play enemy death sound if any died
-    if (result.enemiesDefeated > 0) {
-      AudioSystem.playEnemyDeath();
-    }
-
-    // Play debuff sound if applied
-    for (final log in result.logs) {
-      if (log.contains('Slow applied') || log.contains('Weaken applied')) {
-        AudioSystem.playDebuff();
-        break; // Play once per cast even if multiple applied
-      }
-    }
+    // NOTE: Audio removed from here - BattleScreen plays sounds after
+    // the animation completes and before showing damage results
 
     combatLog.addAll(result.logs);
     combatLog.add('');
@@ -214,7 +220,10 @@ class CombatSystem {
     return result;
   }
 
-  /// Ends the player's turn.
+  /// Ends the player's turn and starts enemy phase.
+  ///
+  /// For UI-controlled timing, use [prepareEnemyPhase], [executeEnemyActionManual],
+  /// and [finalizeEnemyPhase] instead.
   Future<void> endPlayerTurn() async {
     if (!isPlayerTurn) return;
 
@@ -228,6 +237,94 @@ class CombatSystem {
     await onStateChanged?.call();
 
     await _executeEnemyTurn();
+  }
+
+  /// Prepare for enemy phase without executing actions.
+  /// Call this when UI needs to control enemy action timing.
+  /// Returns list of (enemy, intent) pairs for manual execution.
+  List<(Enemy, EnemyIntent)> prepareEnemyPhase() {
+    if (!isPlayerTurn) return [];
+
+    combatLog.add('${mage.name} ends their turn.');
+    combatLog.add('');
+
+    _playerTurnHeaderLogged = false;
+    phase = CombatPhase.enemyTurn;
+
+    combatLog.add('┌──────────────────────────────────────┐');
+    combatLog.add('│  TURN $currentTurn - ENEMY TURN');
+    combatLog.add('└──────────────────────────────────────┘');
+    combatLog.add('');
+
+    // Capture current intents before any actions
+    return livingEnemies.map((e) => (e, e.intent)).toList();
+  }
+
+  /// Execute a single enemy action manually (for UI-controlled timing).
+  /// Returns the result of the action including damage dealt.
+  ///
+  /// Call this AFTER playing animation and sound in the UI.
+  EnemyActionResult executeEnemyActionManual(Enemy enemy, EnemyIntent intent) {
+    if (enemy.isDelayed) {
+      combatLog.add('⏸️  ${enemy.name} is delayed and skips their turn.');
+      combatLog.add('');
+      enemy.isDelayed = false;
+      return EnemyActionResult(skipped: true);
+    }
+
+    combatLog.add('► ${enemy.name}\'s action:');
+
+    int damageDealt = 0;
+    String? statusApplied;
+
+    switch (intent) {
+      case EnemyIntent.attack:
+        final damage = enemy.getEffectiveDamage();
+        damageDealt = mage.takeDamage(damage);
+        combatLog.add('  ⚔️  Attacks ${mage.name} for $damageDealt damage!');
+        combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+        break;
+
+      case EnemyIntent.defend:
+        enemy.applyStatusEffect(
+          Effect(type: EffectType.armor, value: enemy.armorGain, duration: 2),
+        );
+        combatLog.add('  🛡️  Defends, gaining ${enemy.armorGain} armor.');
+        statusApplied = 'armor';
+        break;
+
+      case EnemyIntent.debuff:
+        mage.applyStatusEffect(
+          Effect(type: EffectType.weaken, value: 15, duration: 2),
+        );
+        combatLog.add('  💀 Weakens ${mage.name}! (-15% damage for 2 turns)');
+        statusApplied = 'weaken';
+        break;
+    }
+
+    // Choose next intent
+    enemy.chooseNextIntent();
+    combatLog.add('');
+
+    return EnemyActionResult(
+      damageDealt: damageDealt,
+      statusApplied: statusApplied,
+      targetDefeated: !mage.isAlive,
+    );
+  }
+
+  /// Finalize enemy phase after all manual actions are complete.
+  /// Handles status effects, turn transitions, and checks for combat end.
+  void finalizeEnemyPhase() {
+    // Handle Relentless/passive triggers for elites would go here
+    // For now, just resolve status effects and start new turn
+
+    if (!mage.isAlive) {
+      _endCombat(playerWon: false);
+      return;
+    }
+
+    _resolveStatusEffects();
   }
 
   /// Automatically ends the turn (when no actions/mana left).

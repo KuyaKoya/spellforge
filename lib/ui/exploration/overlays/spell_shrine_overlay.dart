@@ -3,6 +3,7 @@ import '../../../domain/mage.dart';
 import '../../../domain/spell.dart';
 import '../../../domain/element.dart' as game_element;
 import '../../../nodes/spell_tier_scaling.dart';
+import '../../../systems/audio_manager.dart';
 
 class SpellShrineOverlay extends StatefulWidget {
   final List<Spell> spellChoices;
@@ -33,6 +34,27 @@ class SpellShrineOverlay extends StatefulWidget {
 class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
   // If not null, we are selecting a slot to replace with this spell
   Spell? _replacingSpell;
+
+  @override
+  void initState() {
+    super.initState();
+    // Phase 7.6.2: Play shrine open sound when overlay opens
+    AudioManager.instance.playShrineOpen();
+  }
+
+  /// Handle learning a spell with audio feedback
+  void _handleLearn(int choiceIndex) {
+    // Phase 7.6.2: Play shrine upgrade sound
+    AudioManager.instance.playShrineUpgrade();
+    widget.onLearn(choiceIndex);
+  }
+
+  /// Handle replacing a spell with audio feedback
+  void _handleReplace(int loadoutIndex, Spell newSpell) {
+    // Phase 7.6.2: Play shrine upgrade sound
+    AudioManager.instance.playShrineUpgrade();
+    widget.onReplace(loadoutIndex, newSpell);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +257,7 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
                             _replacingSpell = spell;
                           });
                         } else {
-                          widget.onLearn(index);
+                          _handleLearn(index);
                         }
                       },
                 style: ElevatedButton.styleFrom(
@@ -456,7 +478,7 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
                 child: InkWell(
                   onTap: () {
                     if (_replacingSpell != null) {
-                      widget.onReplace(index, _replacingSpell!);
+                      _handleReplace(index, _replacingSpell!);
                     }
                   },
                   borderRadius: BorderRadius.circular(8),
