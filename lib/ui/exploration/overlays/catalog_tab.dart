@@ -5,6 +5,8 @@ import '../../../data/elite_definitions.dart';
 import '../../../data/passive_definitions.dart';
 import '../../../domain/spell.dart';
 import '../../../domain/elite_enemy.dart';
+import '../../../domain/effect.dart';
+import '../../../domain/enemy_passive.dart';
 
 class CatalogTab extends StatefulWidget {
   const CatalogTab({super.key});
@@ -20,7 +22,7 @@ class _CatalogTabState extends State<CatalogTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -40,16 +42,24 @@ class _CatalogTabState extends State<CatalogTab>
             indicatorColor: Colors.amber,
             labelColor: Colors.amber,
             unselectedLabelColor: Colors.grey,
+            isScrollable: true,
             tabs: const [
               Tab(text: 'SPELLS'),
               Tab(text: 'ENEMIES'),
+              Tab(text: 'STATUS EFFECTS'),
+              Tab(text: 'PASSIVES'),
             ],
           ),
         ),
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: [_buildSpellsList(), _buildEnemiesList()],
+            children: [
+              _buildSpellsList(),
+              _buildEnemiesList(),
+              _buildStatusEffectsList(),
+              _buildPassivesList(),
+            ],
           ),
         ),
       ],
@@ -341,5 +351,198 @@ class _CatalogTabState extends State<CatalogTab>
       case SpellRarity.signature:
         return Colors.purple;
     }
+  }
+
+  Widget _buildStatusEffectsList() {
+    // List all effect types that can be status effects
+    final statusEffects = [
+      {
+        'type': EffectType.burn,
+        'icon': '🔥',
+        'description': 'Deals damage over time each turn',
+        'example': 'Burn (5 damage/turn) for 3 turns',
+      },
+      {
+        'type': EffectType.slow,
+        'icon': '❄️',
+        'description': 'Reduces available actions per turn',
+        'example': 'Slow (-1 action) for 2 turns',
+      },
+      {
+        'type': EffectType.weaken,
+        'icon': '💔',
+        'description': 'Reduces damage output',
+        'example': 'Weaken (-30% damage) for 3 turns',
+      },
+      {
+        'type': EffectType.armor,
+        'icon': '🛡️',
+        'description': 'Absorbs incoming damage',
+        'example': 'Armor (5) for 2 turns',
+      },
+    ];
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: statusEffects.length,
+      itemBuilder: (context, index) {
+        final effect = statusEffects[index];
+        return Card(
+          color: const Color(0xFF0d1117),
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: Colors.grey.shade800),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      effect['icon'] as String,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        (effect['type'] as EffectType).displayName,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
+                      ),
+                    ),
+                    _buildTag('STATUS', Colors.purple),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  effect['description'] as String,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade900.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.grey.shade700),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Colors.lightBlueAccent,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          effect['example'] as String,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                            color: Colors.lightBlueAccent,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPassivesList() {
+    // Collect all unique passives
+    final allPassives = <EnemyPassive>[];
+    final processedNames = <String>{};
+
+    // Add all passive definitions
+    final passiveSets = [
+      PassiveDefinitions.burnwardColossusPassives(),
+      PassiveDefinitions.tempestTwinAPassives(),
+      PassiveDefinitions.tempestTwinBPassives(),
+      PassiveDefinitions.glacialExecutionerPassives(),
+      PassiveDefinitions.infernalWarlordPassives(),
+      PassiveDefinitions.stoneSentinelPassives(),
+      PassiveDefinitions.typhoonHeraldPassives(),
+      PassiveDefinitions.gatekeeperPyrePassives(),
+      PassiveDefinitions.gatekeeperTidePassives(),
+    ];
+
+    for (final passiveSet in passiveSets) {
+      for (final passive in passiveSet) {
+        if (!processedNames.contains(passive.name)) {
+          allPassives.add(passive);
+          processedNames.add(passive.name);
+        }
+      }
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: allPassives.length,
+      itemBuilder: (context, index) {
+        final passive = allPassives[index];
+        return Card(
+          color: const Color(0xFF0d1117),
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: Colors.amber.shade900),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(passive.icon, style: const TextStyle(fontSize: 24)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        passive.name,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
+                      ),
+                    ),
+                    _buildTag('PASSIVE', Colors.amber.shade700),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  passive.description,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
