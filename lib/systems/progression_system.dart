@@ -7,6 +7,7 @@ class ProgressionSystem {
   static const String _totalRunsKey = 'total_runs';
   static const String _bestNodeKey = 'best_node_reached';
   static const String _lastRunElementKey = 'last_run_element';
+  static const String _hasSeenIntroKey = 'has_seen_intro'; // Phase 7.7
 
   SharedPreferences? _prefs;
 
@@ -30,6 +31,10 @@ class ProgressionSystem {
   String? _lastRunElement;
   String? get lastRunElement => _lastRunElement;
 
+  /// Whether intro lore has been seen (Phase 7.7).
+  bool _hasSeenIntro = false;
+  bool get hasSeenIntro => _hasSeenIntro;
+
   /// Run-transient state.
   int _currentRunLevel = 1;
   int get currentRunLevel => _currentRunLevel;
@@ -49,6 +54,7 @@ class ProgressionSystem {
     _totalRuns = _prefs?.getInt(_totalRunsKey) ?? 0;
     _bestNodeReached = _prefs?.getInt(_bestNodeKey) ?? 0;
     _lastRunElement = _prefs?.getString(_lastRunElementKey);
+    _hasSeenIntro = _prefs?.getBool(_hasSeenIntroKey) ?? false; // Phase 7.7
   }
 
   Future<void> _saveData() async {
@@ -59,6 +65,7 @@ class ProgressionSystem {
     if (_lastRunElement != null) {
       await _prefs?.setString(_lastRunElementKey, _lastRunElement!);
     }
+    await _prefs?.setBool(_hasSeenIntroKey, _hasSeenIntro); // Phase 7.7
   }
 
   /// Starts a new run, resetting transient state.
@@ -148,6 +155,12 @@ Last Start Element: ${_lastRunElement ?? 'None'}
 ''';
   }
 
+  /// Marks the intro lore as seen (Phase 7.7).
+  Future<void> markIntroAsSeen() async {
+    _hasSeenIntro = true;
+    await _saveData();
+  }
+
   /// Resets all persistent data (for testing).
   Future<void> resetAll() async {
     _spellFragments = 0;
@@ -155,6 +168,7 @@ Last Start Element: ${_lastRunElement ?? 'None'}
     _totalRuns = 0;
     _bestNodeReached = 0;
     _lastRunElement = null;
+    _hasSeenIntro = false; // Phase 7.7
     await _saveData();
   }
 }

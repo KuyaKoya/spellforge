@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'catalog_tab.dart';
+import '../../../narrative/narrative.dart';
+import '../../../systems/progression_system.dart';
+import '../../narrative_overlay.dart';
 
 class MainMenuOverlay extends StatefulWidget {
   final VoidCallback onNewGame;
@@ -8,6 +11,7 @@ class MainMenuOverlay extends StatefulWidget {
   final int totalFragments;
   final int totalCrystals;
   final String? lastRunElement;
+  final ProgressionSystem progressionSystem; // Phase 7.7: For intro lore check
 
   const MainMenuOverlay({
     super.key,
@@ -17,6 +21,7 @@ class MainMenuOverlay extends StatefulWidget {
     required this.totalFragments,
     required this.totalCrystals,
     this.lastRunElement,
+    required this.progressionSystem, // Phase 7.7
   });
 
   @override
@@ -25,6 +30,41 @@ class MainMenuOverlay extends StatefulWidget {
 
 class _MainMenuOverlayState extends State<MainMenuOverlay> {
   int _selectedIndex = 1; // Default to Home
+
+  @override
+  void initState() {
+    super.initState();
+    // Phase 7.7: Show intro lore on first launch
+    _checkAndShowIntroLore();
+  }
+
+  /// Phase 7.7: Checks if intro lore should be shown and displays it.
+  void _checkAndShowIntroLore() {
+    if (!widget.progressionSystem.hasSeenIntro) {
+      // Delay slightly to let the menu render first
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+
+        final introNode = IntroLore.getIntroSequence(
+          onComplete: () async {
+            await widget.progressionSystem.markIntroAsSeen();
+          },
+        );
+
+        showDialog(
+          context: context,
+          barrierDismissible: false, // Must tap through all screens
+          builder: (context) => NarrativeOverlay(
+            narrativeNode: introNode,
+            onComplete: () {
+              Navigator.of(context).pop();
+            },
+            showFadeIn: true,
+          ),
+        );
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -76,6 +76,10 @@ class GameState {
   int spellsLearned = 0;
   int spellsUpgraded = 0;
 
+  // Narrative tracking (Phase 7.7)
+  // Track which elite dialogues have been shown this run
+  final Set<String> _shownEliteDialogues = {};
+
   GameState({
     required this.progression,
     NodeMapSystem? nodeMapSystem,
@@ -103,6 +107,19 @@ class GameState {
     return multiplier;
   }
 
+  // ==================== NARRATIVE METHODS (Phase 7.7) ====================
+
+  /// Checks if we should show dialogue for an elite enemy.
+  /// Returns true if this elite hasn't had their dialogue shown this run.
+  bool shouldShowEliteDialogue(String eliteName) {
+    return !_shownEliteDialogues.contains(eliteName);
+  }
+
+  /// Marks an elite's dialogue as shown for this run.
+  void markEliteDialogueShown(String eliteName) {
+    _shownEliteDialogues.add(eliteName);
+  }
+
   /// Ticks temporary buffs (called after each node).
   void tickTemporaryBuffs() {
     for (final buff in temporaryBuffs) {
@@ -120,6 +137,7 @@ class GameState {
     spellsLearned = 0;
     spellsUpgraded = 0;
     temporaryBuffs.clear();
+    _shownEliteDialogues.clear(); // Phase 7.7
     currentEnemies = null;
     isEliteCombat = false;
     nodeInteractionCompleted = false;
@@ -177,6 +195,7 @@ class GameState {
     spellsLearned = 0;
     spellsUpgraded = 0;
     temporaryBuffs.clear();
+    _shownEliteDialogues.clear(); // Phase 7.7
     currentEnemies = null;
     isEliteCombat = false;
     nodeInteractionCompleted = false;

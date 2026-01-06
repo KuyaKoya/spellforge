@@ -313,6 +313,32 @@ class AudioManager {
     }
   }
 
+  // Track ducked volume state
+  double? _preDuckVolume;
+
+  /// Duck (reduce) background music volume for narrative moments.
+  /// Reduces music to 30% of current volume to highlight dialogue/narration.
+  void duckBackgroundMusic() {
+    if (_preDuckVolume != null) return; // Already ducked
+    _preDuckVolume = _musicVolume;
+    try {
+      FlameAudio.bgm.audioPlayer.setVolume(_musicVolume * 0.3);
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  /// Restore background music to original volume after ducking.
+  void restoreBackgroundMusic() {
+    if (_preDuckVolume == null) return; // Not ducked
+    try {
+      FlameAudio.bgm.audioPlayer.setVolume(_preDuckVolume!);
+    } catch (e) {
+      // Ignore
+    }
+    _preDuckVolume = null;
+  }
+
   // ==================== CONVENIENCE METHODS ====================
 
   /// Play room enter sound.

@@ -18,6 +18,9 @@ import 'exploration/overlays/random_event_overlay.dart';
 import 'exploration/overlays/game_over_overlay.dart';
 import 'exploration/overlays/main_menu_overlay.dart';
 import 'exploration/overlays/element_selection_overlay.dart';
+// Phase 7.7: Narrative system
+import '../narrative/narrative.dart';
+import 'narrative_overlay.dart';
 
 /// The main game UI renderer.
 class TextGameWidget extends StatefulWidget {
@@ -319,6 +322,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         totalFragments: widget.game.progressionSystem.spellFragments,
         totalCrystals: widget.game.progressionSystem.spellCrystals,
         lastRunElement: widget.game.progressionSystem.lastRunElement,
+        progressionSystem: widget.game.progressionSystem, // Phase 7.7
         onNewGame: () {
           widget.game.handleInput('N');
           _onGameStateChanged();
@@ -525,9 +529,21 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       temporaryBuffs: gameState.temporaryBuffs,
       runNumber: 1,
       onEngageEnemy: (enemy, isElite) {
-        // Start combat using the new direct method
-        gameState.startCombatDirectly([enemy], isElite: isElite);
-        _onGameStateChanged();
+        // Phase 7.7: Check if we should show narrative dialogue
+        final currentNode = gameState.nodeMapSystem.currentNode;
+        final isBoss = currentNode?.type == NodeType.bossCombat;
+
+        if (isBoss) {
+          // Show boss pre-fight narrative
+          _showBossNarrative(context, gameState, enemy);
+        } else if (isElite) {
+          // Check if we should show elite dialogue
+          _showEliteDialogue(context, gameState, enemy);
+        } else {
+          // Regular combat - start directly
+          gameState.startCombatDirectly([enemy], isElite: false);
+          _onGameStateChanged();
+        }
       },
       onTravel: (direction, destinationId) {
         // Parse destination to get choice index
@@ -557,5 +573,108 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         _onGameStateChanged();
       },
     );
+  }
+
+  // ==================== PHASE 7.7: NARRATIVE HELPERS ====================
+
+  /// Shows elite dialogue if not already shown this run, then starts combat.
+  void _showEliteDialogue(
+    BuildContext context,
+    GameState gameState,
+    dynamic enemy,
+  ) {
+    final eliteName = enemy.name as String;
+
+    // Check if we should show dialogue
+    if (gameState.shouldShowEliteDialogue(eliteName)) {
+      final dialogue = EliteDialogue.getDialogueForElite(
+        eliteName: eliteName,
+        onComplete: () {
+          gameState.markEliteDialogueShown(eliteName);
+        },
+      );
+
+      if (dialogue != null) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => NarrativeOverlay(
+            narrativeNode: dialogue,
+            onComplete: () {
+              Navigator.of(context).pop();
+              // Start combat after dialogue
+              gameState.startCombatDirectly([enemy], isElite: true);
+              _onGameStateChanged();
+            },
+            showFadeIn: true,
+          ),
+        );
+        return; // Exit early - combat will start after dialogue
+      }
+    }
+
+    // No dialogue or already shown - start combat directly
+    gameState.startCombatDirectly([enemy], isElite: true);
+    _onGameStateChanged();
+  }
+
+  /// Shows boss narrative sequence, then starts combat.
+  void _showBossNarrative(
+    BuildContext context,
+    GameState gameState,
+    dynamic enemy,
+  ) {
+    final bossName = enemy.name as String;
+
+    // Step 1: Show shared pre-fight narrative
+    final preFightNode = BossNarrative.getPreFightNarrative(onComplete: () {});
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => NarrativeOverlay(
+        narrativeNode: preFightNode,
+        onComplete: () {
+          Navigator.of(context).pop();
+          // Step 2: Show boss-specific dialogue
+          _showBossSpecificDialogue(context, gameState, enemy, bossName);
+        },
+        showFadeIn: true,
+      ),
+    );
+  }
+
+  /// Shows boss-specific dialogue, then starts combat.
+  void _showBossSpecificDialogue(
+    BuildContext context,
+    GameState gameState,
+    dynamic enemy,
+    String bossName,
+  ) {
+    final bossDialogue = BossNarrative.getBossSpecificNarrative(
+      bossName: bossName,
+      onComplete: () {},
+    );
+
+    if (bossDialogue != null) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => NarrativeOverlay(
+          narrativeNode: bossDialogue,
+          onComplete: () {
+            Navigator.of(context).pop();
+            // Start boss combat
+            gameState.startCombatDirectly([enemy], isElite: false);
+            _onGameStateChanged();
+          },
+          showFadeIn: true,
+        ),
+      );
+    } else {
+      // No boss-specific dialogue - start combat
+      gameState.startCombatDirectly([enemy], isElite: false);
+      _onGameStateChanged();
+    }
   }
 }
