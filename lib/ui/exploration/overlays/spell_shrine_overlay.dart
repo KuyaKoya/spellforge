@@ -35,16 +35,9 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
   // If not null, we are selecting a slot to replace with this spell
   Spell? _replacingSpell;
 
-  @override
-  void initState() {
-    super.initState();
-    // Phase 7.6.2: Play shrine open sound when overlay opens
-    AudioManager.instance.playShrineOpen();
-  }
-
   /// Handle learning a spell with audio feedback
   void _handleLearn(int choiceIndex) {
-    // Phase 7.6.2: Play shrine upgrade sound
+    // Phase 7.6.2: Play shrine sound when actually learning
     AudioManager.instance.playShrineUpgrade();
     widget.onLearn(choiceIndex);
   }

@@ -552,8 +552,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         }
       },
       onTravel: (direction, destinationId) async {
-        // Play travel sound and wait
-        await AudioManager.instance.playSfxAndWait(AudioManager.sfxRoomSelect);
+        // Sound already played when door was tapped (preview shown)
+        // Don't play again here to avoid double sound
 
         // Parse destination to get choice index
         // destinationId format: 'choice_X'

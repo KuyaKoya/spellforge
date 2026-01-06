@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   flame: ^1.21.0
-  flame_audio: ^2.1.0
+  flutter_soloud: ^3.4.8
   shared_preferences: ^2.3.4
   collection: ^1.18.0
 

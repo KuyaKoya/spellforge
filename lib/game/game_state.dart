@@ -448,6 +448,16 @@ class GameState {
     currentEnemies = enemies;
     isEliteCombat = isElite;
 
+    // Transition to appropriate combat music
+    final isBoss = nodeMapSystem.currentNode?.type == NodeType.bossCombat;
+    if (isBoss) {
+      AudioManager.instance.transitionToMusicState(MusicState.bossCombat);
+    } else if (isElite) {
+      AudioManager.instance.transitionToMusicState(MusicState.eliteCombat);
+    } else {
+      AudioManager.instance.transitionToMusicState(MusicState.normalCombat);
+    }
+
     currentCombat = CombatSystem(
       mage: mage!,
       enemies: currentEnemies!,
