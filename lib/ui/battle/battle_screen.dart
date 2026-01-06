@@ -7,6 +7,8 @@ import '../../systems/shop_system.dart';
 import '../../systems/audio_manager.dart';
 import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
+import '../../domain/elite_enemy.dart';
+import '../../domain/boss_enemy.dart';
 import '../../domain/spell.dart';
 import '../../domain/effect.dart';
 import '../../narrative/journey_log.dart';
@@ -22,12 +24,6 @@ import 'sprite_overlay.dart';
 /// All values in milliseconds.
 /// Note: Reduced from original values to eliminate lag perception.
 class BattleTiming {
-  /// Delay after showing spell cast message before playing sound.
-  static const int spellCastToSound = 100; // Was 300
-
-  /// Delay after playing spell sound before applying damage.
-  static const int soundToDamage = 150; // Was 400
-
   /// Delay after showing effectiveness message.
   static const int effectivenessDisplay = 600; // Was 800
 
@@ -36,12 +32,6 @@ class BattleTiming {
 
   /// Delay after enemy fainted message.
   static const int enemyFaintedDisplay = 800; // Was 1100
-
-  /// Delay before enemy action starts.
-  static const int enemyIntentDisplay = 400; // Was 700
-
-  /// Delay after enemy attack sound before damage.
-  static const int enemySoundToDamage = 150; // Was 350
 
   /// Delay after enemy damage display.
   static const int enemyDamageDisplay = 500; // Was 700
@@ -266,11 +256,11 @@ class _BattleScreenState extends State<BattleScreen> {
 
   /// Execute player spell with proper timing sequence:
   /// 1. Show cast message + play animation + play sound immediately
-  /// 2. Short delay
+  /// 2. WAIT for sound to finish
   /// 3. Apply damage
   /// 4. Show result/effectiveness
   /// 5. Update UI
-  void _executePlayerSpell(Spell spell, int targetIndex) {
+  Future<void> _executePlayerSpell(Spell spell, int targetIndex) async {
     final spellIndex = widget.mage.spellLoadout.indexOf(spell);
     if (spellIndex < 0) return;
 
@@ -292,7 +282,7 @@ class _BattleScreenState extends State<BattleScreen> {
     // STEP 1: Show spell cast message, play animation AND sound IMMEDIATELY
     _setDialogText('${widget.mage.name} used ${spell.name}!');
     _battleScene.playMageCast();
-    AudioManager.instance.playSpellSfx(spell.id);
+
     _logCombat(
       CombatLogBuilder.spellCast(
         widget.mage.name,
@@ -301,10 +291,14 @@ class _BattleScreenState extends State<BattleScreen> {
       ),
     );
 
-    // STEP 2: After sound plays, apply damage
-    _delayedAction(seqId, BattleTiming.soundToDamage, () {
-      _applyPlayerSpellDamage(seqId, spell, spellIndex, targetIndex, enemy);
-    });
+    // STEP 2: Wait for sound to finish
+    await AudioManager.instance.playSpellSfxAndWait(spell.id);
+
+    // Check sequence validity after await
+    if (!_isSequenceValid(seqId)) return;
+
+    // STEP 3: Apply damage immediately after sound
+    _applyPlayerSpellDamage(seqId, spell, spellIndex, targetIndex, enemy);
   }
 
   /// Apply spell damage and show results (called after animation + sound).
@@ -331,17 +325,32 @@ class _BattleScreenState extends State<BattleScreen> {
 
     // Play additional sounds based on result
     if (result.enemiesDefeated > 0) {
-      AudioManager.instance.playEnemyDeath();
+      bool bossDead = false;
+      bool eliteDead = false;
+
+      for (final enemy in widget.enemies) {
+        if (!enemy.isAlive) {
+          if (enemy is BossEnemy)
+            bossDead = true;
+          else if (enemy is EliteEnemy)
+            eliteDead = true;
+        }
+      }
+
+      // We don't await death sounds because we want to flow into victory check/UI updates
+      if (bossDead) {
+        AudioManager.instance.playSfx('boss_death');
+      } else if (eliteDead) {
+        AudioManager.instance.playSfx('elite_death');
+      } else {
+        AudioManager.instance.playEnemyDeath();
+      }
     }
 
     // Check for status effects applied
     for (final log in result.logs) {
       if (log.contains('Slow applied') || log.contains('Weaken applied')) {
         AudioManager.instance.playDebuff();
-        break;
-      }
-      if (log.contains('Burn applied')) {
-        // Burn sound may differ; use debuff for now
         break;
       }
     }
@@ -439,11 +448,11 @@ class _BattleScreenState extends State<BattleScreen> {
 
   /// Execute a single enemy action with proper timing sequence:
   /// 1. Show intent message + play sound IMMEDIATELY
-  /// 2. Short delay
-  /// 3. Apply damage (via executeEnemyActionManual)
+  /// 2. WAIT for sound to finish
+  /// 3. Apply damage
   /// 4. Show result
   /// 5. Next enemy or finalize
-  void _executeEnemyActionWithTiming(int index) {
+  Future<void> _executeEnemyActionWithTiming(int index) async {
     final seqId = _enemyPhaseSeqId;
 
     if (index >= _cachedEnemyActions.length) {
@@ -465,20 +474,21 @@ class _BattleScreenState extends State<BattleScreen> {
 
     switch (intent) {
       case EnemyIntent.attack:
-        AudioManager.instance.playEnemyAttack();
+        await AudioManager.instance.playSfxAndWait('enemy_attack');
         break;
       case EnemyIntent.defend:
-        AudioManager.instance.playShieldGain();
+        await AudioManager.instance.playSfxAndWait('armor');
         break;
       case EnemyIntent.debuff:
-        AudioManager.instance.playDebuff();
+        await AudioManager.instance.playSfxAndWait('debuff');
         break;
     }
 
-    // STEP 2: After delay, apply damage
-    _delayedAction(seqId, BattleTiming.enemySoundToDamage, () {
-      _applyEnemyAction(seqId, index, enemy, intent);
-    });
+    // Check validity after await
+    if (_enemyPhaseSeqId != seqId || !mounted) return;
+
+    // STEP 2: Apply damage immediately after sound
+    _applyEnemyAction(seqId, index, enemy, intent);
   }
 
   /// Apply enemy action damage and show result.

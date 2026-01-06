@@ -3,6 +3,7 @@ import '../domain/effect.dart';
 import '../systems/node_resolver.dart';
 import '../systems/shop_system.dart';
 import '../systems/modifier_service.dart';
+import '../systems/audio_system.dart';
 import 'game_state.dart';
 
 /// Handles game logic for player actions.
@@ -169,7 +170,21 @@ class GameLoop {
       );
 
       state.progression.addFragments(rewards['fragments']!);
-      if (state.mage != null) {}
+      if (state.mage != null && rewards.containsKey('experience')) {
+        final exp = rewards['experience']!;
+        final logs = state.mage!.gainExp(exp);
+
+        bool leveledUp = false;
+        for (final log in logs) {
+          if (log.contains('LEVEL UP')) {
+            leveledUp = true;
+          }
+        }
+
+        if (leveledUp) {
+          AudioSystem.playLevelUp();
+        }
+      }
 
       if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {
         state.progression.addCrystals(1);
@@ -209,8 +224,24 @@ class GameLoop {
       );
 
       state.progression.addFragments(rewards['fragments']!);
+
       // Award experience
-      if (state.mage != null) {}
+      if (state.mage != null && rewards.containsKey('experience')) {
+        final exp = rewards['experience']!;
+        final logs = state.mage!.gainExp(exp);
+
+        bool leveledUp = false;
+        for (final log in logs) {
+          if (log.contains('LEVEL UP')) {
+            leveledUp = true;
+          }
+          // Could add logs to a UI queue here if needed
+        }
+
+        if (leveledUp) {
+          AudioSystem.playLevelUp();
+        }
+      }
 
       // Check for bonus spell crystal drop (after depth 4)
       if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {

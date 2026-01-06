@@ -7,6 +7,7 @@ import '../domain/mage.dart';
 import '../progression/node_modifier.dart';
 import 'spell_system.dart';
 import 'audio_system.dart';
+import 'audio_manager.dart';
 import 'modifier_service.dart';
 
 /// Represents the state of an ongoing combat.
@@ -105,6 +106,12 @@ class CombatSystem {
   void startCombat() {
     currentTurn = 1;
     phase = CombatPhase.playerTurn;
+
+    // Play battle start audio (music + sfx)
+    bool isElite = enemies.any((e) => e is EliteEnemy);
+    bool isBoss = enemies.any((e) => e is BossEnemy);
+    AudioManager.instance.playBattleStart(isElite: isElite, isBoss: isBoss);
+
     mage.resetActions();
     mage.mana = mage.maxMana; // Restore mana at combat start
 
@@ -606,20 +613,77 @@ class CombatSystem {
         return;
       }
 
+      // Check for splash on burn modifier
+      final splashOnBurn = ModifierService.hasSplashOnBurn(elementalModifiers);
+
       // Resolve enemy status effects
-      for (final enemy in enemies.where((e) => e.isAlive)) {
+      // Use toList() to verify liveness at start of phase
+      final enemiesToProcess = enemies.where((e) => e.isAlive).toList();
+
+      for (final enemy in enemiesToProcess) {
+        // Re-check liveness in case splash damage from previous enemy killed this one
+        if (!enemy.isAlive) continue;
+
         if (enemy.statusEffects.isNotEmpty) {
           combatLog.add('${enemy.name}:');
           final enemyLogs = enemy.processStatusEffects();
           for (final log in enemyLogs) {
             if (log.contains('burn damage')) {
               AudioSystem.playBurn();
+
+              // Phase 7.8: Splash on Burn logic
+              if (splashOnBurn) {
+                final match = RegExp(
+                  r'takes (\d+) burn damage',
+                ).firstMatch(log);
+                if (match != null) {
+                  final damage = int.parse(match.group(1)!);
+                  // 50% splash damage seems reasonable for a "Splash" effect
+                  final splashDamage = (damage * 0.5).ceil();
+
+                  if (splashDamage > 0) {
+                    bool displayedHeader = false;
+                    for (final other in enemies) {
+                      if (other != enemy && other.isAlive) {
+                        if (!displayedHeader) {
+                          combatLog.add(
+                            '  💦 Fire splashes to nearby enemies!',
+                          );
+                          displayedHeader = true;
+                        }
+                        final taken = other.takeDamage(splashDamage);
+                        combatLog.add(
+                          '  ➜ ${other.name} takes $taken splash damage',
+                        );
+                        if (!other.isAlive) {
+                          if (other is BossEnemy) {
+                            AudioSystem.playSfx('boss_death');
+                          } else if (other is EliteEnemy) {
+                            AudioSystem.playSfx('elite_death');
+                          } else {
+                            AudioSystem.playEnemyDeath();
+                          }
+                          combatLog.add(
+                            '  💀 ${other.name} is defeated by splash!',
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
             combatLog.add('  $log');
           }
 
           if (!enemy.isAlive) {
-            AudioSystem.playEnemyDeath();
+            if (enemy is BossEnemy) {
+              AudioSystem.playSfx('boss_death');
+            } else if (enemy is EliteEnemy) {
+              AudioSystem.playSfx('elite_death');
+            } else {
+              AudioSystem.playEnemyDeath();
+            }
             combatLog.add('  💀 ${enemy.name} is defeated by status effects!');
           }
           combatLog.add('');

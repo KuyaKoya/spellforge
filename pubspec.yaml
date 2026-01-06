@@ -26,3 +26,4 @@ flutter:
     - assets/spellforge_logo.png
     - assets/enemy_sprites/
     - assets/audio/sound_effects/
+    - assets/audio/music/

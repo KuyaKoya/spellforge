@@ -11,6 +11,7 @@ import '../systems/node_resolver.dart';
 import '../systems/progression_system.dart';
 import '../systems/shop_system.dart';
 import '../director/director_system.dart';
+import '../systems/audio_manager.dart';
 
 /// The current screen/mode of the game.
 enum GameScreen {
@@ -161,6 +162,7 @@ class GameState {
     // Go directly to exploration mode
     // First room is empty - just doors to choose first node
     currentScreen = GameScreen.exploration;
+    AudioManager.instance.transitionToMusicState(MusicState.exploration);
   }
 
   /// Shows element selection screen (Phase 7.6.1).
@@ -169,6 +171,9 @@ class GameState {
     currentScreen = GameScreen.elementSelect;
     // No spell choices needed - element selection is UI-driven
     spellChoices = null;
+
+    // Ensure music is playing (in case we came from somewhere else)
+    AudioManager.instance.transitionToMusicState(MusicState.exploration);
   }
 
   /// Selects a starting element type (Phase 7.6.1).
@@ -235,6 +240,7 @@ class GameState {
     );
     // Go to exploration mode
     currentScreen = GameScreen.exploration;
+    AudioManager.instance.transitionToMusicState(MusicState.exploration);
   }
 
   /// Phase 7.8: Calculate max HP multiplier from modifiers.
@@ -566,6 +572,9 @@ class GameState {
     currentEnemies = null;
     isEliteCombat = false;
 
+    // Resume exploration music
+    AudioManager.instance.transitionToMusicState(MusicState.exploration);
+
     if (nodeMapSystem.isRunComplete) {
       endRun(victory: true);
     } else {
@@ -580,6 +589,11 @@ class GameState {
   /// Narrative certainty does not.
   void endRun({required bool victory}) {
     currentScreen = GameScreen.runEnd;
+
+    // Could play different music for victory/defeat screen here
+    // For now, keep exploration/ambient or silence?
+    // Let's stick to exploration as "neutral"
+    AudioManager.instance.transitionToMusicState(MusicState.exploration);
 
     // Calculate rewards
     final nodesCompleted = currentDepth - 1;
@@ -617,6 +631,9 @@ class GameState {
     temporaryBuffs.clear();
     nodeMapSystem.reset();
     currentScreen = GameScreen.mainMenu;
+
+    // Ensure menu music plays
+    AudioManager.instance.transitionToMusicState(MusicState.exploration);
   }
 
   /// Gets available mage choices.

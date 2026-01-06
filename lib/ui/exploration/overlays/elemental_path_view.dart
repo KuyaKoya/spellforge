@@ -3,6 +3,7 @@ import '../../../domain/element.dart' as domain;
 import '../../../systems/progression_system.dart';
 import '../../../progression/elemental_path.dart';
 import '../../../progression/elemental_node.dart';
+import '../../../systems/audio_system.dart';
 
 /// Displays a single elemental path with all its nodes.
 /// Allows unlocking nodes with crystals.
@@ -645,6 +646,9 @@ class _ElementalPathViewState extends State<ElementalPathView>
       setState(() {
         _selectedNodeIndex = null;
       });
+
+      // Play unlock sound
+      AudioSystem.playSkillUnlock();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

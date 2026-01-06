@@ -262,15 +262,21 @@ class SpellSystem {
           final burnDurationBonus = ModifierService.getBurnDurationModifier(
             elementalModifiers,
           );
+          // Phase 7.8: Apply burn damage modifier
+          final burnDamageMultiplier = ModifierService.getBurnDamageMultiplier(
+            elementalModifiers,
+          );
+          final modifiedValue = (effect.value * burnDamageMultiplier).round();
+
           final modifiedBurnEffect = Effect(
             type: EffectType.burn,
-            value: effect.value,
+            value: modifiedValue,
             duration: effect.duration + burnDurationBonus,
             targetRule: effect.targetRule,
           );
           target.applyStatusEffect(modifiedBurnEffect);
           logs.add(
-            'Burn applied to ${target.name} (${effect.value}/turn for ${modifiedBurnEffect.duration} turns)',
+            'Burn applied to ${target.name} ($modifiedValue/turn for ${modifiedBurnEffect.duration} turns)',
           );
           break;
 

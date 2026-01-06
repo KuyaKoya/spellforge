@@ -31,6 +31,10 @@ class AudioManager {
   static const _sfxDebounceMs =
       50; // Debounce to prevent lag from rapid triggers
 
+  // Global throttling settings
+  DateTime? _lastGlobalSfxTime;
+  static const _globalSfxIntervalMs = 20; // Max ~50 sounds per second globally
+
   // Initialization flag
   bool _initialized = false;
 
@@ -115,9 +119,22 @@ class AudioManager {
         'sound_effects/typhoon.mp3',
         'sound_effects/water_bolt.mp3',
         'sound_effects/wind_slash.mp3',
+        // Newly added files
+        'sound_effects/level_up.mp3',
+        'sound_effects/skill_tree_unlock.mp3',
+        'sound_effects/boss_death.mp3',
+        'sound_effects/elite_death.mp3',
       ]);
 
-      // Also preload background music tracks
+      // Preload music from the music folder
+      await FlameAudio.audioCache.loadAll([
+        'music/exploration.mp3',
+        'music/normal_combat.mp3',
+        'music/elite_combat.mp3',
+        'music/boss_combat.mp3',
+      ]);
+
+      // Keep main_bg just in case legacy refs exist
       await FlameAudio.audioCache.loadAll(['sound_effects/main_bg.mp3']);
 
       print('AudioManager: Audio preload complete.');
@@ -202,7 +219,14 @@ class AudioManager {
   ///
   /// Keys are mapped to actual file paths internally.
   /// Duplicate/overlapping plays of the same sound are debounced.
-  void playSfx(String key) {
+  // Debug message counter
+  int _messageCount = 0;
+
+  /// Play a sound effect by key.
+  ///
+  /// Keys are mapped to actual file paths internally.
+  /// Duplicate/overlapping plays of the same sound are debounced.
+  Future<void> playSfx(String key) async {
     if (_sfxVolume <= 0) return;
 
     // Debounce check (disabled when _sfxDebounceMs = 0)
@@ -216,11 +240,26 @@ class AudioManager {
       _lastPlayedSfx[key] = now;
     }
 
+    // Global throttling to prevent message queue flooding (max ~50 calls/sec)
+    // This catches cases where many DIFFERENT sounds are triggered simultaneously
+    final now = DateTime.now();
+    if (_lastGlobalSfxTime != null &&
+        now.difference(_lastGlobalSfxTime!).inMilliseconds <
+            _globalSfxIntervalMs) {
+      return;
+    }
+    _lastGlobalSfxTime = now;
+
     final filename = _getSfxFilename(key);
     if (filename == null) return;
 
+    _messageCount++;
+    if (_messageCount % 100 == 0) {
+      print('AudioManager: Sent $_messageCount audio messages. Last: $key');
+    }
+
     try {
-      FlameAudio.play(filename, volume: _sfxVolume);
+      await FlameAudio.play(filename, volume: _sfxVolume);
     } catch (e) {
       // Graceful failure - don't crash gameplay
       print('AudioManager: Failed to play SFX "$key": $e');
@@ -397,16 +436,74 @@ class AudioManager {
   /// Play enchantment shrine upgrade sound.
   void playShrineUpgrade() => playSfx(sfxShrineUpgrade);
 
+  /// Play level up sound.
+  void playLevelUp() => playSfx('level_up');
+
+  /// Play skill tree unlock sound.
+  void playSkillUnlock() => playSfx('skill_unlock');
+
   /// Play battle start sound based on encounter type.
   void playBattleStart({bool isElite = false, bool isBoss = false}) {
     if (isBoss) {
-      // Boss: stop ambient music, start boss music
       stopMusic();
       playMusic(musicBossCombat);
+      _currentMusicState = MusicState.bossCombat;
     } else if (isElite) {
-      playSfx(sfxBattleStartElite);
+      // SFX handled by UI for timing
+      playMusic(musicEliteCombat);
+      _currentMusicState = MusicState.eliteCombat;
     } else {
-      playSfx(sfxBattleStartNormal);
+      // SFX handled by UI for timing
+      playMusic(musicNormalCombat);
+      _currentMusicState = MusicState.normalCombat;
+    }
+  }
+
+  /// Plays a sound effect and returns a Future that completes when it finishes.
+  Future<void> playSfxAndWait(String key) async {
+    if (_sfxVolume <= 0) return;
+
+    final filename = _getSfxFilename(key);
+    if (filename == null) {
+      // If no file found, wait a generic duration to prevent logic skips
+      await Future.delayed(const Duration(milliseconds: 500));
+      return;
+    }
+
+    // Update global throttle timestamp so subsequent rapid fires are throttled
+    _lastGlobalSfxTime = DateTime.now();
+
+    _messageCount++;
+    if (_messageCount % 100 == 0) {
+      print(
+        'AudioManager: Sent $_messageCount audio messages. Last: $key (Wait)',
+      );
+    }
+
+    try {
+      // Create a specific player for this sound to track completion
+      final player = await FlameAudio.play(filename, volume: _sfxVolume);
+
+      // Wait for completion OR a timeout
+      // This prevents deadlocks if the audio engine fails to emit the complete event
+      await player.onPlayerComplete.first.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
+    } catch (e) {
+      print('AudioManager: Failed to play/wait SFX "$key": $e');
+      // Fallback delay if audio fails
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+  }
+
+  /// Play a spell-specific sound effect and wait for completion.
+  Future<void> playSpellSfxAndWait(String spellId) async {
+    final soundKey = _getSpellSoundKey(spellId);
+    if (soundKey != null) {
+      await playSfxAndWait(soundKey);
+    } else {
+      await playSfxAndWait(sfxSpellCast);
     }
   }
 
@@ -429,6 +526,8 @@ class AudioManager {
         return null; // TODO: Add room_enter.mp3 asset
       case sfxCombatStart:
         return null; // TODO: Add combat_start.mp3 asset
+      case sfxSpellCast:
+        return 'sound_effects/fireball.mp3'; // Fallback to fireball
       case sfxDamage:
         return 'sound_effects/enemy_attack.mp3'; // Reuse for now
       case sfxShieldGain: // 'armor'
@@ -491,6 +590,15 @@ class AudioManager {
         return 'sound_effects/room_select.mp3';
       case sfxEnemySelect: // 'enemy_select'
         return 'sound_effects/enemy_select.mp3';
+      // New features
+      case 'level_up':
+        return 'sound_effects/level_up.mp3';
+      case 'skill_unlock':
+        return 'sound_effects/skill_tree_unlock.mp3';
+      case 'boss_death':
+        return 'sound_effects/boss_death.mp3';
+      case 'elite_death':
+        return 'sound_effects/elite_death.mp3';
       default:
         return null;
     }
@@ -537,13 +645,13 @@ class AudioManager {
     switch (key) {
       case 'main_bg': // Direct key used by AudioSystem.playMusic
       case musicExploration:
-        return 'sound_effects/main_bg.mp3';
+        return 'music/exploration.mp3';
       case musicNormalCombat:
-        return 'sound_effects/main_bg.mp3'; // Reuse main_bg for now
+        return 'music/normal_combat.mp3';
       case musicEliteCombat:
-        return 'sound_effects/main_bg.mp3'; // Reuse main_bg for now
+        return 'music/elite_combat.mp3';
       case musicBossCombat:
-        return 'sound_effects/boss_bg_music.mp3';
+        return 'music/boss_combat.mp3';
       case musicMysteryEvent:
         return 'sound_effects/mystery_event_bg_music.mp3';
       default:
@@ -572,6 +680,7 @@ class AudioManager {
     print('  Debounce Time: ${_sfxDebounceMs}ms');
     print('  Current Music: ${_currentMusicTrack ?? "None"}');
     print('  SFX Debounce Queue Size: ${_lastPlayedSfx.length}');
+    print('  Total SFX Messages Sent: $_messageCount');
     print('==============================================\n');
   }
 }

@@ -188,6 +188,26 @@ class ModifierService {
     return bonus;
   }
 
+  /// Gets burn damage modifier (percentage).
+  static double getBurnDamageMultiplier(List<NodeModifier> modifiers) {
+    double multiplier = 1.0;
+
+    for (final mod in modifiers) {
+      if (mod.type == ModifierType.burnDamagePercent) {
+        multiplier += mod.effectiveValue / 100.0;
+      }
+    }
+
+    return multiplier.clamp(0.1, 5.0);
+  }
+
+  /// Checks if player has the "splash on burn" modifier.
+  static bool hasSplashOnBurn(List<NodeModifier> modifiers) {
+    return modifiers.any(
+      (m) => m.type == ModifierType.splashOnBurn && m.isPositive,
+    );
+  }
+
   /// Creates a summary of active modifiers for display.
   static String getSummary(List<NodeModifier> modifiers) {
     if (modifiers.isEmpty) return 'No elemental bonuses active.';
