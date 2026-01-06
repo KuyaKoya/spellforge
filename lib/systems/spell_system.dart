@@ -4,6 +4,8 @@ import '../domain/enemy.dart';
 import '../domain/elite_enemy.dart';
 import '../domain/mage.dart';
 import '../domain/spell.dart';
+import '../progression/node_modifier.dart';
+import 'modifier_service.dart';
 
 /// Result of a spell cast, containing all log messages.
 class SpellCastResult {
@@ -29,6 +31,7 @@ class SpellSystem {
   /// Casts a spell from the mage at the specified target(s).
   /// [targetIndex] is the index within the LIVING enemies list, not the full list.
   /// [damageMultiplier] is applied to all damage dealt (e.g. from temporary buffs).
+  /// [elementalModifiers] are Phase 7.8 bonuses from character progression.
   /// Returns a detailed result with all logs.
   static SpellCastResult castSpell({
     required Mage caster,
@@ -36,6 +39,7 @@ class SpellSystem {
     required List<Enemy> enemies,
     int? targetIndex,
     double damageMultiplier = 1.0,
+    List<NodeModifier> elementalModifiers = const [],
   }) {
     final logs = <String>[];
     int totalDamage = 0;
@@ -69,6 +73,7 @@ class SpellSystem {
         livingEnemies: livingEnemies,
         targetIndex: targetIndex,
         damageMultiplier: damageMultiplier,
+        elementalModifiers: elementalModifiers,
       );
 
       for (final log in effectLogs) {
@@ -114,6 +119,7 @@ class SpellSystem {
     required List<Enemy> livingEnemies,
     int? targetIndex,
     double damageMultiplier = 1.0,
+    List<NodeModifier> elementalModifiers = const [],
   }) {
     final logs = <String>[];
 
@@ -150,9 +156,20 @@ class SpellSystem {
     if (effect.targetRule == TargetRule.self) {
       switch (effect.type) {
         case EffectType.armor:
-          caster.applyStatusEffect(effect);
+          // Phase 7.8: Apply shield multiplier from elemental modifiers
+          final shieldMultiplier = ModifierService.getShieldMultiplier(
+            elementalModifiers,
+          );
+          final modifiedValue = (effect.value * shieldMultiplier).round();
+          final modifiedEffect = Effect(
+            type: EffectType.armor,
+            value: modifiedValue,
+            duration: effect.duration,
+            targetRule: effect.targetRule,
+          );
+          caster.applyStatusEffect(modifiedEffect);
           logs.add(
-            '${caster.name} gains ${effect.value} Armor for ${effect.duration} turn(s)',
+            '${caster.name} gains $modifiedValue Armor for ${effect.duration} turn(s)',
           );
           break;
         case EffectType.actionGain:
@@ -185,9 +202,23 @@ class SpellSystem {
             }
           }
 
-          // Apply elemental multiplier, temporary buff multiplier, and weaken
+          // Phase 7.8: Calculate critical hit
+          final critChance = ModifierService.getCritChanceModifier(
+            elementalModifiers,
+            element: spell.element,
+          );
+          final isCrit =
+              critChance > 0 &&
+              (DateTime.now().millisecondsSinceEpoch % 100) < critChance;
+          final critMultiplier = isCrit ? 1.5 : 1.0;
+
+          // Apply elemental multiplier, temporary buff multiplier, weaken, and crit
           final finalDamage =
-              (baseDamage * multiplier * damageMultiplier * weakenMultiplier)
+              (baseDamage *
+                      multiplier *
+                      damageMultiplier *
+                      weakenMultiplier *
+                      critMultiplier)
                   .round();
 
           final initialArmor = target.statusEffects
@@ -207,6 +238,11 @@ class SpellSystem {
 
           logs.add('${spell.displayName} hits ${target.name}');
 
+          // Phase 7.8: Log critical hit
+          if (isCrit) {
+            logs.add('💥 CRITICAL HIT!');
+          }
+
           // Only show effectiveness if damage reached the enemy's HP (wasn't fully absorbed)
           if (actualDamage > 0 && multiplier != 1.0) {
             logs.add(effectivenessText);
@@ -222,9 +258,19 @@ class SpellSystem {
           break;
 
         case EffectType.burn:
-          target.applyStatusEffect(effect);
+          // Phase 7.8: Apply burn duration modifier
+          final burnDurationBonus = ModifierService.getBurnDurationModifier(
+            elementalModifiers,
+          );
+          final modifiedBurnEffect = Effect(
+            type: EffectType.burn,
+            value: effect.value,
+            duration: effect.duration + burnDurationBonus,
+            targetRule: effect.targetRule,
+          );
+          target.applyStatusEffect(modifiedBurnEffect);
           logs.add(
-            'Burn applied to ${target.name} (${effect.value}/turn for ${effect.duration} turns)',
+            'Burn applied to ${target.name} (${effect.value}/turn for ${modifiedBurnEffect.duration} turns)',
           );
           break;
 

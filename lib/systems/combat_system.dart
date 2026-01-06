@@ -4,8 +4,10 @@ import '../domain/elite_enemy.dart';
 import '../domain/boss_enemy.dart';
 import '../domain/combat_event.dart';
 import '../domain/mage.dart';
+import '../progression/node_modifier.dart';
 import 'spell_system.dart';
 import 'audio_system.dart';
+import 'modifier_service.dart';
 
 /// Represents the state of an ongoing combat.
 enum CombatPhase { playerTurn, enemyTurn, statusResolution, victory, defeat }
@@ -50,6 +52,19 @@ class CombatSystem {
   /// Damage multiplier from temporary buffs (e.g. Rest Site Train).
   final double damageMultiplier;
 
+  /// Phase 7.8: Elemental node modifiers from character progression.
+  final List<NodeModifier> elementalModifiers;
+
+  /// Phase 7.8: Tracks if "evade first hit" has been used this battle.
+  bool _evadeUsed = false;
+
+  /// Phase 7.8: Tracks if "survive lethal" has been used this run.
+  /// Note: This should be tracked at GameState level for run persistence.
+  bool _lethalSurviveUsed = false;
+
+  /// Phase 7.8: Tracks extra action on kill usage per battle.
+  bool _extraActionOnKillUsed = false;
+
   CombatPhase phase;
   int currentTurn;
   bool _playerTurnHeaderLogged = false;
@@ -59,6 +74,7 @@ class CombatSystem {
     required this.enemies,
     this.damageMultiplier = 1.0,
     this.onStateChanged,
+    this.elementalModifiers = const [],
   }) : combatLog = [],
        phase = CombatPhase.playerTurn,
        currentTurn = 1;
@@ -101,6 +117,33 @@ class CombatSystem {
       '${mage.name} encounters ${enemies.length} ${enemies.length == 1 ? 'enemy' : 'enemies'}!',
     );
     combatLog.add('');
+
+    // Phase 7.8: Apply battle start armor from elemental modifiers
+    final battleStartArmor = ModifierService.getBattleStartArmor(
+      elementalModifiers,
+    );
+    if (battleStartArmor > 0) {
+      mage.applyStatusEffect(
+        Effect(type: EffectType.armor, value: battleStartArmor, duration: 99),
+      );
+      combatLog.add(
+        '🛡️ Elemental fortification grants $battleStartArmor armor!',
+      );
+      combatLog.add('');
+    }
+
+    // Phase 7.8: Apply first turn action bonus from elemental modifiers
+    final firstTurnBonus = ModifierService.getFirstTurnDrawBonus(
+      elementalModifiers,
+    );
+    if (firstTurnBonus > 0) {
+      mage.actionsRemaining += firstTurnBonus;
+      combatLog.add(
+        '⚡ Elemental swiftness grants $firstTurnBonus extra action(s)!',
+      );
+      combatLog.add('');
+    }
+
     // Phase 7.6.8: Trigger battle start passives for elites
     for (final enemy in enemies) {
       if (enemy is EliteEnemy) {
@@ -189,12 +232,20 @@ class CombatSystem {
     // NOTE: Audio removed - BattleScreen handles audio with proper timing:
     // Animation -> Sound -> Delay -> Damage
 
+    // Phase 7.8: Calculate elemental damage bonus
+    final elementalDamageMultiplier = ModifierService.getDamageMultiplier(
+      elementalModifiers,
+      element: spell.element,
+    );
+    final totalDamageMultiplier = damageMultiplier * elementalDamageMultiplier;
+
     final result = SpellSystem.castSpell(
       caster: mage,
       spell: spell,
       enemies: enemies,
       targetIndex: targetIndex ?? 0,
-      damageMultiplier: damageMultiplier,
+      damageMultiplier: totalDamageMultiplier,
+      elementalModifiers: elementalModifiers,
     );
 
     // NOTE: Audio removed from here - BattleScreen plays sounds after
@@ -202,6 +253,19 @@ class CombatSystem {
 
     combatLog.addAll(result.logs);
     combatLog.add('');
+
+    // Phase 7.8: Check for extra action on kill
+    if (result.enemiesDefeated > 0 && !_extraActionOnKillUsed) {
+      final extraActions = ModifierService.getExtraActionsOnKill(
+        elementalModifiers,
+      );
+      if (extraActions > 0) {
+        mage.actionsRemaining += extraActions;
+        _extraActionOnKillUsed = true; // Only once per battle
+        combatLog.add('⚡ Extra action gained from kill!');
+        combatLog.add('');
+      }
+    }
 
     // Check for victory
     if (livingEnemies.isEmpty) {
@@ -279,10 +343,37 @@ class CombatSystem {
 
     switch (intent) {
       case EnemyIntent.attack:
-        final damage = enemy.getEffectiveDamage();
-        damageDealt = mage.takeDamage(damage);
-        combatLog.add('  ⚔️  Attacks ${mage.name} for $damageDealt damage!');
-        combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+        // Phase 7.8: Check for evade first hit modifier
+        if (!_evadeUsed &&
+            ModifierService.hasEvadeFirstHit(elementalModifiers)) {
+          _evadeUsed = true;
+          combatLog.add(
+            '  💨 ${mage.name} evades the attack! (Wind Ascension)',
+          );
+          damageDealt = 0;
+        } else {
+          final damage = enemy.getEffectiveDamage();
+          damageDealt = mage.takeDamage(damage);
+
+          // Phase 7.8: Check for survive lethal modifier
+          if (!mage.isAlive &&
+              !_lethalSurviveUsed &&
+              ModifierService.hasLethalSurvive(elementalModifiers)) {
+            _lethalSurviveUsed = true;
+            mage.currentHP = 1;
+            combatLog.add(
+              '  ⚔️  Attacks ${mage.name} for $damageDealt damage!',
+            );
+            combatLog.add(
+              '  🔥 ${mage.name} refuses to fall! Survives with 1 HP! (Fire Ascension)',
+            );
+          } else {
+            combatLog.add(
+              '  ⚔️  Attacks ${mage.name} for $damageDealt damage!',
+            );
+          }
+          combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+        }
         break;
 
       case EnemyIntent.defend:
@@ -419,19 +510,47 @@ class CombatSystem {
   Future<void> _executeEnemyAction(Enemy enemy) async {
     switch (enemy.intent) {
       case EnemyIntent.attack:
-        // Sync point: Sound -> Wait -> Damage -> Update
-        AudioSystem.playEnemyAttack();
+        // Phase 7.8: Check for evade first hit modifier
+        if (!_evadeUsed &&
+            ModifierService.hasEvadeFirstHit(elementalModifiers)) {
+          _evadeUsed = true;
+          AudioSystem.playDodge();
+          combatLog.add(
+            '  💨 ${mage.name} evades the attack! (Wind Ascension)',
+          );
+          onStateChanged?.call();
+        } else {
+          // Sync point: Sound -> Wait -> Damage -> Update
+          AudioSystem.playEnemyAttack();
 
-        // Wait for impact
-        await Future.delayed(const Duration(milliseconds: 400));
+          // Wait for impact
+          await Future.delayed(const Duration(milliseconds: 400));
 
-        final damage = enemy.getEffectiveDamage();
-        final actualDamage = mage.takeDamage(damage);
-        combatLog.add('  ⚔️  Attacks ${mage.name} for $actualDamage damage!');
-        combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+          final damage = enemy.getEffectiveDamage();
+          final actualDamage = mage.takeDamage(damage);
 
-        // Trigger UI update immediately after damage
-        onStateChanged?.call();
+          // Phase 7.8: Check for survive lethal modifier
+          if (!mage.isAlive &&
+              !_lethalSurviveUsed &&
+              ModifierService.hasLethalSurvive(elementalModifiers)) {
+            _lethalSurviveUsed = true;
+            mage.currentHP = 1;
+            combatLog.add(
+              '  ⚔️  Attacks ${mage.name} for $actualDamage damage!',
+            );
+            combatLog.add(
+              '  🔥 ${mage.name} refuses to fall! Survives with 1 HP! (Fire Ascension)',
+            );
+          } else {
+            combatLog.add(
+              '  ⚔️  Attacks ${mage.name} for $actualDamage damage!',
+            );
+          }
+          combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+
+          // Trigger UI update immediately after damage
+          onStateChanged?.call();
+        }
         break;
 
       case EnemyIntent.defend:

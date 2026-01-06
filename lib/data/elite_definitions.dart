@@ -1,6 +1,10 @@
 import 'dart:math';
 import '../domain/element.dart';
 import '../domain/elite_enemy.dart';
+import '../domain/enemy_passive.dart';
+import '../systems/meta_difficulty.dart';
+import '../systems/difficulty_scaler.dart';
+import 'passive_definitions.dart';
 
 /// Pre-defined elite encounter templates for the game.
 class EliteDefinitions {
@@ -163,12 +167,17 @@ class EliteDefinitions {
 
   /// Gets an elite encounter with proper scaling.
   /// Phase 7.6.3: Supports [biasElement].
+  /// Phase 7.9: Supports [metaMods] for anti-snowball difficulty scaling.
   static List<EliteEnemy> getScaledEliteEncounter({
     required int depth,
     int? encounterIndex,
     Element? biasElement,
+    MetaDifficultyModifiers? metaMods,
   }) {
     final random = Random();
+
+    // Get meta difficulty modifiers (use tier 0 if not provided)
+    final mods = metaMods ?? MetaDifficultySystem.getModifiers(0);
 
     List<List<EliteEnemy> Function()> generators;
     if (encounterIndex != null) {
@@ -202,12 +211,41 @@ class EliteDefinitions {
     final index = random.nextInt(generators.length);
     final baseEncounter = generators[index]();
 
-    // Scale stats based on depth
-    final depthBonus = ((depth - 4) * 0.15).clamp(0.0, 1.0);
+    // Phase 7.9: Calculate passive count (may add extra from meta tier)
+    final passiveCount = DifficultyScaler.getElitePassiveCount(depth, mods);
 
     return baseEncounter.map((elite) {
-      final scaledHP = (elite.maxHP * (1 + depthBonus)).round();
-      final scaledDamage = elite.attackDamage + ((depth - 4) ~/ 2);
+      // Phase 7.9: Apply depth + meta scaling
+      final scaledHP = DifficultyScaler.calculateFinalHP(
+        baseHP: elite.maxHP,
+        depth: depth,
+        metaMods: mods,
+      );
+      final scaledDamage = DifficultyScaler.calculateFinalAttack(
+        baseAttack: elite.attackDamage,
+        depth: depth,
+        metaMods: mods,
+      );
+
+      // Phase 7.9: Handle extra passives
+      var passives = PassiveDefinitions.getPassivesForEnemy(elite.id);
+      if (passives.length < passiveCount) {
+        // Need to add extra passives
+        final extraNeeded = passiveCount - passives.length;
+        final genericPool = List<EnemyPassive>.from(
+          PassiveDefinitions.getGenericPassives(),
+        );
+        genericPool.shuffle(random);
+
+        // Add unique generic passives
+        for (var i = 0; i < extraNeeded && i < genericPool.length; i++) {
+          final passive = genericPool[i];
+          // Ensure we don't duplicate logic
+          if (!passives.any((p) => p.id == passive.id)) {
+            passives = [...passives, passive]; // Create new list
+          }
+        }
+      }
 
       return EliteEnemy(
         id: elite.id,
@@ -219,6 +257,7 @@ class EliteDefinitions {
         armorGain: elite.armorGain,
         modifiers: elite.modifiers,
         resistantElement: elite.resistantElement,
+        passives: passives, // Phase 7.9: Explicit passives with extras
       );
     }).toList();
   }

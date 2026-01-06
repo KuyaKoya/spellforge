@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'catalog_tab.dart';
+import 'character_tab.dart';
 import '../../../narrative/narrative.dart';
 import '../../../systems/progression_system.dart';
 import '../../narrative_overlay.dart';
@@ -88,30 +89,14 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
           ),
           unselectedLabelStyle: const TextStyle(fontFamily: 'monospace'),
           onTap: (index) {
-            // Character tab (index 0) is currently disabled
-            if (index == 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Character customization coming soon!',
-                    style: TextStyle(fontFamily: 'monospace'),
-                  ),
-                  duration: Duration(seconds: 1),
-                  backgroundColor: Color(0xFF161b22),
-                ),
-              );
-              return;
-            }
+            // Phase 7.8: Character tab now enabled
             setState(() {
               _selectedIndex = index;
             });
           },
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(
-                Icons.person,
-                color: Colors.grey,
-              ), // Visual cue for disabled
+              icon: Icon(Icons.person),
               activeIcon: Icon(Icons.person),
               label: 'CHARACTER',
             ),
@@ -128,6 +113,9 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
 
   Widget _buildBody() {
     switch (_selectedIndex) {
+      case 0:
+        // Phase 7.8: Character tab
+        return CharacterTab(progressionSystem: widget.progressionSystem);
       case 1:
         return _buildHomeTab();
       case 2:

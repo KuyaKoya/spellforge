@@ -2,6 +2,7 @@ import '../domain/spell.dart';
 import '../domain/effect.dart';
 import '../systems/node_resolver.dart';
 import '../systems/shop_system.dart';
+import '../systems/modifier_service.dart';
 import 'game_state.dart';
 
 /// Handles game logic for player actions.
@@ -417,7 +418,12 @@ class GameLoop {
         break;
 
       case ShopItemType.heal:
-        final actual = state.mage!.heal(item.value);
+        // Phase 7.8: Apply healing multiplier from elemental modifiers
+        final healingMultiplier = ModifierService.getHealingMultiplier(
+          state.progression.getActiveModifiers(),
+        );
+        final modifiedHealAmount = (item.value * healingMultiplier).round();
+        final actual = state.mage!.heal(modifiedHealAmount);
         break;
 
       case ShopItemType.tempBuff:
@@ -452,7 +458,12 @@ class GameLoop {
     if (state.nodeInteractionCompleted) return;
     if (state.mage == null) return;
 
-    final healAmount = NodeResolver.getRestHealAmount(state.mage!);
+    final baseHealAmount = NodeResolver.getRestHealAmount(state.mage!);
+    // Phase 7.8: Apply healing multiplier from elemental modifiers
+    final healingMultiplier = ModifierService.getHealingMultiplier(
+      state.progression.getActiveModifiers(),
+    );
+    final healAmount = (baseHealAmount * healingMultiplier).round();
     final actualHeal = state.mage!.heal(healAmount);
     // Mark as completed but don't leave yet
     state.nodeInteractionCompleted = true;
@@ -529,7 +540,12 @@ class GameLoop {
           state.progression.addFragments(reward);
         }
         if (selectedChoice.containsKey('healAmount')) {
-          final heal = selectedChoice['healAmount'] as int;
+          final baseHeal = selectedChoice['healAmount'] as int;
+          // Phase 7.8: Apply healing multiplier from elemental modifiers
+          final healingMultiplier = ModifierService.getHealingMultiplier(
+            state.progression.getActiveModifiers(),
+          );
+          final heal = (baseHeal * healingMultiplier).round();
           final actual = state.mage!.heal(heal);
         }
         break;

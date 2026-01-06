@@ -30,9 +30,14 @@ class MetaState {
   int _totalRuns = 0;
   int get totalRuns => _totalRuns;
 
-  /// Total victories.
+  /// Total victories (boss defeats).
+  /// Phase 7.9: This is the "successfulRuns" metric for meta difficulty calculation.
   int _totalVictories = 0;
   int get totalVictories => _totalVictories;
+
+  /// Phase 7.9: Alias for meta difficulty calculation.
+  /// successfulRuns = total boss defeats across all runs.
+  int get successfulRuns => _totalVictories;
 
   /// Best node reached in any run.
   int _bestNodeReached = 0;

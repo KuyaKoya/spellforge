@@ -178,6 +178,32 @@ class GameState {
     final elementalMage = _createMageForElement(element);
     mage = elementalMage;
 
+    // Phase 7.8: Apply max HP modifier from elemental progression
+    final modifiers = progression.getActiveModifiers();
+    if (modifiers.isNotEmpty) {
+      // Import is already there via progression_system.dart
+      final hpMultiplier = _getMaxHPMultiplier(modifiers);
+      if (hpMultiplier != 1.0) {
+        final originalMaxHP = mage!.maxHP;
+        mage!.maxHP = (mage!.maxHP * hpMultiplier).round();
+        mage!.currentHP = mage!.maxHP; // Start at full HP
+        // Log adjustment (negative values are tradeoffs)
+        if (hpMultiplier < 1.0) {
+          final reduction = originalMaxHP - mage!.maxHP;
+          print('Phase 7.8: Max HP reduced by $reduction (tradeoff)');
+        } else {
+          final bonus = mage!.maxHP - originalMaxHP;
+          print('Phase 7.8: Max HP increased by $bonus (bonus)');
+        }
+      }
+    }
+
+    // Phase 7.8: Apply mana cost modifiers from elemental progression
+    _applyManaCostModifiers(modifiers);
+
+    // Phase 7.8: Apply speed modifier (extra actions per turn)
+    _applySpeedModifier(modifiers);
+
     // Give the mage the basic spell of their element
     final startingSpells = SpellDefinitions.getByElement(
       element,
@@ -209,6 +235,67 @@ class GameState {
     );
     // Go to exploration mode
     currentScreen = GameScreen.exploration;
+  }
+
+  /// Phase 7.8: Calculate max HP multiplier from modifiers.
+  double _getMaxHPMultiplier(List<dynamic> modifiers) {
+    double multiplier = 1.0;
+    for (final mod in modifiers) {
+      if (mod.type.toString().contains('maxHPPercent')) {
+        multiplier += (mod.isPositive ? mod.value : -mod.value) / 100.0;
+      }
+    }
+    return multiplier.clamp(0.5, 2.0);
+  }
+
+  /// Phase 7.8: Apply mana cost modifiers for each element.
+  void _applyManaCostModifiers(List<dynamic> modifiers) {
+    if (mage == null) return;
+
+    // Clear existing modifiers
+    mage!.manaCostModifiers.clear();
+
+    for (final mod in modifiers) {
+      if (mod.type.toString().contains('manaCostFlat')) {
+        final element = mod.targetElement as Element?;
+        final value = mod.isPositive
+            ? -mod.value
+            : mod.value; // Positive modifier = cheaper
+
+        if (element != null) {
+          mage!.manaCostModifiers[element] =
+              ((mage!.manaCostModifiers[element] ?? 0) + value).toInt();
+        } else {
+          // Apply to all elements
+          for (final e in Element.values) {
+            mage!.manaCostModifiers[e] =
+                ((mage!.manaCostModifiers[e] ?? 0) + value).toInt();
+          }
+        }
+      }
+    }
+  }
+
+  /// Phase 7.8: Apply speed modifier (extra actions per turn).
+  void _applySpeedModifier(List<dynamic> modifiers) {
+    if (mage == null) return;
+
+    double speedMultiplier = 1.0;
+    for (final mod in modifiers) {
+      if (mod.type.toString().contains('speedPercent')) {
+        speedMultiplier += (mod.isPositive ? mod.value : -mod.value) / 100.0;
+      }
+    }
+
+    // Convert speed multiplier to extra actions (10% = 0.1 extra, so 100% = 1 extra action)
+    if (speedMultiplier > 1.0) {
+      final extraActions = ((speedMultiplier - 1.0) * 2)
+          .round(); // 50% speed = 1 extra action
+      if (extraActions > 0) {
+        mage!.actionsPerTurn += extraActions;
+        print('Phase 7.8: +$extraActions actions per turn from speed bonus');
+      }
+    }
   }
 
   /// The starting element chosen by the player (Phase 7.6.1).
@@ -335,12 +422,15 @@ class GameState {
 
   void _setupCombat(int depth) {
     print('DEBUG: Setting up combat for depth $depth');
-    // Generate enemy for exploration room
+    // Phase 7.9: Generate enemy with meta difficulty scaling
     currentEnemies = NodeResolver.generateCombatEncounter(
       depth,
       startingElement: _startingElement,
+      metaMods: progression.metaDifficultyModifiers,
     ).cast<Enemy>();
-    print('DEBUG: Generated ${currentEnemies?.length} enemies');
+    print(
+      'DEBUG: Generated ${currentEnemies?.length} enemies (Meta Tier ${progression.metaDifficultyTier})',
+    );
     isEliteCombat = false;
 
     // Enter exploration screen - player taps enemy to engage
@@ -357,16 +447,18 @@ class GameState {
       enemies: currentEnemies!,
       damageMultiplier: temporaryBuffMultiplier,
       onStateChanged: onStateChanged,
+      elementalModifiers: progression.getActiveModifiers(),
     );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;
   }
 
   void _setupEliteCombat(int depth) {
-    // Generate elite enemy for exploration room
+    // Phase 7.9: Generate elite enemy with meta difficulty scaling
     final elites = NodeResolver.generateEliteEncounter(
       depth,
       startingElement: _startingElement,
+      metaMods: progression.metaDifficultyModifiers,
     );
     currentEnemies = elites.cast<Enemy>();
     isEliteCombat = true;
@@ -382,6 +474,7 @@ class GameState {
       enemies: currentEnemies!,
       damageMultiplier: temporaryBuffMultiplier,
       onStateChanged: onStateChanged,
+      elementalModifiers: progression.getActiveModifiers(),
     );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;
@@ -394,8 +487,11 @@ class GameState {
   }
 
   void _setupBossCombat(int depth) {
-    // Generate boss enemies for exploration room
-    currentEnemies = NodeResolver.generateBossEncounter(depth).cast<Enemy>();
+    // Phase 7.9: Generate boss enemies with meta difficulty scaling
+    currentEnemies = NodeResolver.generateBossEncounter(
+      depth,
+      metaMods: progression.metaDifficultyModifiers,
+    ).cast<Enemy>();
     isEliteCombat = false;
 
     // Enter exploration screen - player taps bosses to engage

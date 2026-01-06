@@ -370,6 +370,77 @@ class PassiveDefinitions {
     },
   );
 
+  // ================== GENERIC ELITE PASSIVES ==================
+  // Used for meta difficulty scaling (extra passives).
+
+  /// Frenzy - Gains +1 permanent damage each turn.
+  static EnemyPassive genericFrenzy() => EnemyPassive(
+    id: 'genericFrenzy',
+    name: 'Frenzy',
+    description: 'Surges with power! Gains +1 damage at the end of every turn.',
+    icon: '💢',
+    category: PassiveCategory.behavioral,
+    triggerHint: 'Gains damage every turn',
+    triggers: [CombatEventType.turnEnd],
+    effect: (event, state) {
+      state.permanentDamageBonus++;
+      return PassiveResult(
+        logMessage: '💢 Frenzy: Rage builds! +1 Damage.',
+        // Damage is applied via state check in combat system
+      );
+    },
+  );
+
+  /// Vampiric - Heals for 20% of damage dealt.
+  static EnemyPassive genericVampiric() => EnemyPassive(
+    id: 'genericVampiric',
+    name: 'Vampiric',
+    description: 'Heals for 20% of all damage dealt.',
+    icon: '🩸',
+    category: PassiveCategory.behavioral,
+    triggerHint: 'Lifesteal on attack',
+    triggers: [CombatEventType.damageDealt],
+    effect: (event, state) {
+      if ((event.damage ?? 0) > 0) {
+        final healing = (event.damage! * 0.2).round().clamp(1, 999);
+        return PassiveResult(
+          logMessage: '🩸 Vampiric: Drains life! +$healing HP.',
+          damageModifier: -healing, // Negative damage = healing
+        );
+      }
+      return PassiveResult.none();
+    },
+  );
+
+  /// Volatile - Applies Burn 1 to attacker on contact.
+  static EnemyPassive genericVolatile() => EnemyPassive(
+    id: 'genericVolatile',
+    name: 'Volatile',
+    description: 'Contact causes burns! Applies Burn 1 to attacker when hit.',
+    icon: '🔥',
+    category: PassiveCategory.elemental,
+    triggerHint: 'Burns attacker',
+    triggers: [CombatEventType.damageTaken],
+    effect: (event, state) {
+      if ((event.damage ?? 0) > 0) {
+        return PassiveResult(
+          logMessage: '🔥 Volatile: Contact burns the attacker!',
+          statusToApply: EffectType.burn,
+          statusValue: 1,
+          statusDuration: 3,
+        );
+      }
+      return PassiveResult.none();
+    },
+  );
+
+  /// Gets a list of all generic passives.
+  static List<EnemyPassive> getGenericPassives() => [
+    genericFrenzy(),
+    genericVampiric(),
+    genericVolatile(),
+  ];
+
   // ================== PASSIVE PRESETS BY ENEMY ==================
 
   /// Gets all passives for Burnward Colossus.

@@ -1,6 +1,7 @@
 import 'effect.dart';
 import 'element.dart';
 import 'spell.dart';
+import '../systems/exp_system.dart';
 
 /// Represents the player-controlled mage.
 /// Mage element does NOT restrict spell learning.
@@ -22,31 +23,29 @@ class Mage {
   int level;
   int currentExp;
 
+  /// Phase 7.8: Mana cost modifiers from elemental progression.
+  /// Key is element, value is the flat modifier (negative = cheaper, positive = more expensive).
+  Map<Element, int> manaCostModifiers = {};
+
   static const int maxLoadoutSize = 4;
 
-  /// Experience required for each level.
-  /// Level 1: 10, Level 2: 15, Level 3: 22, Level 4: 30, Level 5: 40, etc.
+  /// Phase 7.9: Experience required for the current level.
+  ///
+  /// Uses formula: EXP_TO_NEXT = 40 × Level^1.35
+  ///
+  /// This curve ensures:
+  /// - Levels 1-3: Very fast progression
+  /// - Levels 4-6: Moderate progression
+  /// - Levels 7+: Slower progression to prevent overleveling before boss
   static int expRequiredForLevel(int level) {
-    if (level <= 0) return 0;
-    if (level == 1) return 10;
-    if (level == 2) return 15;
-    if (level == 3) return 22;
-    if (level == 4) return 30;
-    if (level == 5) return 40;
-    if (level == 6) return 52;
-    if (level == 7) return 66;
-    if (level == 8) return 82;
-    if (level == 9) return 100;
-    // Beyond level 9, continue increasing
-    return 100 + (level - 9) * 25;
+    return ExpSystem.expToNextLevel(level);
   }
 
   /// Experience needed to reach the next level.
-  int get expToNextLevel => expRequiredForLevel(level);
+  int get expToNextLevel => ExpSystem.expToNextLevel(level);
 
-  /// Experience progress as a percentage.
-  double get expProgress =>
-      expToNextLevel > 0 ? currentExp / expToNextLevel : 1.0;
+  /// Experience progress as a percentage (0.0 to 1.0).
+  double get expProgress => ExpSystem.progressToNextLevel(currentExp, level);
 
   Mage({
     required this.id,
@@ -164,14 +163,24 @@ class Mage {
     return false;
   }
 
+  /// Gets the effective mana cost of a spell, accounting for elemental modifiers.
+  int getEffectiveManaCost(Spell spell) {
+    final baseManaCost = spell.manaCost;
+    // Phase 7.8: Apply mana cost modifier for this element
+    final modifier = manaCostModifiers[spell.element] ?? 0;
+    // Also check for "all elements" modifier (using null key stored as fire for simplicity)
+    // Actually, we need a separate global modifier
+    return (baseManaCost + modifier).clamp(1, 99); // Minimum 1 mana cost
+  }
+
   /// Whether the mage can cast the given spell.
   bool canCast(Spell spell) {
-    return mana >= spell.manaCost && actionsRemaining > 0;
+    return mana >= getEffectiveManaCost(spell) && actionsRemaining > 0;
   }
 
   /// Consumes mana and an action for casting.
   void consumeForCast(Spell spell) {
-    mana -= spell.manaCost;
+    mana -= getEffectiveManaCost(spell);
     actionsRemaining--;
   }
 

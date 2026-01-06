@@ -63,6 +63,14 @@ class AudioSystem {
     AudioManager.instance.playEnemyAttack();
   }
 
+  /// Phase 7.8: Plays dodge/evade sound effect.
+  static void playDodge() {
+    // Use a whoosh/swift sound for dodging - reuse an existing wind-like effect
+    AudioManager.instance.playSfx(
+      'spell_cast',
+    ); // Placeholder, could add dedicated sound
+  }
+
   static void stopMusic() {
     AudioManager.instance.stopMusic();
   }

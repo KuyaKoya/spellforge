@@ -9,7 +9,10 @@ import '../domain/mage.dart';
 import '../domain/spell.dart';
 import '../nodes/spell_tier_scaling.dart';
 import 'difficulty_scaler.dart';
+import 'meta_difficulty.dart';
 import 'shop_system.dart';
+import '../data/passive_definitions.dart';
+import '../domain/boss_enemy.dart';
 
 /// Handles resolving node encounters, generating content, and rewards.
 class NodeResolver {
@@ -19,14 +22,14 @@ class NodeResolver {
 
   /// Generates a standard combat encounter for the given depth.
   /// Phase 7.6.3: Accepts [startingElement] for biased generation.
+  /// Phase 7.9: Accepts [metaMods] for anti-snowball difficulty scaling.
   static List<Enemy> generateCombatEncounter(
     int depth, {
     Element? startingElement,
+    MetaDifficultyModifiers? metaMods,
   }) {
     final minEnemies = DifficultyScaler.getMinEnemies(depth);
     final maxEnemies = DifficultyScaler.getMaxEnemies(depth);
-    final hpMultiplier = DifficultyScaler.getHPMultiplier(depth);
-    final damageBonus = DifficultyScaler.getDamageBonus(depth);
 
     final enemies = EnemyDefinitions.generateEncounter(
       minEnemies: minEnemies,
@@ -35,10 +38,21 @@ class NodeResolver {
       biasElement: startingElement,
     );
 
-    // Apply depth scaling
+    // Get meta difficulty modifiers (use tier 0 if not provided)
+    final mods = metaMods ?? MetaDifficultySystem.getModifiers(0);
+
+    // Apply depth + meta scaling
     return enemies.map((enemy) {
-      final scaledHP = (enemy.maxHP * hpMultiplier).round();
-      final scaledDamage = enemy.attackDamage + damageBonus;
+      final scaledHP = DifficultyScaler.calculateFinalHP(
+        baseHP: enemy.maxHP,
+        depth: depth,
+        metaMods: mods,
+      );
+      final scaledDamage = DifficultyScaler.calculateFinalAttack(
+        baseAttack: enemy.attackDamage,
+        depth: depth,
+        metaMods: mods,
+      );
 
       return Enemy(
         id: enemy.id,
@@ -54,52 +68,96 @@ class NodeResolver {
 
   /// Generates an elite encounter for the given depth.
   /// Phase 7.6.3: Accepts [startingElement] for filtered generation.
+  /// Phase 7.9: Accepts [metaMods] for anti-snowball difficulty scaling.
   static List<EliteEnemy> generateEliteEncounter(
     int depth, {
     Element? startingElement,
+    MetaDifficultyModifiers? metaMods,
   }) {
     return EliteDefinitions.getScaledEliteEncounter(
       depth: depth,
       biasElement: startingElement,
+      metaMods: metaMods,
     );
   }
 
   /// Generates a boss encounter for the final depth.
   /// For Act 1, this is the Twin Gatekeepers.
-  static List<Enemy> generateBossEncounter(int depth) {
+  /// Phase 7.9: Accepts [metaMods] for anti-snowball difficulty scaling.
+  static List<Enemy> generateBossEncounter(
+    int depth, {
+    MetaDifficultyModifiers? metaMods,
+  }) {
     // Twin Gatekeepers: Fire+Earth and Water+Air
     // They are silent, mechanistic, a barrier not a villain.
 
     final difficultyLevel = (depth / 3).ceil().clamp(1, 3);
+    final mods = metaMods ?? MetaDifficultySystem.getModifiers(0);
 
     // Gatekeeper of Pyre (Fire + Earth aspects)
-    final pyreHp = 60 + (difficultyLevel * 10);
-    final pyreDamage = 8 + difficultyLevel;
+    final basePyreHp = 60 + (difficultyLevel * 10);
+    final basePyreDamage = 8 + difficultyLevel;
+    final pyreHp = DifficultyScaler.calculateFinalHP(
+      baseHP: basePyreHp,
+      depth: depth,
+      metaMods: mods,
+    );
+    final pyreDamage = DifficultyScaler.calculateFinalAttack(
+      baseAttack: basePyreDamage,
+      depth: depth,
+      metaMods: mods,
+    );
 
     // Gatekeeper of Tide (Water + Air aspects)
-    final tideHp = 50 + (difficultyLevel * 8);
-    final tideDamage = 6 + difficultyLevel;
+    final baseTideHp = 50 + (difficultyLevel * 8);
+    final baseTideDamage = 6 + difficultyLevel;
+    final tideHp = DifficultyScaler.calculateFinalHP(
+      baseHP: baseTideHp,
+      depth: depth,
+      metaMods: mods,
+    );
+    final tideDamage = DifficultyScaler.calculateFinalAttack(
+      baseAttack: baseTideDamage,
+      depth: depth,
+      metaMods: mods,
+    );
 
-    return [
-      Enemy(
-        id: 'gatekeeper_pyre',
-        name: 'Gatekeeper of Pyre',
-        element: Element.fire,
-        currentHP: pyreHp,
-        maxHP: pyreHp,
-        attackDamage: pyreDamage,
-        armorGain: 10,
-      ),
-      Enemy(
-        id: 'gatekeeper_tide',
-        name: 'Gatekeeper of Tide',
-        element: Element.water,
-        currentHP: tideHp,
-        maxHP: tideHp,
-        attackDamage: tideDamage,
-        armorGain: 5,
-      ),
-    ];
+    final pyreBoss = BossEnemy(
+      id: 'gatekeeper_pyre',
+      name: 'Gatekeeper of Pyre',
+      title: 'The Eternal Flame',
+      element: Element.fire,
+      currentHP: pyreHp,
+      maxHP: pyreHp,
+      attackDamage: pyreDamage,
+      armorGain: 10,
+      modifiers: [EliteModifier.resistant],
+      resistantElement: Element.fire, // Fire+Earth -> Fire resistant
+      passives: PassiveDefinitions.gatekeeperPyrePassives(),
+    );
+
+    final tideBoss = BossEnemy(
+      id: 'gatekeeper_tide',
+      name: 'Gatekeeper of Tide',
+      title: 'The Unyielding Wave',
+      element: Element.water,
+      currentHP: tideHp,
+      maxHP: tideHp,
+      attackDamage: tideDamage,
+      armorGain: 5,
+      modifiers: [EliteModifier.resistant],
+      resistantElement: Element.water, // Water+Air -> Water resistant
+      passives: PassiveDefinitions.gatekeeperTidePassives(),
+    );
+
+    // Phase 7.9: Boss Phase Skip (Tier 4+)
+    if (mods.bossExtraPhases > 0) {
+      // Start 3 turns in (assuming patterns cycle or start simple)
+      pyreBoss.patternTurn = 3;
+      tideBoss.patternTurn = 3;
+    }
+
+    return [pyreBoss, tideBoss];
   }
 
   // ==================== SPELL GENERATION ====================
@@ -379,10 +437,12 @@ class NodeResolver {
   // ==================== COMBAT REWARDS ====================
 
   /// Calculates combat rewards.
+  /// Phase 7.9: Uses new EXP system with enemy-type-based values.
   static Map<String, int> calculateCombatReward({
     required int depth,
     required int enemiesDefeated,
     bool isElite = false,
+    bool isBoss = false,
   }) {
     return {
       'fragments': DifficultyScaler.calculateFragmentReward(
@@ -394,6 +454,7 @@ class NodeResolver {
         depth: depth,
         enemiesDefeated: enemiesDefeated,
         isElite: isElite,
+        isBoss: isBoss,
       ),
     };
   }

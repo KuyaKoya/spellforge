@@ -1,12 +1,22 @@
+import 'meta_difficulty.dart';
+import 'exp_system.dart';
+
 /// Manages difficulty scaling throughout the run.
+///
+/// Phase 7.9: Now integrates meta difficulty scaling.
 /// Difficulty increases via:
-/// - Enemy HP
-/// - Number of enemies
-/// - Status effect frequency
-/// - Elite modifier density
-/// Never scales via raw damage spikes alone.
+/// - Enemy HP (depth + meta tier)
+/// - Enemy stats (meta tier)
+/// - Number of enemies (depth)
+/// - Status effect frequency (depth)
+/// - Elite modifier density (depth + meta tier)
+///
+/// Final formula for enemy stat generation:
+/// FinalStat = BaseStat × ElementModifier × DepthScaling × (1 + MetaDifficultyTier × 0.05)
 class DifficultyScaler {
   DifficultyScaler._();
+
+  // ==================== DEPTH-BASED SCALING ====================
 
   /// Gets the enemy HP multiplier for a given depth.
   static double getHPMultiplier(int depth) {
@@ -65,6 +75,62 @@ class DifficultyScaler {
     return 'Build under pressure';
   }
 
+  // ==================== PHASE 7.9: META DIFFICULTY INTEGRATION ====================
+
+  /// Calculates the final enemy HP with depth and meta scaling.
+  ///
+  /// Formula: BaseHP × DepthMultiplier × MetaHPMultiplier
+  static int calculateFinalHP({
+    required int baseHP,
+    required int depth,
+    required MetaDifficultyModifiers metaMods,
+    double elementModifier = 1.0,
+  }) {
+    final depthMultiplier = getHPMultiplier(depth);
+    return (baseHP * elementModifier * depthMultiplier * metaMods.hpMultiplier)
+        .round();
+  }
+
+  /// Calculates the final enemy attack with depth and meta scaling.
+  static int calculateFinalAttack({
+    required int baseAttack,
+    required int depth,
+    required MetaDifficultyModifiers metaMods,
+    double elementModifier = 1.0,
+  }) {
+    final depthBonus = getDamageBonus(depth);
+    final scaledBase =
+        (baseAttack * elementModifier * metaMods.attackMultiplier).round();
+    return scaledBase + depthBonus;
+  }
+
+  /// Calculates the final enemy defense with meta scaling.
+  static int calculateFinalDefense({
+    required int baseDefense,
+    required MetaDifficultyModifiers metaMods,
+    double elementModifier = 1.0,
+  }) {
+    return (baseDefense * elementModifier * metaMods.defenseMultiplier).round();
+  }
+
+  /// Calculates the final enemy speed with meta scaling.
+  static int calculateFinalSpeed({
+    required int baseSpeed,
+    required MetaDifficultyModifiers metaMods,
+    double elementModifier = 1.0,
+  }) {
+    return (baseSpeed * elementModifier * metaMods.speedMultiplier).round();
+  }
+
+  /// Gets elite passive count based on depth and meta tier.
+  static int getElitePassiveCount(int depth, MetaDifficultyModifiers metaMods) {
+    int baseCount = 1;
+    if (depth >= 5) baseCount = 2;
+    return baseCount + metaMods.eliteExtraPassives;
+  }
+
+  // ==================== REWARDS ====================
+
   /// Calculates fragment reward with depth scaling.
   static int calculateFragmentReward({
     required int depth,
@@ -79,17 +145,32 @@ class DifficultyScaler {
     return baseReward + depthBonus + enemyBonus + eliteBonus;
   }
 
-  /// Calculates experience reward with depth scaling.
+  /// Calculates experience reward using Phase 7.9 EXP system.
+  ///
+  /// Phase 7.9: Uses new enemy-type-based EXP values (8/24/90).
   static int calculateExpReward({
     required int depth,
     required int enemiesDefeated,
     bool isElite = false,
+    bool isBoss = false,
   }) {
-    final baseExp = enemiesDefeated * 5;
-    final depthBonus = depth * 2;
-    final eliteBonus = isElite ? 15 : 0;
+    // Determine enemy type for EXP calculation
+    EnemyType type;
+    if (isBoss) {
+      type = EnemyType.boss;
+    } else if (isElite) {
+      type = EnemyType.elite;
+    } else {
+      type = EnemyType.normal;
+    }
 
-    return baseExp + depthBonus + eliteBonus;
+    // Calculate EXP for each enemy defeated
+    int totalExp = 0;
+    for (int i = 0; i < enemiesDefeated; i++) {
+      totalExp += ExpSystem.calculateExpGained(enemyType: type, depth: depth);
+    }
+
+    return totalExp;
   }
 
   /// Checks if difficulty should be reduced based on player performance.
@@ -100,6 +181,28 @@ class DifficultyScaler {
   }) {
     // If players consistently die before depth 5 after 3+ runs, reduce elite frequency
     return totalRuns >= 3 && averageDeathDepth < 5;
+  }
+
+  // ==================== DEBUG ====================
+
+  /// Gets a debug table showing difficulty scaling by depth and meta tier.
+  static String getScalingTable(MetaDifficultyModifiers metaMods) {
+    final buffer = StringBuffer();
+    buffer.writeln('=== DIFFICULTY SCALING (Meta Tier ${metaMods.tier}) ===');
+    buffer.writeln('Depth | HP Mult | DMG Bonus | Enemies | Status Chance');
+    buffer.writeln('------|---------|-----------|---------|-------------');
+
+    for (int depth = 1; depth <= 10; depth++) {
+      final hpMult = getHPMultiplier(depth) * metaMods.hpMultiplier;
+      final dmgBonus = getDamageBonus(depth);
+      final enemies = '${getMinEnemies(depth)}-${getMaxEnemies(depth)}';
+      final statusChance = getStatusEffectChance(depth);
+      buffer.writeln(
+        '  ${depth.toString().padLeft(2)}  |  ${hpMult.toStringAsFixed(2)}  |    ${dmgBonus.toString().padLeft(2)}     |   ${enemies.padLeft(3)}   |    ${statusChance.toStringAsFixed(1)}',
+      );
+    }
+
+    return buffer.toString();
   }
 }
 
