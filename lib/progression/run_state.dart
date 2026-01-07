@@ -1,8 +1,8 @@
 import '../domain/mage.dart';
 
-/// Represents the transient state of a single run.
+/// Represents the state of a single run.
 ///
-/// This state is created fresh for each run and is NOT persisted.
+/// Phase 7.9.3: This state CAN now be persisted via the save system.
 /// It holds all data specific to the current run that will be reset
 /// when the run ends.
 class RunState {
@@ -162,6 +162,45 @@ class RunState {
     crystalsEarnedThisRun = 0;
     temporaryBuffs.clear();
   }
+
+  // ==================== SERIALIZATION ====================
+
+  /// Converts to JSON for save/load serialization.
+  Map<String, dynamic> toJson() => {
+    'mage': mage?.toJson(),
+    'currentNodeIndex': currentNodeIndex,
+    'currentLevel': currentLevel,
+    'experienceThisRun': experienceThisRun,
+    'combatsWon': combatsWon,
+    'elitesDefeated': elitesDefeated,
+    'spellsLearned': spellsLearned,
+    'spellsUpgraded': spellsUpgraded,
+    'fragmentsEarnedThisRun': fragmentsEarnedThisRun,
+    'crystalsEarnedThisRun': crystalsEarnedThisRun,
+    'temporaryBuffs': temporaryBuffs.map((b) => b.toJson()).toList(),
+  };
+
+  /// Restores state from JSON.
+  void fromJson(Map<String, dynamic> json) {
+    if (json['mage'] != null) {
+      mage = Mage.fromJson(json['mage'] as Map<String, dynamic>);
+    }
+    currentNodeIndex = json['currentNodeIndex'] as int;
+    currentLevel = json['currentLevel'] as int;
+    experienceThisRun = json['experienceThisRun'] as int;
+    combatsWon = json['combatsWon'] as int;
+    elitesDefeated = json['elitesDefeated'] as int;
+    spellsLearned = json['spellsLearned'] as int;
+    spellsUpgraded = json['spellsUpgraded'] as int;
+    fragmentsEarnedThisRun = json['fragmentsEarnedThisRun'] as int;
+    crystalsEarnedThisRun = json['crystalsEarnedThisRun'] as int;
+    temporaryBuffs.clear();
+    for (final buffJson in (json['temporaryBuffs'] as List?) ?? []) {
+      temporaryBuffs.add(
+        TemporaryBuff.fromJson(buffJson as Map<String, dynamic>),
+      );
+    }
+  }
 }
 
 /// Represents a temporary buff active during a run.
@@ -183,4 +222,20 @@ class TemporaryBuff {
   }
 
   String get displayText => '$name (+$value%, $remainingNodes nodes left)';
+
+  /// Converts to JSON for save/load serialization.
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'value': value,
+    'remainingNodes': remainingNodes,
+  };
+
+  /// Creates from JSON for save/load serialization.
+  factory TemporaryBuff.fromJson(Map<String, dynamic> json) {
+    return TemporaryBuff(
+      name: json['name'] as String,
+      value: json['value'] as int,
+      remainingNodes: json['remainingNodes'] as int,
+    );
+  }
 }

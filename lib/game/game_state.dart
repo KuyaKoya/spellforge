@@ -12,6 +12,8 @@ import '../systems/progression_system.dart';
 import '../systems/shop_system.dart';
 import '../director/director_system.dart';
 import '../systems/audio_manager.dart';
+import '../systems/save_manager.dart';
+import '../progression/run_save_data.dart';
 
 /// The current screen/mode of the game.
 enum GameScreen {
@@ -378,6 +380,9 @@ class GameState {
     print('DEBUG: Entering node type: ${node.type}');
     nodeInteractionCompleted = false;
 
+    // Phase 7.9.3: Save when entering a new room
+    triggerSavePoint();
+
     // ALL node types go through exploration screen first
     // Combat nodes: show enemy
     // Non-combat nodes: show interactable object (merchant, altar, campfire, etc.)
@@ -590,6 +595,9 @@ class GameState {
     } else {
       // Go to exploration mode to choose next room
       currentScreen = GameScreen.exploration;
+
+      // Phase 7.9.3: Save after completing node interaction
+      triggerSavePoint();
     }
   }
 
@@ -599,6 +607,9 @@ class GameState {
   /// Narrative certainty does not.
   void endRun({required bool victory}) {
     currentScreen = GameScreen.runEnd;
+
+    // Phase 7.9.3: Clear save state when run ends
+    SaveManager.instance.deleteSave();
 
     // Could play different music for victory/defeat screen here
     // For now, keep exploration/ambient or silence?
@@ -649,5 +660,180 @@ class GameState {
   /// Gets available mage choices.
   List<Mage> getAvailableMages() {
     return MageDefinitions.allMages;
+  }
+
+  // ==================== SAVE SYSTEM (Phase 7.9.3) ====================
+
+  /// Whether a saved run exists.
+  bool get hasSavedRun => SaveManager.instance.hasSave;
+
+  /// Creates a save snapshot of the current run state.
+  ///
+  /// Called automatically at save-eligible points:
+  /// - Post-combat resolution
+  /// - Entry into shop/event/shrine
+  /// - After level-up resolution
+  Future<bool> saveCurrentRun() async {
+    if (mage == null || !isRunInProgress) return false;
+
+    final saveData = _createSaveData();
+    return await SaveManager.instance.saveRun(saveData);
+  }
+
+  /// Creates a RunSaveData from current state.
+  RunSaveData _createSaveData() {
+    return RunSaveData(
+      // Player state
+      playerHP: mage!.currentHP,
+      playerMaxHP: mage!.maxHP,
+      playerMana: mage!.mana,
+      playerMaxMana: mage!.maxMana,
+      playerArmor: mage!.statusEffects
+          .where((e) => e.type == EffectType.armor)
+          .fold(0, (sum, e) => sum + e.value),
+      playerLevel: mage!.level,
+      playerExp: mage!.currentExp,
+      equippedSpells: mage!.spellLoadout.map((s) => s.toJson()).toList(),
+      playerStatusEffects: mage!.statusEffects
+          .map(
+            (e) => {
+              'type': e.type.name,
+              'value': e.value,
+              'remainingDuration': e.remainingDuration,
+            },
+          )
+          .toList(),
+      manaCostModifiers: mage!.manaCostModifiers.map(
+        (k, v) => MapEntry(k.name, v),
+      ),
+      extraActionsPerTurn: mage!.actionsPerTurn - 1,
+      startingElement: _startingElement?.name ?? 'fire',
+      // Run state
+      currentNodeIndex: nodeMapSystem.currentNodeIndex,
+      currentLevel: mage!.level,
+      experienceThisRun: mage!.currentExp,
+      combatsWon: combatsWon,
+      elitesDefeated: elitesDefeated,
+      spellsLearned: spellsLearned,
+      spellsUpgraded: spellsUpgraded,
+      fragmentsEarnedThisRun: progression.runFragments,
+      crystalsEarnedThisRun: progression.runCrystals,
+      rngSeed: DateTime.now().millisecondsSinceEpoch,
+      shownEliteDialogues: _shownEliteDialogues.toList(),
+      // Director state
+      directorPressureState: director.currentState.pressureState.name,
+      directorTurnsSinceStateChange:
+          director.currentState.turnsSinceStateChange,
+      directorPressureScore: director.currentState.pressureScore,
+      // Meta
+      difficultyTier: progression.metaDifficultyTier,
+      savedAt: DateTime.now(),
+    );
+  }
+
+  /// Restores a run from saved data.
+  ///
+  /// Returns true if restoration was successful.
+  Future<bool> restoreFromSave() async {
+    final saveData = await SaveManager.instance.loadRun();
+    if (saveData == null) return false;
+
+    try {
+      // Restore starting element
+      _startingElement = Element.values.firstWhere(
+        (e) => e.name == saveData.startingElement,
+        orElse: () => Element.fire,
+      );
+
+      // Create mage from element
+      mage = _createMageForElement(_startingElement!);
+
+      // Restore mage state
+      mage!.currentHP = saveData.playerHP;
+      mage!.maxHP = saveData.playerMaxHP;
+      mage!.mana = saveData.playerMana;
+      mage!.maxMana = saveData.playerMaxMana;
+      mage!.level = saveData.playerLevel;
+      mage!.currentExp = saveData.playerExp;
+      mage!.actionsPerTurn = 1 + saveData.extraActionsPerTurn;
+
+      // Restore spells
+      mage!.spellLoadout.clear();
+      for (final spellJson in saveData.equippedSpells) {
+        mage!.spellLoadout.add(Spell.fromJson(spellJson));
+      }
+
+      // Restore status effects
+      mage!.statusEffects.clear();
+      for (final effectJson in saveData.playerStatusEffects) {
+        mage!.statusEffects.add(
+          ActiveStatusEffect(
+            type: EffectType.values.firstWhere(
+              (t) => t.name == effectJson['type'],
+            ),
+            value: effectJson['value'] as int,
+            remainingDuration: effectJson['remainingDuration'] as int,
+          ),
+        );
+      }
+
+      // Restore mana cost modifiers
+      mage!.manaCostModifiers.clear();
+      for (final entry in saveData.manaCostModifiers.entries) {
+        mage!.manaCostModifiers[Element.values.firstWhere(
+              (e) => e.name == entry.key,
+            )] =
+            entry.value;
+      }
+
+      // Restore run stats
+      combatsWon = saveData.combatsWon;
+      elitesDefeated = saveData.elitesDefeated;
+      spellsLearned = saveData.spellsLearned;
+      spellsUpgraded = saveData.spellsUpgraded;
+
+      // Restore narrative tracking
+      _shownEliteDialogues.clear();
+      _shownEliteDialogues.addAll(saveData.shownEliteDialogues);
+
+      // Restore node map state
+      nodeMapSystem.generateRun(maxDepth: 10);
+      nodeMapSystem.restoreToNode(saveData.currentNodeIndex);
+
+      // Initialize director with restored state
+      director.initialize(
+        seed: saveData.rngSeed,
+        ascensionLevel: 0,
+        startingElement: _startingElement,
+      );
+      director.restoreState(
+        pressureScore: saveData.directorPressureScore,
+        turnsSinceChange: saveData.directorTurnsSinceStateChange,
+      );
+
+      // Go to exploration
+      currentScreen = GameScreen.exploration;
+      AudioManager.instance.transitionToMusicState(MusicState.exploration);
+
+      // Delete save after successful restore
+      await SaveManager.instance.deleteSave();
+
+      return true;
+    } catch (e) {
+      print('[GameState] Failed to restore save: $e');
+      await SaveManager.instance.deleteSave();
+      return false;
+    }
+  }
+
+  /// Triggers a save at an eligible point.
+  Future<void> triggerSavePoint() async {
+    if (SaveManager.instance.isSaveBlocked) return;
+    await saveCurrentRun();
+  }
+
+  /// Phase 7.9.3: Discards the saved run without loading it.
+  Future<void> discardSave() async {
+    await SaveManager.instance.deleteSave();
   }
 }

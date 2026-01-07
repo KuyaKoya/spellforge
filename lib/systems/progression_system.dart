@@ -72,6 +72,14 @@ class ProgressionSystem {
   int _currentNodeIndex = 0;
   int get currentNodeIndex => _currentNodeIndex;
 
+  /// Phase 7.9.3: Fragments earned in current run (for save/load).
+  int _runFragments = 0;
+  int get runFragments => _runFragments;
+
+  /// Phase 7.9.3: Crystals earned in current run (for save/load).
+  int _runCrystals = 0;
+  int get runCrystals => _runCrystals;
+
   /// Initializes the system, loading saved data.
   Future<void> initialize() async {
     _prefs = await SharedPreferences.getInstance();

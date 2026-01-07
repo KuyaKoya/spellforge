@@ -66,6 +66,9 @@ class DirectorSystem {
   /// Pressure score.
   int get pressureScore => _state.pressureScore;
 
+  /// Phase 7.9.3: Current state accessor for save/load.
+  DirectorState get currentState => _state;
+
   /// Seeded random for deterministic decisions.
   SeededRandom? get random => _random;
 
@@ -293,5 +296,27 @@ class DirectorSystem {
       buffer.writeln(_currentMetrics.toString());
     }
     return buffer.toString();
+  }
+
+  // ==================== PHASE 7.9.3: SAVE/LOAD ====================
+
+  /// Restores director state from save data.
+  void restoreState({
+    required int pressureScore,
+    required int turnsSinceChange,
+  }) {
+    _state.pressureScore = pressureScore;
+    _state.turnsSinceStateChange = turnsSinceChange;
+
+    // Recalculate pressure state from score
+    if (pressureScore >= DirectorState.aggressiveThreshold) {
+      _state.pressureState = DirectorPressureState.aggressive;
+    } else if (pressureScore <= DirectorState.mercifulThreshold) {
+      _state.pressureState = DirectorPressureState.merciful;
+    } else {
+      _state.pressureState = DirectorPressureState.neutral;
+    }
+
+    _currentAdjustments = DirectorAdjustments.forState(_state.pressureState);
   }
 }

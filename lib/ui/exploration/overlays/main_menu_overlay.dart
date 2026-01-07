@@ -14,6 +14,11 @@ class MainMenuOverlay extends StatefulWidget {
   final String? lastRunElement;
   final ProgressionSystem progressionSystem; // Phase 7.7: For intro lore check
 
+  // Phase 7.9.3: Save resume support
+  final bool hasSavedRun;
+  final VoidCallback? onContinue;
+  final VoidCallback? onDiscard;
+
   const MainMenuOverlay({
     super.key,
     required this.onNewGame,
@@ -23,6 +28,10 @@ class MainMenuOverlay extends StatefulWidget {
     required this.totalCrystals,
     this.lastRunElement,
     required this.progressionSystem, // Phase 7.7
+    // Phase 7.9.3
+    this.hasSavedRun = false,
+    this.onContinue,
+    this.onDiscard,
   });
 
   @override
@@ -127,117 +136,177 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
 
   Widget _buildHomeTab() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Logo / Title
-          const Icon(Icons.auto_fix_high, size: 80, color: Colors.amber),
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: const Text(
-                'SPELLFORGE',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 64,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 8,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Logo / Title
+            const Icon(Icons.auto_fix_high, size: 80, color: Colors.amber),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: const Text(
+                  'SPELLFORGE',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 64,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 8,
+                  ),
                 ),
               ),
             ),
-          ),
-          Text(
-            'FORGE YOUR PATH',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 16,
-              color: Colors.amber.shade200,
-              letterSpacing: 4,
-            ),
-          ),
-          const SizedBox(height: 80),
-
-          // Start Button
-          ElevatedButton(
-            onPressed: widget.onNewGame,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF238636),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 64, vertical: 24),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
+            Text(
+              'FORGE YOUR PATH',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 16,
+                color: Colors.amber.shade200,
+                letterSpacing: 4,
               ),
-              elevation: 10,
-              shadowColor: Colors.greenAccent.withValues(alpha: 0.5),
             ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: const Text(
-                'START EXPLORATION',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
+            const SizedBox(height: 48),
+
+            // Start Button
+            ElevatedButton(
+              onPressed: widget.onNewGame,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF238636),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 64,
+                  vertical: 24,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                elevation: 10,
+                shadowColor: Colors.greenAccent.withValues(alpha: 0.5),
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: const Text(
+                  'START EXPLORATION',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Phase 7.6 (Beta)',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 10,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 48),
 
-          // Stats
-          Container(
-            width: double.infinity,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: Colors.grey.shade800)),
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Column(
+            // Phase 7.9.3: Continue/Discard saved run
+            if (widget.hasSavedRun && widget.onContinue != null) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildStat('TOTAL RUNS', '${widget.totalRuns}'),
-                      const SizedBox(width: 32),
-                      _buildStat('BEST DEPTH', '${widget.bestDepth}'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildStat('FRAGMENTS', '${widget.totalFragments} 💎'),
-                      const SizedBox(width: 32),
-                      _buildStat('CRYSTALS', '${widget.totalCrystals} ✨'),
-                    ],
-                  ),
-                  if (widget.lastRunElement != null) ...[
-                    const SizedBox(height: 16),
-                    _buildStat(
-                      'LAST ELEMENT',
-                      widget.lastRunElement!.toUpperCase(),
+                  ElevatedButton(
+                    onPressed: widget.onContinue,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1f6feb),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
-                  ],
+                    child: const Text(
+                      'CONTINUE',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  TextButton(
+                    onPressed: widget.onDiscard,
+                    child: Text(
+                      'DISCARD',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ),
                 ],
               ),
+              const SizedBox(height: 8),
+              Text(
+                'Saved run found',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Colors.amber.shade300,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+            Text(
+              'Phase 7.9.3 (Beta)',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                color: Colors.grey.shade700,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 48),
+
+            // Stats
+            Container(
+              width: double.infinity,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.grey.shade800)),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildStat('TOTAL RUNS', '${widget.totalRuns}'),
+                        const SizedBox(width: 32),
+                        _buildStat('BEST DEPTH', '${widget.bestDepth}'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildStat('FRAGMENTS', '${widget.totalFragments} 💎'),
+                        const SizedBox(width: 32),
+                        _buildStat('CRYSTALS', '${widget.totalCrystals} ✨'),
+                      ],
+                    ),
+                    if (widget.lastRunElement != null) ...[
+                      const SizedBox(height: 16),
+                      _buildStat(
+                        'LAST ELEMENT',
+                        widget.lastRunElement!.toUpperCase(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

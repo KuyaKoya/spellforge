@@ -325,6 +325,18 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         totalCrystals: widget.game.progressionSystem.spellCrystals,
         lastRunElement: widget.game.progressionSystem.lastRunElement,
         progressionSystem: widget.game.progressionSystem, // Phase 7.7
+        // Phase 7.9.3: Save resume support
+        hasSavedRun: widget.game.gameState.hasSavedRun,
+        onContinue: () async {
+          final success = await widget.game.gameState.restoreFromSave();
+          if (success) {
+            _onGameStateChanged();
+          }
+        },
+        onDiscard: () async {
+          await widget.game.gameState.discardSave();
+          _onGameStateChanged();
+        },
         onNewGame: () {
           widget.game.handleInput('N');
           _onGameStateChanged();
@@ -363,6 +375,13 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     final gameState = widget.game.gameState;
     final screen = gameState.currentScreen;
 
+    // Case: Main Menu -> Exit Game
+    if (screen == GameScreen.mainMenu) {
+      _showExitGameDialog();
+      return;
+    }
+
+    // Case: Element Selection -> Return to Main Menu
     if (screen == GameScreen.elementSelect) {
       widget.game.gameState.returnToMainMenu();
       _onGameStateChanged();
@@ -376,9 +395,66 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       return;
     }
 
-    // Case: Home or Exploring -> Exit Game Confirmation
-    // "Exploring" covers all gameplay screens: exploration, combat, nodes, etc.
-    _showExitGameDialog();
+    // Case: Run End -> Return to Main Menu
+    if (screen == GameScreen.runEnd) {
+      widget.game.handleInput('M');
+      _onGameStateChanged();
+      return;
+    }
+
+    // Case: During a run -> Show Abandon Run confirmation
+    _showAbandonRunDialog();
+  }
+
+  Future<void> _showAbandonRunDialog() async {
+    final shouldAbandon = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161b22),
+        title: const Text(
+          'Abandon Run?',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'Your current run progress will be lost. Are you sure?',
+          style: TextStyle(fontFamily: 'monospace', color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(
+              'CONTINUE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.greenAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'ABANDON',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.redAccent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldAbandon == true) {
+      // Clear save and return to main menu
+      await widget.game.gameState.discardSave();
+      widget.game.gameState.returnToMainMenu();
+      _onGameStateChanged();
+    }
   }
 
   Future<void> _showExitGameDialog() async {
@@ -395,7 +471,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           ),
         ),
         content: const Text(
-          'Are you sure you want to exit? Any unsaved progress will be lost.',
+          'Are you sure you want to exit?',
           style: TextStyle(fontFamily: 'monospace', color: Colors.white70),
         ),
         actions: [

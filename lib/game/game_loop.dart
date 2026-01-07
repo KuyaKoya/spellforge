@@ -190,6 +190,9 @@ class GameLoop {
         state.progression.addCrystals(1);
       }
 
+      // Phase 7.9.3: Save at post-combat resolution
+      state.triggerSavePoint();
+
       state.completeNode();
     } else {
       state.endRun(victory: false);
@@ -247,6 +250,9 @@ class GameLoop {
       if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {
         state.progression.addCrystals(1);
       }
+
+      // Phase 7.9.3: Save at post-combat resolution
+      state.triggerSavePoint();
 
       state.completeNode();
     } else {
@@ -320,6 +326,10 @@ class GameLoop {
 
     state.currentEliteRewards = null;
     state.isEliteCombat = false;
+
+    // Phase 7.9.3: Save after elite reward selection
+    state.triggerSavePoint();
+
     state.completeNode();
   }
 

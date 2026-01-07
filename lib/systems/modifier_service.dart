@@ -1,10 +1,129 @@
+import 'package:flutter/foundation.dart';
+
 import '../domain/element.dart';
 import '../progression/node_modifier.dart';
 
+/// Phase 7.9.3: Source tags for modifier application order.
+enum ModifierSource {
+  /// Base stats from mage template.
+  base,
+
+  /// Skill tree bonuses from elemental paths.
+  skillTree,
+
+  /// Temporary combat modifiers (buffs, status effects).
+  combat,
+}
+
 /// Service for aggregating and applying elemental node modifiers to combat.
+///
 /// Phase 7.8: Integrates character progression bonuses/tradeoffs into gameplay.
+/// Phase 7.9.3: Enforces canonical application order:
+///   1. Base stats (from mage definition)
+///   2. Skill tree bonuses (from elemental nodes)
+///   3. Combat modifiers (temporary buffs)
 class ModifierService {
   ModifierService._();
+
+  /// Phase 7.9.3: Canonical application order.
+  static const List<ModifierSource> applicationOrder = [
+    ModifierSource.base,
+    ModifierSource.skillTree,
+    ModifierSource.combat,
+  ];
+
+  /// Phase 7.9.3: Dev-only log of applied modifiers for auditing.
+  static final List<ModifierApplicationLog> _applicationLog = [];
+
+  /// Get the application log.
+  static List<ModifierApplicationLog> get applicationLog =>
+      List.unmodifiable(_applicationLog);
+
+  /// Clears the application log.
+  static void clearLog() {
+    _applicationLog.clear();
+  }
+
+  /// Phase 7.9.3: Applies modifiers in canonical order and logs the result.
+  ///
+  /// [baseValue] - The starting value before any modifiers.
+  /// [modifiers] - Skill tree modifiers to apply.
+  /// [combatModifier] - Optional temporary combat modifier.
+  /// [statName] - Name of the stat for logging.
+  ///
+  /// Returns the final value after all modifiers.
+  static double applyInOrder({
+    required double baseValue,
+    required List<NodeModifier> modifiers,
+    double combatModifier = 0.0,
+    required String statName,
+  }) {
+    double value = baseValue;
+
+    // Log base
+    _logApplication(statName, ModifierSource.base, baseValue, value);
+
+    // Apply skill tree modifiers
+    for (final mod in modifiers) {
+      value += mod.effectiveValue;
+      if (kDebugMode && mod.effectiveValue != 0) {
+        _logApplication(
+          statName,
+          ModifierSource.skillTree,
+          mod.effectiveValue.toDouble(),
+          value,
+          modifierName: mod.description,
+        );
+      }
+    }
+
+    // Apply combat modifiers
+    if (combatModifier != 0.0) {
+      value += combatModifier;
+      _logApplication(statName, ModifierSource.combat, combatModifier, value);
+    }
+
+    return value;
+  }
+
+  /// Phase 7.9.3: Logs a modifier application for debugging.
+  static void _logApplication(
+    String statName,
+    ModifierSource source,
+    double delta,
+    double newValue, {
+    String? modifierName,
+  }) {
+    if (!kDebugMode) return;
+
+    _applicationLog.add(
+      ModifierApplicationLog(
+        statName: statName,
+        source: source,
+        delta: delta,
+        newValue: newValue,
+        modifierName: modifierName,
+        timestamp: DateTime.now(),
+      ),
+    );
+  }
+
+  /// Phase 7.9.3: Gets a debug summary of recent modifier applications.
+  static String getDebugSummary() {
+    final buffer = StringBuffer();
+    buffer.writeln('=== MODIFIER APPLICATION LOG ===');
+    buffer.writeln('Total applications: ${_applicationLog.length}');
+
+    for (final log in _applicationLog.take(30)) {
+      buffer.writeln(log.toString());
+    }
+
+    if (_applicationLog.length > 30) {
+      buffer.writeln('... and ${_applicationLog.length - 30} more');
+    }
+
+    return buffer.toString();
+  }
 
   /// Calculates aggregate damage multiplier from modifiers.
   /// [element] is the spell's element (for element-specific bonuses).
@@ -231,5 +350,31 @@ class ModifierService {
     }
 
     return buffer.toString();
+  }
+}
+
+/// Phase 7.9.3: Log entry for a modifier application.
+class ModifierApplicationLog {
+  final String statName;
+  final ModifierSource source;
+  final double delta;
+  final double newValue;
+  final String? modifierName;
+  final DateTime timestamp;
+
+  ModifierApplicationLog({
+    required this.statName,
+    required this.source,
+    required this.delta,
+    required this.newValue,
+    this.modifierName,
+    required this.timestamp,
+  });
+
+  @override
+  String toString() {
+    final sign = delta >= 0 ? '+' : '';
+    final name = modifierName != null ? ' ($modifierName)' : '';
+    return '[$statName] ${source.name}: $sign$delta = $newValue$name';
   }
 }

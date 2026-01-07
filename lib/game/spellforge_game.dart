@@ -4,6 +4,7 @@ import 'game_state.dart';
 import 'game_loop.dart';
 import '../systems/progression_system.dart';
 import '../systems/audio_system.dart';
+import '../systems/save_manager.dart';
 
 /// The main Flame game class that hosts the game loop.
 /// Uses Flame primarily for the game loop, not for rendering.
@@ -23,6 +24,9 @@ class SpellforgeGame extends FlameGame {
 
     progressionSystem = ProgressionSystem();
     await progressionSystem.initialize();
+
+    // Phase 7.9.3: Initialize Save Manager
+    await SaveManager.instance.initialize();
 
     // Initialize Audio System
     await AudioSystem.initialize();

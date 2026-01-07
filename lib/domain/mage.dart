@@ -300,6 +300,76 @@ class Mage {
     );
   }
 
+  /// Converts to JSON for save/load serialization.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'primaryElement': primaryElement.name,
+    'passiveDescription': passiveDescription,
+    'currentHP': currentHP,
+    'maxHP': maxHP,
+    'mana': mana,
+    'maxMana': maxMana,
+    'spellLoadout': spellLoadout.map((s) => s.toJson()).toList(),
+    'statusEffects': statusEffects
+        .map(
+          (e) => {
+            'type': e.type.name,
+            'value': e.value,
+            'remainingDuration': e.remainingDuration,
+          },
+        )
+        .toList(),
+    'actionsRemaining': actionsRemaining,
+    'actionsPerTurn': actionsPerTurn,
+    'level': level,
+    'currentExp': currentExp,
+    'manaCostModifiers': manaCostModifiers.map((k, v) => MapEntry(k.name, v)),
+  };
+
+  /// Creates from JSON for save/load serialization.
+  factory Mage.fromJson(Map<String, dynamic> json) {
+    final mage = Mage(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      primaryElement: Element.values.firstWhere(
+        (e) => e.name == json['primaryElement'],
+      ),
+      passiveDescription: json['passiveDescription'] as String,
+      currentHP: json['currentHP'] as int,
+      maxHP: json['maxHP'] as int,
+      mana: json['mana'] as int,
+      maxMana: json['maxMana'] as int,
+      spellLoadout: (json['spellLoadout'] as List)
+          .map((s) => Spell.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      statusEffects: (json['statusEffects'] as List)
+          .map(
+            (e) => ActiveStatusEffect(
+              type: EffectType.values.firstWhere((t) => t.name == e['type']),
+              value: e['value'] as int,
+              remainingDuration: e['remainingDuration'] as int,
+            ),
+          )
+          .toList(),
+      actionsRemaining: json['actionsRemaining'] as int,
+      actionsPerTurn: json['actionsPerTurn'] as int,
+      level: json['level'] as int,
+      currentExp: json['currentExp'] as int,
+    );
+
+    // Restore mana cost modifiers
+    final modifiersJson = json['manaCostModifiers'] as Map<String, dynamic>?;
+    if (modifiersJson != null) {
+      mage.manaCostModifiers = modifiersJson.map(
+        (k, v) =>
+            MapEntry(Element.values.firstWhere((e) => e.name == k), v as int),
+      );
+    }
+
+    return mage;
+  }
+
   @override
   String toString() => '$name (${primaryElement.displayName} Mage)';
 }

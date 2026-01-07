@@ -225,6 +225,56 @@ class Enemy {
     );
   }
 
+  /// Converts to JSON for save/load serialization.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'element': element.name,
+    'currentHP': currentHP,
+    'maxHP': maxHP,
+    'attackDamage': attackDamage,
+    'armorGain': armorGain,
+    'intent': intent.name,
+    'statusEffects': statusEffects
+        .map(
+          (e) => {
+            'type': e.type.name,
+            'value': e.value,
+            'remainingDuration': e.remainingDuration,
+          },
+        )
+        .toList(),
+    'isDelayed': isDelayed,
+  };
+
+  /// Creates from JSON for save/load serialization.
+  factory Enemy.fromJson(Map<String, dynamic> json) {
+    return Enemy(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      element: Element.values.firstWhere((e) => e.name == json['element']),
+      currentHP: json['currentHP'] as int,
+      maxHP: json['maxHP'] as int,
+      attackDamage: json['attackDamage'] as int,
+      armorGain: json['armorGain'] as int? ?? 5,
+      intent: EnemyIntent.values.firstWhere((i) => i.name == json['intent']),
+      statusEffects:
+          (json['statusEffects'] as List?)
+              ?.map(
+                (e) => ActiveStatusEffect(
+                  type: EffectType.values.firstWhere(
+                    (t) => t.name == e['type'],
+                  ),
+                  value: e['value'] as int,
+                  remainingDuration: e['remainingDuration'] as int,
+                ),
+              )
+              .toList() ??
+          [],
+      isDelayed: json['isDelayed'] as bool? ?? false,
+    );
+  }
+
   @override
   String toString() => '$name (${element.displayName})';
 }

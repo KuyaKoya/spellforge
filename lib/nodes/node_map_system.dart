@@ -42,6 +42,9 @@ class NodeMapSystem {
   /// Current depth (0-indexed for internal use).
   int get currentDepthIndex => _currentDepth;
 
+  /// Phase 7.9.3: Current node index for save/load.
+  int get currentNodeIndex => _currentDepth;
+
   /// Total depths in the run.
   int get totalDepths => _depths.length;
 
@@ -270,6 +273,24 @@ class NodeMapSystem {
     _depths.clear();
     _currentDepth = 0;
     _nodeSelector.reset();
+  }
+
+  // ==================== PHASE 7.9.3: SAVE/LOAD ====================
+
+  /// Restores the node map to a specific node index (for save/load).
+  void restoreToNode(int nodeIndex) {
+    if (nodeIndex >= 0 && nodeIndex <= _depths.length) {
+      _currentDepth = nodeIndex;
+
+      // Mark all previous depths as completed
+      for (int i = 0; i < nodeIndex; i++) {
+        final depthLevel = _depths[i];
+        if (depthLevel.nodeChoices.isNotEmpty) {
+          depthLevel.nodeChoices.first.isCompleted = true;
+          depthLevel.nodeChoices.first.isSelected = true;
+        }
+      }
+    }
   }
 
   @override

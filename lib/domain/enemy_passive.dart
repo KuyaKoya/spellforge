@@ -13,8 +13,88 @@ enum PassiveCategory {
   systemic,
 }
 
+// ==================== PHASE 7.9.3: PASSIVE CONTRACTS ====================
+
+/// Phase 7.9.3: When the passive triggers during combat resolution.
+enum TriggerTiming {
+  /// Triggers at the start of the owning enemy's turn.
+  onTurnStart,
+
+  /// Triggers at the end of the owning enemy's turn.
+  onTurnEnd,
+
+  /// Triggers when the owning enemy is hit by a spell.
+  onHit,
+
+  /// Triggers when any spell is cast in combat.
+  onCast,
+
+  /// Triggers when the owning enemy kills the player.
+  onKill,
+
+  /// Triggers when the owning enemy takes damage from any source.
+  onDamageTaken,
+
+  /// Triggers at the start of battle.
+  onBattleStart,
+
+  /// Triggers when a status effect is applied.
+  onStatusApplied,
+
+  /// Triggers when armor is broken.
+  onArmorBroken,
+
+  /// Triggers when armor is gained.
+  onArmorGained,
+
+  /// Triggers on burn tick.
+  onBurnTick,
+}
+
+/// Phase 7.9.3: Scope of the passive's effect.
+enum PassiveScope {
+  /// Affects only the enemy that owns this passive.
+  self,
+
+  /// Affects a target enemy/player.
+  enemy,
+
+  /// Affects all combatants or the combat state itself.
+  global,
+}
+
+/// Phase 7.9.3: How multiple instances/triggers stack.
+enum StackRule {
+  /// Only one instance of this passive can be active.
+  unique,
+
+  /// Effects add together.
+  additive,
+
+  /// Effects multiply together.
+  multiplicative,
+}
+
+/// Phase 7.9.3: Duration of the passive's effect.
+enum PassiveDuration {
+  /// Effect lasts forever (until combat ends).
+  permanent,
+
+  /// Effect lasts for a set number of turns.
+  turnBased,
+
+  /// Effect lasts while a condition is met.
+  conditional,
+}
+
 /// Represents a passive ability that an elite or boss enemy can have.
 /// Passives are always active and listen to combat events.
+///
+/// Phase 7.9.3: Every passive MUST define:
+/// - triggerTiming: When it activates
+/// - scope: What it affects
+/// - stackRule: How multiples combine
+/// - duration: How long effects last
 class EnemyPassive {
   final String id;
   final String name;
@@ -28,6 +108,18 @@ class EnemyPassive {
   /// The combat event types this passive listens to.
   final List<CombatEventType> triggers;
 
+  /// Phase 7.9.3: When this passive triggers.
+  final TriggerTiming triggerTiming;
+
+  /// Phase 7.9.3: What this passive affects.
+  final PassiveScope scope;
+
+  /// Phase 7.9.3: How multiple triggers/instances stack.
+  final StackRule stackRule;
+
+  /// Phase 7.9.3: How long the effect lasts.
+  final PassiveDuration duration;
+
   /// The effect function - takes event and returns result.
   final PassiveResult Function(CombatEvent event, PassiveState state) effect;
 
@@ -40,6 +132,11 @@ class EnemyPassive {
     required this.triggerHint,
     required this.triggers,
     required this.effect,
+    // Phase 7.9.3: Contract fields with sensible defaults for existing passives
+    this.triggerTiming = TriggerTiming.onHit,
+    this.scope = PassiveScope.self,
+    this.stackRule = StackRule.unique,
+    this.duration = PassiveDuration.permanent,
   });
 
   /// Whether this passive should trigger for the given event type.
