@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'game/spellforge_game.dart';
 import 'ui/text_renderer.dart';
+import 'systems/audio_manager.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,13 +54,35 @@ class SpellforgeScreen extends StatefulWidget {
   State<SpellforgeScreen> createState() => _SpellforgeScreenState();
 }
 
-class _SpellforgeScreenState extends State<SpellforgeScreen> {
+class _SpellforgeScreenState extends State<SpellforgeScreen>
+    with WidgetsBindingObserver {
   late SpellforgeGame _game;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _game = SpellforgeGame();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Pause/Resume game engine and audio based on lifecycle
+    if (state == AppLifecycleState.paused) {
+      _game.pauseEngine();
+      AudioManager.instance.pauseMusic();
+    } else if (state == AppLifecycleState.resumed) {
+      _game.resumeEngine();
+      AudioManager.instance.resumeMusic();
+    }
   }
 
   @override
