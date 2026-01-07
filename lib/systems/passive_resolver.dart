@@ -127,7 +127,20 @@ class PassiveResolver {
   ) {
     switch (passive.scope) {
       case PassiveScope.self:
-        // Self-targeting passives should only affect the owning enemy
+        // Self-targeting passives should only affect the owning enemy.
+        // For turn-based events (turnStart, turnEnd, battleStart), the source
+        // is always the owning enemy, so we allow these implicitly.
+        // For damage/action events, we require explicit source matching.
+        final selfTargetEvents = [
+          CombatEventType.turnStart,
+          CombatEventType.turnEnd,
+          CombatEventType.battleStart,
+        ];
+        if (selfTargetEvents.contains(event.type)) {
+          // Turn events always target the owning enemy
+          return true;
+        }
+        // For other events, require source match
         return event.source?.id == enemy.id;
       case PassiveScope.enemy:
         // Enemy-targeting passives need a valid target

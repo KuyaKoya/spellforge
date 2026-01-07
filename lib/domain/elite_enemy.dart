@@ -1,8 +1,10 @@
 import 'combat_event.dart';
+import 'effect.dart';
 import 'element.dart';
 import 'enemy.dart';
 import 'enemy_passive.dart';
 import '../data/passive_definitions.dart';
+import '../systems/passive_resolver.dart';
 
 /// Modifiers that elite enemies can have.
 enum EliteModifier {
@@ -177,12 +179,41 @@ class EliteEnemy extends Enemy {
       }
     }
 
+    // Check for armor before damage
+    final hadArmor = statusEffects.any(
+      (e) => e.type == EffectType.armor && e.value > 0,
+    );
+
     final adjustedDamage = calculateDamageTaken(
       modifiedDamage.clamp(0, 999),
       attackElement,
     );
     _damageTakenThisTurn += adjustedDamage;
-    return takeDamage(adjustedDamage);
+    final actualDamage = takeDamage(adjustedDamage);
+
+    // Check for armor break
+    final hasArmorCallback = statusEffects.any(
+      (e) => e.type == EffectType.armor && e.value > 0,
+    );
+    if (hadArmor && !hasArmorCallback) {
+      triggerPassives(
+        CombatEvent.armorBroken(source: this, turnNumber: turnNumber),
+      );
+    }
+
+    return actualDamage;
+  }
+
+  @override
+  void applyStatusEffect(Effect effect) {
+    super.applyStatusEffect(effect);
+
+    // Trigger armorGained if applicable
+    if (effect.type == EffectType.armor && effect.value > 0) {
+      triggerPassives(
+        CombatEvent.armorGained(source: this, amount: effect.value),
+      );
+    }
   }
 
   /// Whether the elite can act twice this turn (Relentless).
@@ -202,16 +233,10 @@ class EliteEnemy extends Enemy {
 
   /// Triggers all passives for a given event type.
   List<PassiveResult> triggerPassives(CombatEvent event) {
-    final results = <PassiveResult>[];
-    for (final passive in passives) {
-      if (passive.shouldTrigger(event.type)) {
-        final result = passive.effect(event, passiveState);
-        if (result.hasEffect) {
-          results.add(result);
-        }
-      }
-    }
-    return results;
+    return PassiveResolver.instance.resolvePassives(
+      event: event,
+      enemies: [this],
+    );
   }
 
   /// Resets per-turn state for passives.

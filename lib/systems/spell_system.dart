@@ -1,3 +1,4 @@
+import '../domain/combat_event.dart';
 import '../domain/effect.dart';
 import '../domain/element.dart';
 import '../domain/enemy.dart';
@@ -226,14 +227,44 @@ class SpellSystem {
               .fold(0, (sum, e) => sum + e.value);
 
           // Phase 7.6.8: Use elite-specific damage method for passive triggering
+          // Phase 7.6.8: Use elite-specific damage method for passive triggering
           int actualDamage;
+
+          // Phase 7.9.3.1: Trigger spellCastAgainst passives
+          int damageToApply = finalDamage;
           if (target is EliteEnemy) {
+            // Check if it's the first spell this turn
+            // Note: passiveState.spellsThisTurn is incremented inside takeDamageWithElement,
+            // so at this point it hasn't been incremented yet for this spell.
+            final isFirst = target.passiveState.spellsThisTurn == 0;
+
+            final results = target.triggerPassives(
+              CombatEvent.spellCastAgainst(
+                source: target,
+                element: spell.element,
+                damage: finalDamage,
+                isFirstSpellThisTurn: isFirst,
+              ),
+            );
+
+            _applyPassiveResults(results, target, caster, logs);
+
+            for (final result in results) {
+              if (result.damageModifier != null) {
+                damageToApply += result.damageModifier!;
+              }
+              if (result.logMessage != null) {
+                logs.add('  ⚠️ ${result.logMessage}');
+              }
+            }
+            if (damageToApply < 0) damageToApply = 0;
+
             actualDamage = target.takeDamageWithElement(
-              finalDamage,
+              damageToApply,
               spell.element,
             );
           } else {
-            actualDamage = target.takeDamage(finalDamage);
+            actualDamage = target.takeDamage(damageToApply);
           }
 
           logs.add('${spell.displayName} hits ${target.name}');
@@ -328,5 +359,47 @@ class SpellSystem {
     }
 
     return (damageEffect * multiplier * weakenMultiplier).round();
+  }
+
+  /// Phase 7.9.3.1: Applies the effects from PassiveResults to game state.
+  static void _applyPassiveResults(
+    List<PassiveResult> results,
+    EliteEnemy source,
+    Mage caster,
+    List<String> logs,
+  ) {
+    for (final result in results) {
+      // Apply armor gain to the source enemy
+      if (result.armorGain != null && result.armorGain! > 0) {
+        source.applyStatusEffect(
+          Effect(
+            type: EffectType.armor,
+            value: result.armorGain!,
+            duration: 99,
+          ),
+        );
+        logs.add('  🛡️ ${source.name} gains ${result.armorGain} armor!');
+      }
+
+      // Apply healing (negative damage modifier used for self-healing in some contexts,
+      // but here meaningful healing is separate or handled via negative damage in actual hits.
+      // However, if the passive purely heals (like Vampiric on attack), we handle it here.
+      // Wait, Vampiric triggers on damageDealt, which is handled in CombatSystem usually?
+      // No, enemies don't cast spells via SpellSystem usually (Mage does).
+      // So this is mostly for defensive passives like "Heal when hit by Water".
+
+      // Apply status effect to player (for retaliatory passives like Volatile)
+      if (result.statusToApply != null) {
+        final effect = Effect(
+          type: result.statusToApply!,
+          value: result.statusValue ?? 1,
+          duration: result.statusDuration ?? 2,
+        );
+        caster.applyStatusEffect(effect);
+        logs.add(
+          '  ⚠️ ${result.statusToApply!.name} applied to ${caster.name}!',
+        );
+      }
+    }
   }
 }
