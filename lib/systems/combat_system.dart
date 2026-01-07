@@ -7,7 +7,6 @@ import '../domain/mage.dart';
 import '../progression/node_modifier.dart';
 import 'spell_system.dart';
 import 'audio_system.dart';
-import 'audio_manager.dart';
 import 'modifier_service.dart';
 
 /// Represents the state of an ongoing combat.
@@ -103,14 +102,17 @@ class CombatSystem {
   }
 
   /// Starts combat, resetting states.
+  ///
+  /// Note: Battle start SFX should be played by the caller BEFORE calling this
+  /// method (e.g., via `AudioManager.instance.playSfxAndWait()`) to ensure proper
+  /// timing and avoid duplicate sounds.
   void startCombat() {
     currentTurn = 1;
     phase = CombatPhase.playerTurn;
 
-    // Play battle start audio (music + sfx)
-    bool isElite = enemies.any((e) => e is EliteEnemy);
-    bool isBoss = enemies.any((e) => e is BossEnemy);
-    AudioManager.instance.playBattleStart(isElite: isElite, isBoss: isBoss);
+    // NOTE: Battle start SFX was moved to caller (text_renderer.dart) to prevent
+    // duplicate sound effects. The caller plays the sound BEFORE starting combat
+    // using playSfxAndWait() for proper timing synchronization.
 
     mage.resetActions();
     mage.mana = mage.maxMana; // Restore mana at combat start

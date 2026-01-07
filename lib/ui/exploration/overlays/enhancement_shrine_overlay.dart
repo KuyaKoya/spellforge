@@ -25,6 +25,13 @@ class EnhancementShrineOverlay extends StatefulWidget {
 }
 
 class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    // Play shrine open sound when overlay appears
+    AudioManager.instance.playShrineOpen();
+  }
+
   /// Handle upgrade with audio feedback
   Future<void> _handleUpgrade(int index) async {
     // Phase 7.6.2: Play shrine upgrade sound when actually upgrading

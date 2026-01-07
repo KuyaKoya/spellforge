@@ -543,10 +543,6 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           await _showEliteDialogue(context, gameState, enemy);
         } else {
           // Regular combat - start directly
-          // Wait for battle start sound to prevent lag/desync
-          await AudioManager.instance.playSfxAndWait(
-            AudioManager.sfxBattleStartNormal,
-          );
           gameState.startCombatDirectly([enemy], isElite: false);
           _onGameStateChanged();
         }
@@ -571,22 +567,23 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       },
       onInteractableTapped: (nodeType) async {
         // Play interaction sound based on type
-        String soundKey;
+        // Note: Enhancement shrines and spell shrines play their sounds
+        // when their overlays open, not here
         switch (nodeType) {
           case NodeType.shop:
-            soundKey = AudioManager.sfxShopEntrance;
+            await AudioManager.instance.playSfxAndWait(
+              AudioManager.sfxShopEntrance,
+            );
             break;
           case NodeType.enhancementShrine:
-            soundKey = AudioManager.sfxShrineOpen;
-            break;
           case NodeType.spellLearn:
-            soundKey = AudioManager.sfxShrineOpen; // Reuse shrine open
+            // Sound plays when overlay opens (in initState)
             break;
           default:
-            soundKey = AudioManager.sfxBaseSelect;
+            await AudioManager.instance.playSfxAndWait(
+              AudioManager.sfxBaseSelect,
+            );
         }
-
-        await AudioManager.instance.playSfxAndWait(soundKey);
 
         // Open the non-combat screen (shop, shrine, etc.)
         gameState.openNonCombatScreen(nodeType);
@@ -627,12 +624,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           barrierDismissible: false,
           builder: (context) => NarrativeOverlay(
             narrativeNode: dialogue,
-            onComplete: () async {
+            onComplete: () {
               Navigator.of(context).pop();
-              // Wait for sound
-              await AudioManager.instance.playSfxAndWait(
-                AudioManager.sfxBattleStartElite,
-              );
               // Start combat after dialogue
               gameState.startCombatDirectly([enemy], isElite: true);
               _onGameStateChanged();
@@ -645,9 +638,6 @@ class _TextGameWidgetState extends State<TextGameWidget> {
     }
 
     // No dialogue or already shown - start combat directly
-    await AudioManager.instance.playSfxAndWait(
-      AudioManager.sfxBattleStartElite,
-    );
     gameState.startCombatDirectly([enemy], isElite: true);
     _onGameStateChanged();
   }
@@ -696,12 +686,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         barrierDismissible: false,
         builder: (context) => NarrativeOverlay(
           narrativeNode: bossDialogue,
-          onComplete: () async {
+          onComplete: () {
             Navigator.of(context).pop();
-            // Wait for sound
-            await AudioManager.instance.playSfxAndWait(
-              AudioManager.sfxBattleStartElite,
-            );
             // Start boss combat
             gameState.startCombatDirectly([enemy], isElite: false);
             _onGameStateChanged();
@@ -711,9 +697,6 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       );
     } else {
       // No boss-specific dialogue - start combat
-      await AudioManager.instance.playSfxAndWait(
-        AudioManager.sfxBattleStartElite,
-      );
       gameState.startCombatDirectly([enemy], isElite: false);
       _onGameStateChanged();
     }

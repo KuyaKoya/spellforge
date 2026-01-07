@@ -59,8 +59,6 @@ class AudioManager {
   static const sfxEnemyDeath = 'enemy_death';
   static const sfxBattleWin = 'battle_win';
   static const sfxPlayerDefeat = 'battle_defeat';
-  static const sfxBattleStartNormal = 'battle_start_normal';
-  static const sfxBattleStartElite = 'battle_start_elite';
   static const sfxSpellForged = 'level_up'; // Reuse for spell forged
   static const sfxRoomSelect = 'room_select';
   static const sfxEnteringRoom = 'entering_a_room';
@@ -109,8 +107,6 @@ class AudioManager {
     // Actual sound files in assets/audio/sound_effects/
     final sfxFiles = [
       // Battle sounds
-      'battle_start_normal',
-      'battle_start_elite',
       'battle_win',
       'battle_defeat',
       'enemy_attack',
@@ -432,7 +428,6 @@ class AudioManager {
 
   void playRoomEnter() => playSfx(sfxEnteringRoom);
   void playEnteringRoom() => playSfx(sfxEnteringRoom);
-  void playCombatStart() => playSfx(sfxBattleStartNormal);
   void playDamage() => playSfx(sfxDamageDealt);
   void playShieldGain() => playSfx(sfxShieldGain);
   void playBurn() => playSfx(sfxBurn);
@@ -466,12 +461,10 @@ class AudioManager {
   }
 
   /// Play battle start sound based on encounter type.
+  /// Note: Battle start SFX assets were removed. This method is kept for API
+  /// compatibility but now only transitions to combat music.
   void playBattleStart({bool isElite = false, bool isBoss = false}) {
-    if (isBoss || isElite) {
-      playSfx(sfxBattleStartElite);
-    } else {
-      playSfx(sfxBattleStartNormal);
-    }
+    // Battle start SFX removed - music transition handles the feel
   }
 
   /// Play mystery event music.
