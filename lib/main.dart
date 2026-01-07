@@ -65,33 +65,36 @@ class _SpellforgeScreenState extends State<SpellforgeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GameWidget<SpellforgeGame>(
-        game: _game,
-        overlayBuilderMap: {
-          'text_ui': (context, game) => TextGameWidget(game: game),
-        },
-        initialActiveOverlays: const ['text_ui'],
-        loadingBuilder: (context) => const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(color: Colors.amber),
-              SizedBox(height: 16),
-              Text(
-                'Loading Spellforge...',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 16,
-                  color: Colors.amber,
+      backgroundColor: const Color(0xFF0d1117),
+      body: SafeArea(
+        child: GameWidget<SpellforgeGame>(
+          game: _game,
+          overlayBuilderMap: {
+            'text_ui': (context, game) => TextGameWidget(game: game),
+          },
+          initialActiveOverlays: const ['text_ui'],
+          loadingBuilder: (context) => const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: Colors.amber),
+                SizedBox(height: 16),
+                Text(
+                  'Loading Spellforge...',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 16,
+                    color: Colors.amber,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        errorBuilder: (context, error) => Center(
-          child: Text(
-            'Error: $error',
-            style: const TextStyle(color: Colors.red),
+          errorBuilder: (context, error) => Center(
+            child: Text(
+              'Error: $error',
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ),
       ),
