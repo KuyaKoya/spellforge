@@ -3,7 +3,7 @@ import 'package:flame/game.dart';
 import 'game_state.dart';
 import 'game_loop.dart';
 import '../systems/progression_system.dart';
-import '../systems/audio_system.dart';
+import '../systems/audio_manager.dart';
 import '../systems/save_manager.dart';
 
 /// The main Flame game class that hosts the game loop.
@@ -29,10 +29,10 @@ class SpellforgeGame extends FlameGame {
     await SaveManager.instance.initialize();
 
     // Initialize Audio System
-    await AudioSystem.initialize();
+    await AudioManager.instance.initialize();
 
     // Start background music
-    AudioSystem.playMusic('main_bg');
+    AudioManager.instance.transitionToMusicState(MusicState.home);
 
     gameState = GameState(progression: progressionSystem);
     // Wire up sync callback

@@ -175,7 +175,7 @@ class GameState {
     spellChoices = null;
 
     // Ensure music is playing (in case we came from somewhere else)
-    AudioManager.instance.transitionToMusicState(MusicState.exploration);
+    AudioManager.instance.transitionToMusicState(MusicState.home);
   }
 
   /// Selects a starting element type (Phase 7.6.1).
@@ -654,7 +654,7 @@ class GameState {
     currentScreen = GameScreen.mainMenu;
 
     // Ensure menu music plays
-    AudioManager.instance.transitionToMusicState(MusicState.exploration);
+    AudioManager.instance.transitionToMusicState(MusicState.home);
   }
 
   /// Gets available mage choices.

@@ -1,8 +1,16 @@
 import 'dart:async';
 import 'package:flutter_soloud/flutter_soloud.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Music states for different game contexts.
-enum MusicState { none, exploration, normalCombat, eliteCombat, bossCombat }
+enum MusicState {
+  none,
+  home,
+  exploration,
+  normalCombat,
+  eliteCombat,
+  bossCombat,
+}
 
 /// Centralized audio manager using flutter_soloud for low-latency playback.
 ///
@@ -70,6 +78,7 @@ class AudioManager {
   static const sfxShrineUpgrade = 'enchantment_shrine_upgrade';
 
   // ==================== MUSIC KEYS ====================
+  static const musicHome = 'home';
   static const musicExploration = 'exploration';
   static const musicNormalCombat = 'normal_combat';
   static const musicEliteCombat = 'elite_combat';
@@ -89,6 +98,9 @@ class AudioManager {
       await _soloud.init();
 
       print('AudioManager: Preloading audio assets...');
+
+      // Load persistent settings
+      await _loadSettings();
 
       // Preload all SFX
       await _preloadSfx();
@@ -159,12 +171,13 @@ class AudioManager {
 
   Future<void> _preloadMusic() async {
     final musicFiles = {
+      'home': 'home.mp3',
       'exploration': 'exploration.mp3',
       'normal_combat': 'normal_combat.mp3',
       'elite_combat': 'elite_combat.mp3',
       'boss_combat': 'boss_combat.mp3',
       'mystery_event': 'mystery_event.mp3',
-      'main_bg': 'exploration.mp3', // Alias for backwards compatibility
+      'main_bg': 'home.mp3', // Alias for backwards compatibility
     };
 
     for (final entry in musicFiles.entries) {
@@ -192,6 +205,7 @@ class AudioManager {
   /// Set sound effects volume (0.0 to 1.0).
   void setSfxVolume(double value) {
     _sfxVolume = value.clamp(0.0, 1.0);
+    _saveSettings();
   }
 
   /// Set music volume (0.0 to 1.0).
@@ -202,6 +216,20 @@ class AudioManager {
     if (_currentMusicHandle != null) {
       _soloud.setVolume(_currentMusicHandle!, _musicVolume);
     }
+    _saveSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _sfxVolume = prefs.getDouble('sfx_volume') ?? 1.0;
+    _musicVolume = prefs.getDouble('music_volume') ?? 0.7;
+    _preDuckMusicVolume = _musicVolume;
+  }
+
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('sfx_volume', _sfxVolume);
+    await prefs.setDouble('music_volume', _musicVolume);
   }
 
   // ==================== SFX PLAYBACK ====================
@@ -366,6 +394,9 @@ class AudioManager {
     switch (newState) {
       case MusicState.none:
         stopMusic();
+        break;
+      case MusicState.home:
+        playMusic(musicHome);
         break;
       case MusicState.exploration:
         playMusic(musicExploration);

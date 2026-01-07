@@ -23,6 +23,7 @@ import 'exploration/overlays/element_selection_overlay.dart';
 // Phase 7.7: Narrative system
 import '../narrative/narrative.dart';
 import 'narrative_overlay.dart';
+import 'settings/settings_overlay.dart';
 
 /// The main game UI renderer.
 class TextGameWidget extends StatefulWidget {
@@ -402,8 +403,121 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       return;
     }
 
-    // Case: During a run -> Show Abandon Run confirmation
-    _showAbandonRunDialog();
+    // Case: During a run -> Show Pause Menu
+    _showPauseMenu();
+  }
+
+  Future<void> _showPauseMenu() async {
+    await showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.8),
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF161b22),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.grey.shade800),
+        ),
+        child: Container(
+          width: 300,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'PAUSED',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Resume
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                  ),
+                  child: const Text(
+                    'RESUME',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Settings
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close pause menu
+                    showDialog(
+                      context: context,
+                      builder: (context) => SettingsOverlay(
+                        progressionSystem: widget.game.progressionSystem,
+                        onReset: () {
+                          // If reset happens, we should probably exit to main menu or reload
+                          Navigator.of(
+                            context,
+                          ).popUntil((route) => route.isFirst);
+                          widget.game.handleInput(
+                            'M',
+                          ); // Force return to main menu
+                          _onGameStateChanged();
+                        },
+                      ),
+                    ).then((_) {
+                      // Re-open pause menu after settings closes?
+                      // Or just let them be back in game.
+                      // Standard behavior is back to game usually, or back to pause.
+                      // Let's go back to pause menu for better UX.
+                      _showPauseMenu();
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.grey.shade700),
+                  ),
+                  child: const Text(
+                    'SETTINGS',
+                    style: TextStyle(fontFamily: 'monospace'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Abandon
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _showAbandonRunDialog();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                  ),
+                  child: const Text(
+                    'ABANDON RUN',
+                    style: TextStyle(fontFamily: 'monospace'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _showAbandonRunDialog() async {
