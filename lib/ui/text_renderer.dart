@@ -180,8 +180,8 @@ class _TextGameWidgetState extends State<TextGameWidget> {
                 spellFragments: widget.game.progressionSystem.spellFragments,
                 isActionCompleted:
                     widget.game.gameState.nodeInteractionCompleted,
-                onUpgrade: (index) async {
-                  await widget.game.gameLoop.upgradeSpell(index);
+                onUpgrade: (index, upgradePath) async {
+                  await widget.game.gameLoop.upgradeSpell(index, upgradePath);
                   _onGameStateChanged();
                 },
                 onLeave: () {
@@ -629,8 +629,20 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       final isElite = gameState.isEliteCombat;
 
       // Get next node choices for doors
-      final nextNodes =
-          gameState.nodeMapSystem.currentDepthLevel?.nodeChoices ?? [];
+      List<MapNode> nextNodes = <MapNode>[];
+      if (currentNode != null) {
+        // We are in a node (interaction finished but not left), peek ahead
+        // NodeMapSystem is 0-indexed internally, currentDepth is 1-indexed getter
+        // currentDepthIndex gives 0-based index.
+        final nextDepthIndex = gameState.nodeMapSystem.currentDepthIndex + 1;
+        final nextDepth = gameState.nodeMapSystem.getDepthAt(nextDepthIndex);
+        nextNodes = nextDepth?.nodeChoices ?? <MapNode>[];
+      } else {
+        // We are between nodes, current level choices are for the upcoming rooms
+        nextNodes =
+            gameState.nodeMapSystem.currentDepthLevel?.nodeChoices ??
+            <MapNode>[];
+      }
 
       // Determine room title based on node type
       String roomTitle;
@@ -699,7 +711,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
                   direction: directions[e.key % directions.length],
                   // Use e.key (choice index) so selectNodeChoice works
                   destinationId: 'choice_${e.key}',
-                  destinationType: e.value.type.name,
+                  destinationType: e.value.type.toString().split('.').last,
                   state: DoorState.available,
                   label: e.value.type.displayName,
                 );

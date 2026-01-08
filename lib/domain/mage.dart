@@ -238,11 +238,11 @@ class Mage {
     return null;
   }
 
-  bool upgradeSpell(int index) {
+  bool upgradeSpell(int index, [String? upgradePath]) {
     if (index >= 0 && index < spellLoadout.length) {
       final spell = spellLoadout[index];
       if (spell.starLevel < 3) {
-        spellLoadout[index] = spell.upgrade();
+        spellLoadout[index] = spell.upgrade(upgradePath);
         return true;
       }
     }

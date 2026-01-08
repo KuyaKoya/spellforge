@@ -351,6 +351,15 @@ class GameState {
   /// Selects a node from the available choices.
   void selectNodeChoice(int choiceIndex) {
     print('DEBUG: selectNodeChoice($choiceIndex)');
+
+    // Phase 7.9: Finalize previous node if needed
+    // If we were sitting in a finished interaction, we need to advance now.
+    if (nodeMapSystem.currentNode != null) {
+      nodeMapSystem.completeCurrentNode();
+      progression.advanceNode();
+      tickTemporaryBuffs();
+    }
+
     final depthLevel = nodeMapSystem.currentDepthLevel;
     if (depthLevel == null) {
       print('DEBUG: Depth level is null');
@@ -573,13 +582,14 @@ class GameState {
   }
 
   /// Completes the current node and advances.
+  /// Used for combat nodes where the result forces advancement.
   void completeNode() {
     nodeMapSystem.completeCurrentNode();
     progression.advanceNode();
     tickTemporaryBuffs();
 
-    // Reset interaction state
-    nodeInteractionCompleted = false;
+    // Reset interaction state to true so doors are visible
+    nodeInteractionCompleted = true;
 
     // Clear combat state
     currentCombat = null;
@@ -598,6 +608,16 @@ class GameState {
       // Phase 7.9.3: Save after completing node interaction
       triggerSavePoint();
     }
+  }
+
+  /// Marks the current node interaction as finished but remains in the node.
+  /// Used for non-combat nodes (Shrine, Shop) to preserve room context.
+  void finishNodeInteraction() {
+    nodeInteractionCompleted = true;
+    currentScreen = GameScreen.exploration;
+
+    // Save state (interaction done)
+    triggerSavePoint();
   }
 
   /// Ends the current run.

@@ -113,21 +113,111 @@ class Spell {
     return '🎯 Single Target';
   }
 
-  /// Creates an upgraded version of this spell.
-  Spell upgrade() {
+  /// Gets available upgrade paths for this spell.
+  List<String> getAvailableUpgradePaths() {
+    final paths = <String>[];
+
+    // Check for damage (any effect with type damage)
+    if (effects.any((e) => e.type == EffectType.damage)) {
+      paths.add('damage');
+    }
+
+    // Check for enhanceable non-damage effects
+    for (int i = 0; i < effects.length; i++) {
+      if (effects[i].type != EffectType.damage) {
+        paths.add('effect_$i');
+      }
+    }
+
+    // Fallback: if no paths found (e.g. empty effects?), default to damage
+    if (paths.isEmpty) paths.add('damage');
+
+    return paths;
+  }
+
+  /// Creates an upgraded version of this spell with a specific upgrade focus.
+  /// [upgradePath] determines which aspect to enhance (e.g. 'damage', 'effect_0').
+  /// If provided, only that aspect is upgraded. If null, upgrades everything (legacy behavior).
+  Spell upgrade([String? upgradePath]) {
     if (starLevel >= 3) {
       return this; // Already at max
     }
 
-    // Scale effects based on star level
-    final scaledEffects = effects.map((e) {
-      if (e.type == EffectType.damage) {
-        return e.copyWith(value: (e.value * 1.25).round());
-      } else if (e.isStatusEffect) {
-        return e.copyWith(duration: e.duration + 1);
+    // specific upgrade logic
+    List<Effect> scaledEffects = List.from(effects);
+
+    if (upgradePath != null) {
+      // 1. Target specific upgrade
+      if (upgradePath == 'damage') {
+        scaledEffects = effects.map((e) {
+          if (e.type == EffectType.damage) {
+            return e.copyWith(value: (e.value * 1.25).round());
+          }
+          return e;
+        }).toList();
+      } else if (upgradePath.startsWith('effect_')) {
+        final index = int.parse(upgradePath.split('_')[1]);
+        if (index >= 0 && index < effects.length) {
+          final targetEffect = effects[index];
+
+          Effect upgradedEffect = targetEffect;
+
+          // Enhance effect based on type
+          if (targetEffect.isStatusEffect) {
+            // Increase duration AND potency
+            int newValue = targetEffect.value;
+            if (newValue > 0) {
+              newValue = (newValue * 1.25).round();
+              if (newValue == targetEffect.value) newValue++;
+            }
+
+            upgradedEffect = targetEffect.copyWith(
+              duration: targetEffect.duration + 1,
+              value: newValue,
+            );
+          } else if (targetEffect.type == EffectType.armor ||
+              targetEffect.type == EffectType.actionGain) {
+            int newValue = (targetEffect.value * 1.25).round();
+            if (newValue == targetEffect.value) newValue++;
+
+            upgradedEffect = targetEffect.copyWith(value: newValue);
+          }
+
+          scaledEffects[index] = upgradedEffect;
+        }
       }
-      return e;
-    }).toList();
+    } else {
+      // Legacy: Upgrade everything (if no path specified)
+      scaledEffects = effects.map((e) {
+        if (e.type == EffectType.damage) {
+          return e.copyWith(value: (e.value * 1.25).round());
+        } else if (e.isStatusEffect || e.type == EffectType.armor) {
+          int newValue = (e.value * 1.25).round();
+          if (newValue == e.value) newValue++;
+
+          return e.copyWith(
+            value: newValue,
+            duration: e.isStatusEffect ? e.duration + 1 : e.duration,
+          );
+        }
+        return e;
+      }).toList();
+    }
+
+    // Mana Cost Increase based on Rarity
+    int additionalMana = 1;
+    switch (rarity) {
+      case SpellRarity.common:
+      case SpellRarity.uncommon:
+        additionalMana = 1;
+        break;
+      case SpellRarity.rare:
+        additionalMana = 2;
+        break;
+      case SpellRarity.signature:
+        additionalMana = 3;
+        break;
+    }
 
     return Spell(
       id: id,
@@ -137,7 +227,7 @@ class Spell {
       starLevel: starLevel + 1,
       baseDescription: baseDescription,
       effects: scaledEffects,
-      manaCost: manaCost,
+      manaCost: manaCost + additionalMana,
       allowedUpgrades: allowedUpgrades,
     );
   }

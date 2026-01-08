@@ -40,7 +40,7 @@ class GameLoop {
 
   /// Explicitly leave the current node (after interaction is done).
   void leaveCurrentNode() {
-    state.completeNode();
+    state.finishNodeInteraction();
   }
 
   // ==================== COMBAT ACTIONS ====================
@@ -378,16 +378,15 @@ class GameLoop {
   /// Skips spell learning.
   void skipSpellLearn() {
     if (state.currentScreen != GameScreen.spellLearn) return;
-    state.completeNode();
+    state.finishNodeInteraction();
   }
 
   // ==================== ENHANCEMENT ACTIONS ====================
 
   /// Upgrades a spell at the enhancement shrine.
-  Future<bool> upgradeSpell(int loadoutIndex) async {
+  /// Players can upgrade multiple spells as long as they have enough fragments.
+  Future<bool> upgradeSpell(int loadoutIndex, [String? upgradePath]) async {
     if (state.currentScreen != GameScreen.enhancementShrine) return false;
-    // Don't allow multiple upgrades
-    if (state.nodeInteractionCompleted) return false;
     if (state.mage == null) return false;
     if (loadoutIndex < 0 || loadoutIndex >= state.mage!.spellLoadout.length) {
       return false;
@@ -404,11 +403,11 @@ class GameLoop {
     }
 
     await state.progression.spendFragments(cost);
-    state.mage!.upgradeSpell(loadoutIndex);
+    state.mage!.upgradeSpell(loadoutIndex, upgradePath);
     state.spellsUpgraded++;
 
-    final upgraded = state.mage!.spellLoadout[loadoutIndex];
-    // Mark as completed but don't leave yet
+    // Mark that at least one upgrade occurred (for tracking purposes)
+    // but allow additional upgrades as long as fragments permit
     state.nodeInteractionCompleted = true;
     return true;
   }
@@ -416,7 +415,7 @@ class GameLoop {
   /// Skips enhancement.
   void skipEnhancement() {
     if (state.currentScreen != GameScreen.enhancementShrine) return;
-    state.completeNode();
+    state.finishNodeInteraction();
   }
 
   // ==================== SHOP ACTIONS ====================
@@ -486,7 +485,7 @@ class GameLoop {
   /// Leaves the shop.
   void leaveShop() {
     if (state.currentScreen != GameScreen.shop) return;
-    state.completeNode();
+    state.finishNodeInteraction();
   }
 
   // ==================== REST ACTIONS ====================
@@ -547,7 +546,7 @@ class GameLoop {
   /// Skips resting.
   void skipRest() {
     if (state.currentScreen != GameScreen.rest) return;
-    state.completeNode();
+    state.finishNodeInteraction();
   }
 
   // ==================== RANDOM EVENT ACTIONS ====================

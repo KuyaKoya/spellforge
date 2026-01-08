@@ -134,9 +134,9 @@ class _PlayerStatusCompact extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(width: 8),
-              if (temporaryBuffs != null) ..._buildBuffIcons(),
+
               const Spacer(),
+
               // Stats
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -163,6 +163,10 @@ class _PlayerStatusCompact extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+
+          // Buffs
+          if (temporaryBuffs != null) ..._buildBuffIcons(),
+          const SizedBox(height: 8),
 
           // Row 2: Bars
           Row(
