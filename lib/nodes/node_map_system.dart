@@ -62,24 +62,28 @@ class NodeMapSystem {
   /// Generates a new run with strategic node placement.
   /// Implements Phase 7.6: Pre-elite and pre-boss path safety.
   ///
-  /// [maxDepth] - Number of depths to generate (default: 10)
-  void generateRun({int maxDepth = defaultMaxDepth}) {
+  /// [overrideMaxDepth] - Optional specific depth. If null, randomizes between 10-15.
+  void generateRun({int? overrideMaxDepth}) {
     _depths.clear();
     _currentDepth = 0;
     _nodeSelector.reset();
+
+    // Determine total depths for this run
+    // If no override, pick random between 10 and 15 (inclusive)
+    final int runDepth = overrideMaxDepth ?? (10 + _random.nextInt(6));
 
     // ========== PHASE 7.6: TWO-PASS GENERATION ==========
     // Pass 1: Pre-plan where elites will appear
     // Pass 2: Generate nodes with path safety context
 
     // Pre-determine elite positions (roughy every 3-4 depths after depth 4)
-    final eliteDepths = _planEliteDepths(maxDepth);
+    final eliteDepths = _planEliteDepths(runDepth);
 
-    for (int d = 0; d < maxDepth; d++) {
+    for (int d = 0; d < runDepth; d++) {
       // Set path safety context for this depth
-      final isPreBoss = d == maxDepth - 2; // Depth before boss
+      final isPreBoss = d == runDepth - 2; // Depth before boss
       final nextDepthHasElite = eliteDepths.contains(d + 1);
-      final nextDepthIsBoss = d == maxDepth - 2;
+      final nextDepthIsBoss = d == runDepth - 2;
 
       _nodeSelector.setPathSafetyContext(
         nextDepthHasEliteOrBoss: nextDepthHasElite || nextDepthIsBoss,
@@ -88,7 +92,7 @@ class NodeMapSystem {
 
       final nodeChoices = _generateNodesForDepth(
         d,
-        maxDepth,
+        runDepth,
         forceElite: eliteDepths.contains(d),
         isPreBoss: isPreBoss,
       );

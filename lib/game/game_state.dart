@@ -146,7 +146,7 @@ class GameState {
     nodeInteractionCompleted = false;
 
     // Generate the run with the new node map system
-    nodeMapSystem.generateRun(maxDepth: 10);
+    nodeMapSystem.generateRun();
     progression.startNewRun();
     director.initialize(
       seed: DateTime.now().millisecondsSinceEpoch,
@@ -232,7 +232,7 @@ class GameState {
     isEliteCombat = false;
     nodeInteractionCompleted = false;
 
-    nodeMapSystem.generateRun(maxDepth: 10);
+    nodeMapSystem.generateRun();
     progression.startNewRun();
     director.initialize(
       seed: DateTime.now().millisecondsSinceEpoch,
@@ -738,6 +738,7 @@ class GameState {
       fragmentsEarnedThisRun: progression.runFragments,
       crystalsEarnedThisRun: progression.runCrystals,
       rngSeed: DateTime.now().millisecondsSinceEpoch,
+      totalRunDepth: nodeMapSystem.totalDepths,
       shownEliteDialogues: _shownEliteDialogues.toList(),
       // Director state
       directorPressureState: director.currentState.pressureState.name,
@@ -817,7 +818,7 @@ class GameState {
       _shownEliteDialogues.addAll(saveData.shownEliteDialogues);
 
       // Restore node map state
-      nodeMapSystem.generateRun(maxDepth: 10);
+      nodeMapSystem.generateRun(overrideMaxDepth: saveData.totalRunDepth);
       nodeMapSystem.restoreToNode(saveData.currentNodeIndex);
 
       // Initialize director with restored state

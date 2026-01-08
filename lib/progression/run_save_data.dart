@@ -75,6 +75,9 @@ class RunSaveData {
   /// RNG seed for deterministic randomness.
   final int rngSeed;
 
+  /// Total depths in the run (variable room length support).
+  final int totalRunDepth;
+
   /// Elites whose dialogue has been shown.
   final List<String> shownEliteDialogues;
 
@@ -124,6 +127,7 @@ class RunSaveData {
     required this.fragmentsEarnedThisRun,
     required this.crystalsEarnedThisRun,
     required this.rngSeed,
+    this.totalRunDepth = 10,
     required this.shownEliteDialogues,
     required this.directorPressureState,
     required this.directorTurnsSinceStateChange,
@@ -161,6 +165,7 @@ class RunSaveData {
     'fragmentsEarnedThisRun': fragmentsEarnedThisRun,
     'crystalsEarnedThisRun': crystalsEarnedThisRun,
     'rngSeed': rngSeed,
+    'totalRunDepth': totalRunDepth,
     'shownEliteDialogues': shownEliteDialogues,
     // Director state
     'directorPressureState': directorPressureState,
@@ -205,6 +210,7 @@ class RunSaveData {
       fragmentsEarnedThisRun: json['fragmentsEarnedThisRun'] as int,
       crystalsEarnedThisRun: json['crystalsEarnedThisRun'] as int,
       rngSeed: json['rngSeed'] as int,
+      totalRunDepth: json['totalRunDepth'] as int? ?? 10,
       shownEliteDialogues: (json['shownEliteDialogues'] as List).cast<String>(),
       // Director state
       directorPressureState: json['directorPressureState'] as String,
