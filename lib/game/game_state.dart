@@ -191,16 +191,15 @@ class GameState {
       // Import is already there via progression_system.dart
       final hpMultiplier = _getMaxHPMultiplier(modifiers);
       if (hpMultiplier != 1.0) {
-        final originalMaxHP = mage!.maxHP;
-        mage!.maxHP = (mage!.maxHP * hpMultiplier).round();
+        // Phase 7.9.4: Use skill tree bonus instead of direct setter
+        final hpChange = (mage!.baseHP * (hpMultiplier - 1.0)).round();
+        mage!.skillTreeHPBonus += hpChange;
         mage!.currentHP = mage!.maxHP; // Start at full HP
-        // Log adjustment (negative values are tradeoffs)
-        if (hpMultiplier < 1.0) {
-          final reduction = originalMaxHP - mage!.maxHP;
-          print('Phase 7.8: Max HP reduced by $reduction (tradeoff)');
+        // Log adjustment
+        if (hpChange < 0) {
+          print('Phase 7.8: Max HP reduced by ${-hpChange} (tradeoff)');
         } else {
-          final bonus = mage!.maxHP - originalMaxHP;
-          print('Phase 7.8: Max HP increased by $bonus (bonus)');
+          print('Phase 7.8: Max HP increased by $hpChange (bonus)');
         }
       }
     }
@@ -750,11 +749,12 @@ class GameState {
 
       // Restore mage state
       mage!.currentHP = saveData.playerHP;
-      mage!.maxHP = saveData.playerMaxHP;
-      mage!.mana = saveData.playerMana;
-      mage!.maxMana = saveData.playerMaxMana;
+      // Phase 7.9.4: Restore level and rebuild stats from growth table
       mage!.level = saveData.playerLevel;
       mage!.currentExp = saveData.playerExp;
+      mage!
+          .rebuildLevelStats(); // Rebuild levelHP/levelMana/etc from level + element
+      mage!.mana = saveData.playerMana;
       mage!.actionsPerTurn = 1 + saveData.extraActionsPerTurn;
 
       // Restore spells

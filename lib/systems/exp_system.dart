@@ -1,81 +1,51 @@
-import 'dart:math';
+import '../data/elemental_growth.dart';
 
-/// Phase 7.9: Experience (EXP) System
+/// Phase 7.9.4: Experience (EXP) System
 ///
 /// Design Goals:
 /// - Preserve Pokémon-style clarity with predictable stat growth
 /// - Prevent long-term snowballing through meta-difficulty scaling
 /// - Keep Act 1 beatable at low meta power but tense at high meta power
 ///
-/// Target Level Curve for Act 1:
-/// - Depth 1: Level 1
-/// - Depth 3: Level 2
-/// - Depth 5: Level 3
-/// - Depth 7: Level 4
-/// - Depth 9: Level 5
-/// - Boss: Level 6-7
+/// Phase 7.9.4: EXP thresholds are now EXPLICIT (see ElementalGrowth).
+/// No procedural formula - all values defined in growth tables.
 class ExpSystem {
   ExpSystem._();
 
   // ==================== CONSTANTS ====================
 
   /// Base EXP values by enemy type.
-  static const int normalEnemyBaseExp = 8;
-  static const int eliteEnemyBaseExp = 24;
-  static const int bossEnemyBaseExp = 90;
+  static const int normalEnemyBaseExp = 25;
+  static const int eliteEnemyBaseExp = 75;
+  static const int bossEnemyBaseExp = 250;
 
   /// Enemy tier multipliers.
   static const double normalTierMultiplier = 1.0;
   static const double eliteTierMultiplier = 1.4;
   static const double bossTierMultiplier = 2.0;
 
-  /// Depth multiplier coefficient (conservative to prevent depth abuse).
-  static const double depthMultiplierCoefficient = 0.06;
+  /// Depth multiplier coefficient (increased to accelerate progression).
+  static const double depthMultiplierCoefficient = 0.2;
 
   /// Maximum level allowed.
-  static const int maxLevel = 10;
+  static int get maxLevel => ElementalGrowth.maxLevel;
 
   // ==================== EXP FORMULAS ====================
 
-  /// Calculates EXP required to reach the next level.
-  ///
-  /// Formula: EXP_TO_NEXT = 40 × Level^1.35
-  ///
-  /// This curve ensures:
-  /// - Levels 1-3: Very fast progression
-  /// - Levels 4-6: Moderate progression
-  /// - Levels 7+: Slower progression to prevent overleveling before boss
+  /// Phase 7.9.4: Uses EXPLICIT thresholds from ElementalGrowth.
+  /// No procedural formula - values are immutable and explicitly defined.
   static int expToNextLevel(int level) {
-    if (level >= maxLevel) return 0; // Max level reached
-    if (level < 1) return 40; // Fallback
-
-    return (40 * pow(level, 1.35)).round();
+    return ElementalGrowth.expToNextLevel(level);
   }
 
   /// Gets the total EXP required to reach a specific level from level 1.
   static int totalExpForLevel(int targetLevel) {
-    if (targetLevel <= 1) return 0;
-
-    int total = 0;
-    for (int lvl = 1; lvl < targetLevel; lvl++) {
-      total += expToNextLevel(lvl);
-    }
-    return total;
+    return ElementalGrowth.totalExpForLevel(targetLevel);
   }
 
   /// Calculates the level for a given total EXP amount.
   static int levelForTotalExp(int totalExp) {
-    int level = 1;
-    int expAccum = 0;
-
-    while (level < maxLevel) {
-      final needed = expToNextLevel(level);
-      if (expAccum + needed > totalExp) break;
-      expAccum += needed;
-      level++;
-    }
-
-    return level;
+    return ElementalGrowth.levelForTotalExp(totalExp);
   }
 
   /// Gets progress to next level as a percentage (0.0 to 1.0).

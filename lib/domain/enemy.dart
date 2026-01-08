@@ -1,15 +1,14 @@
+import 'dart:math';
 import 'effect.dart';
 import 'element.dart';
 
-/// Enemy intent types - simple enum as per specification.
+/// Enemy intent types.
 enum EnemyIntent {
   attack,
   defend,
   debuff;
 
-  String get displayName {
-    return name[0].toUpperCase() + name.substring(1);
-  }
+  String get displayName => name[0].toUpperCase() + name.substring(1);
 
   String get description {
     switch (this) {
@@ -22,11 +21,6 @@ enum EnemyIntent {
     }
   }
 
-  /// Phase 7 - A2.3: Vague Enemy Intent
-  ///
-  /// Returns a vague description of the intent category.
-  /// Purpose: Strategic planning without revealing exact moves.
-  /// Avoids pure RNG frustration while maintaining mystery.
   String get vagueDescription {
     switch (this) {
       case EnemyIntent.attack:
@@ -38,7 +32,6 @@ enum EnemyIntent {
     }
   }
 
-  /// Icon representing the vague intent.
   String get vagueIcon {
     switch (this) {
       case EnemyIntent.attack:
@@ -51,14 +44,20 @@ enum EnemyIntent {
   }
 }
 
-/// Represents an enemy in combat.
-/// Enemies act once per turn and do not upgrade.
+/// Phase 7.9.4: Enemy with Attack/Defense/Speed stats.
 class Enemy {
   final String id;
   final String name;
   final Element element;
   int currentHP;
   final int maxHP;
+
+  /// Phase 7.9.4: Combat stats
+  final int attack; // Bonus damage on attacks
+  final int defense; // Damage reduction
+  final int speed; // Turn order determination
+
+  /// Legacy field for backwards compatibility
   final int attackDamage;
   final int armorGain;
   EnemyIntent intent;
@@ -72,42 +71,37 @@ class Enemy {
     required this.currentHP,
     required this.maxHP,
     required this.attackDamage,
+    this.attack = 5,
+    this.defense = 3,
+    this.speed = 4,
     this.armorGain = 5,
     this.intent = EnemyIntent.attack,
     List<ActiveStatusEffect>? statusEffects,
     this.isDelayed = false,
   }) : statusEffects = statusEffects ?? [];
 
-  /// Whether the enemy is alive.
   bool get isAlive => currentHP > 0;
-
-  /// HP display string.
   String get hpDisplay => '$currentHP/$maxHP HP';
+  String get statsDisplay => 'ATK:$attack DEF:$defense SPD:$speed';
 
-  /// Full status display.
   String get statusDisplay {
     final parts = <String>[
       '$name [${element.displayName}]',
       hpDisplay,
       'Intent: ${intent.displayName}',
     ];
-
     if (statusEffects.isNotEmpty) {
       parts.add(
         'Effects: ${statusEffects.map((e) => e.displayText).join(', ')}',
       );
     }
-
     if (isDelayed) {
       parts.add('(Delayed)');
     }
-
     return parts.join(' | ');
   }
 
-  /// Takes damage, returning actual damage taken.
   int takeDamage(int damage) {
-    // Check for armor
     int remainingDamage = damage;
     final armorEffects = statusEffects
         .where((e) => e.type == EffectType.armor)
@@ -115,22 +109,12 @@ class Enemy {
 
     for (final armor in armorEffects) {
       if (remainingDamage <= 0) break;
-
-      // Calculate how much this armor stack can absorb
       final absorbed = remainingDamage.clamp(0, armor.value);
-
-      // Reduce armor value
       armor.value -= absorbed;
-
-      // Reduce remaining damage
       remainingDamage -= absorbed;
-
-      // If armor is fully depleted, remove it
       if (armor.value <= 0) {
         statusEffects.remove(armor);
       }
-
-      // Note: Do not decrement duration here
     }
 
     final actualDamage = remainingDamage.clamp(0, currentHP);
@@ -138,15 +122,12 @@ class Enemy {
     return actualDamage;
   }
 
-  /// Applies a status effect.
   void applyStatusEffect(Effect effect) {
     if (!effect.isStatusEffect) return;
-
     if (effect.type == EffectType.delay) {
       isDelayed = true;
       return;
     }
-
     statusEffects.add(
       ActiveStatusEffect(
         type: effect.type,
@@ -156,10 +137,8 @@ class Enemy {
     );
   }
 
-  /// Processes status effects at turn boundary. Returns log messages.
   List<String> processStatusEffects() {
     final logs = <String>[];
-
     for (final effect in List.from(statusEffects)) {
       switch (effect.type) {
         case EffectType.burn:
@@ -169,25 +148,19 @@ class Enemy {
         default:
           break;
       }
-
       if (!effect.tick()) {
         statusEffects.remove(effect);
         logs.add('${effect.type.displayName} wore off from $name');
       }
     }
-
-    // Reset delay
     if (isDelayed) {
       isDelayed = false;
       logs.add('$name is no longer delayed');
     }
-
     return logs;
   }
 
-  /// Chooses next intent (simple rotation for prototype).
   void chooseNextIntent() {
-    // Simple pattern: mostly attack, sometimes defend or debuff
     final roll = DateTime.now().millisecondsSinceEpoch % 10;
     if (roll < 6) {
       intent = EnemyIntent.attack;
@@ -198,9 +171,10 @@ class Enemy {
     }
   }
 
-  /// Gets the damage output (affected by weaken).
+  /// Phase 7.9.4: Effective damage includes attack stat bonus.
   int getEffectiveDamage() {
-    int damage = attackDamage;
+    // Base damage from attackDamage + attack stat bonus
+    int damage = attackDamage + (attack * 0.5).round();
 
     for (final effect in statusEffects) {
       if (effect.type == EffectType.weaken) {
@@ -208,10 +182,9 @@ class Enemy {
       }
     }
 
-    return damage.clamp(0, 999);
+    return max(1, damage);
   }
 
-  /// Creates a copy of this enemy.
   Enemy copy() {
     return Enemy(
       id: id,
@@ -220,12 +193,14 @@ class Enemy {
       currentHP: currentHP,
       maxHP: maxHP,
       attackDamage: attackDamage,
+      attack: attack,
+      defense: defense,
+      speed: speed,
       armorGain: armorGain,
       intent: intent,
     );
   }
 
-  /// Converts to JSON for save/load serialization.
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -233,6 +208,9 @@ class Enemy {
     'currentHP': currentHP,
     'maxHP': maxHP,
     'attackDamage': attackDamage,
+    'attack': attack,
+    'defense': defense,
+    'speed': speed,
     'armorGain': armorGain,
     'intent': intent.name,
     'statusEffects': statusEffects
@@ -247,7 +225,6 @@ class Enemy {
     'isDelayed': isDelayed,
   };
 
-  /// Creates from JSON for save/load serialization.
   factory Enemy.fromJson(Map<String, dynamic> json) {
     return Enemy(
       id: json['id'] as String,
@@ -256,6 +233,9 @@ class Enemy {
       currentHP: json['currentHP'] as int,
       maxHP: json['maxHP'] as int,
       attackDamage: json['attackDamage'] as int,
+      attack: json['attack'] as int? ?? 5,
+      defense: json['defense'] as int? ?? 3,
+      speed: json['speed'] as int? ?? 4,
       armorGain: json['armorGain'] as int? ?? 5,
       intent: EnemyIntent.values.firstWhere((i) => i.name == json['intent']),
       statusEffects:

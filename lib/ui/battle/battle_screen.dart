@@ -13,6 +13,8 @@ import '../../domain/spell.dart';
 import '../../domain/effect.dart';
 import '../../narrative/journey_log.dart';
 import '../../nodes/node_map_system.dart';
+import '../../systems/node_resolver.dart';
+import '../../systems/exp_system.dart';
 import '../components/components.dart';
 import 'battle_scene.dart';
 import 'status_bars.dart';
@@ -120,6 +122,11 @@ class _BattleScreenState extends State<BattleScreen> {
   // Action sequence ID - incremented when a new action starts.
   // Pending events check this to see if they should still execute.
   int _actionSequenceId = 0;
+
+  // EXP Animation State
+  int? _animCurrentExp;
+  int? _animMaxExp;
+  int? _animLevel;
 
   @override
   void initState() {
@@ -601,22 +608,120 @@ class _BattleScreenState extends State<BattleScreen> {
         AudioManager.instance.playBattleWin();
         _setDialogText('You won the battle!');
         _logCombat(CombatLogBuilder.system('VICTORY'));
+
+        // Trigger EXP Animation
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) _triggerExpAnimation();
+        });
       } else {
         // Play defeat sound (if not already played by enemy action)
         AudioManager.instance.playPlayerDefeat();
         _setDialogText('${widget.mage.name} was defeated...');
         _logCombat(CombatLogBuilder.system('DEFEAT'));
-      }
 
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) {
-          widget.onCombatEnd?.call();
-        }
-      });
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            widget.onCombatEnd?.call();
+          }
+        });
+      }
       return true;
     }
     return false;
   }
+
+  Future<void> _triggerExpAnimation() async {
+    // Calculate EXP gain
+    // Assuming all enemies defeated on victory
+    // Check if Elite or Boss is present in original list
+    final isElite = widget.enemies.any((e) => e is EliteEnemy);
+    final isBoss = widget.enemies.any((e) => e is BossEnemy);
+
+    final rewards = NodeResolver.calculateCombatReward(
+      depth: widget.currentDepth,
+      enemiesDefeated: widget.enemies.length,
+      isElite: isElite,
+      isBoss: isBoss,
+    );
+
+    final expGain = rewards['experience'] ?? 0;
+    if (expGain <= 0) {
+      widget.onCombatEnd?.call();
+      return;
+    }
+
+    _setDialogText('Gained $expGain EXP!');
+    final sfxHandle = await AudioManager.instance.playSfxWithControl(
+      AudioManager.sfxExpGain,
+    );
+
+    // Initial state
+    int startTotalExp =
+        ExpSystem.totalExpForLevel(widget.mage.level) + widget.mage.currentExp;
+    int targetTotalExp = startTotalExp + expGain;
+
+    // Animation loop (1.5 seconds)
+    final steps = 30;
+    final duration = const Duration(milliseconds: 1500);
+    final stepTime = duration.inMilliseconds ~/ steps;
+
+    for (int i = 1; i <= steps; i++) {
+      if (!mounted) {
+        if (sfxHandle != null) {
+          AudioManager.instance.stopSfx(sfxHandle);
+        }
+        return;
+      }
+
+      final progress = i / steps;
+      final currentTotal = (startTotalExp + (expGain * progress)).toInt().clamp(
+        startTotalExp,
+        targetTotalExp,
+      );
+
+      // Resolve level and relative EXP
+      final vLevel = ExpSystem.levelForTotalExp(currentTotal);
+      final vLevelStartExp = ExpSystem.totalExpForLevel(vLevel);
+      final vCurrentExp = currentTotal - vLevelStartExp;
+      final vMaxExp = ExpSystem.expToNextLevel(vLevel);
+
+      setState(() {
+        _animLevel = vLevel;
+        _animCurrentExp = vCurrentExp;
+        _animMaxExp = vMaxExp > 0 ? vMaxExp : 1;
+      });
+
+      await Future.delayed(Duration(milliseconds: stepTime));
+    }
+
+    if (sfxHandle != null) {
+      await AudioManager.instance.stopSfx(sfxHandle);
+    }
+
+    // Ensure final state
+    setState(() {
+      final vLevel = ExpSystem.levelForTotalExp(targetTotalExp);
+      final vLevelStartExp = ExpSystem.totalExpForLevel(vLevel);
+      _animLevel = vLevel;
+      _animCurrentExp = targetTotalExp - vLevelStartExp;
+      final max = ExpSystem.expToNextLevel(vLevel);
+      _animMaxExp = max > 0 ? max : 1;
+    });
+
+    if (_animLevel! > widget.mage.level) {
+      _setDialogText('Level Up! (${widget.mage.level} \u2192 $_animLevel)');
+      AudioManager.instance.playLevelUp();
+      await Future.delayed(const Duration(seconds: 2));
+    } else {
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    widget.onCombatEnd?.call();
+  }
+
+  // Helper just in case imports are missing (ExpSystem is likely needed)
+  // Ensure "import '../../systems/exp_system.dart';" is present.
+  // It is likely already there or needs adding.
 
   void _logCombat(CombatLogEntry entry) {
     setState(() {
@@ -676,6 +781,9 @@ class _BattleScreenState extends State<BattleScreen> {
                   child: PokemonPlayerStatusPanel(
                     mage: widget.mage,
                     temporaryBuffs: widget.temporaryBuffs,
+                    currentExpOverride: _animCurrentExp,
+                    maxExpOverride: _animMaxExp,
+                    levelOverride: _animLevel,
                   ),
                 ),
 

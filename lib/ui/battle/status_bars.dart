@@ -293,15 +293,29 @@ class _PokemonEnemyCard extends StatelessWidget {
 class PokemonPlayerStatusPanel extends StatelessWidget {
   final Mage mage;
   final List<TemporaryBuff>? temporaryBuffs;
+  final int? currentExpOverride;
+  final int? maxExpOverride;
+  final int? levelOverride;
 
   const PokemonPlayerStatusPanel({
     super.key,
     required this.mage,
     this.temporaryBuffs,
+    this.currentExpOverride,
+    this.maxExpOverride,
+    this.levelOverride,
   });
 
   @override
   Widget build(BuildContext context) {
+    final currentExp = currentExpOverride ?? mage.currentExp;
+    final maxExp =
+        maxExpOverride ?? (mage.expToNextLevel > 0 ? mage.expToNextLevel : 1);
+    final level = levelOverride ?? mage.level;
+    // If override is provided, calculate percent from it. Otherwise use mage.expProgress if available, or calculate.
+    // Since we have local variables now, just calculate.
+    final expPercent = (currentExp / maxExp).clamp(0.0, 1.0);
+
     final hpPercent = (mage.currentHP / mage.maxHP).clamp(0.0, 1.0);
     final mpPercent = (mage.mana / mage.maxMana).clamp(0.0, 1.0);
     final isLowHP = hpPercent < 0.25;
@@ -405,12 +419,28 @@ class PokemonPlayerStatusPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
 
-                  // Level
+                  // EXP bar
+                  _buildStatBar(
+                    label: 'EXP',
+                    labelColor: const Color(0xFFf8d030),
+                    percent: expPercent,
+                    gradientColors: [
+                      const Color(0xFFF8E858),
+                      const Color(0xFFF8D030),
+                    ],
+                    height: 4,
+                    showValue: true,
+                    value:
+                        '$currentExp/${maxExp == 1 && mage.expToNextLevel <= 0 ? "MAX" : maxExp}',
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Level and stats
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Lv${_getLevel()}',
+                        'Lv$level',
                         style: const TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 9,
@@ -418,15 +448,24 @@ class PokemonPlayerStatusPanel extends StatelessWidget {
                           color: Color(0xFF484848),
                         ),
                       ),
-                      // Buff/debuff icons
+                      // ATK/DEF/SPD
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          ..._buildBuffIcons(),
-                          ..._buildStatusIcons(),
+                          _buildStatChip('⚔️', mage.attack),
+                          const SizedBox(width: 2),
+                          _buildStatChip('🛡️', mage.defense),
+                          const SizedBox(width: 2),
+                          _buildStatChip('💨', mage.speed),
                         ],
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Buff/debuff icons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [..._buildBuffIcons(), ..._buildStatusIcons()],
                   ),
                 ],
               ),
@@ -527,8 +566,25 @@ class PokemonPlayerStatusPanel extends StatelessWidget {
     }
   }
 
-  int _getLevel() {
-    return (mage.maxHP ~/ 5).clamp(1, 99);
+  Widget _buildStatChip(String icon, int value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 6)),
+          Text(
+            '$value',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 7,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF484848),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Color> _getHPGradientColors(double percent) {

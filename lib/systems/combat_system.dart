@@ -149,7 +149,16 @@ class CombatSystem {
   /// timing and avoid duplicate sounds.
   void startCombat() {
     currentTurn = 1;
-    phase = CombatPhase.playerTurn;
+
+    // Phase 7.9.4: Determine turn order based on Speed
+    final highestEnemySpeed = enemies.isEmpty
+        ? 0
+        : enemies.map((e) => e.speed).reduce((a, b) => a > b ? a : b);
+    if (mage.speed >= highestEnemySpeed) {
+      phase = CombatPhase.playerTurn;
+    } else {
+      phase = CombatPhase.enemyTurn;
+    }
 
     // NOTE: Battle start SFX was moved to caller (text_renderer.dart) to prevent
     // duplicate sound effects. The caller plays the sound BEFORE starting combat

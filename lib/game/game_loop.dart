@@ -156,17 +156,11 @@ class GameLoop {
     if (playerWon) {
       state.combatsWon++;
 
-      if (state.isEliteCombat) {
-        state.elitesDefeated++;
-        state.showEliteRewards();
-        return;
-      }
-
       // Award combat rewards
       final rewards = NodeResolver.calculateCombatReward(
         depth: state.currentDepth,
         enemiesDefeated: state.currentEnemies?.length ?? 1,
-        isElite: false,
+        isElite: state.isEliteCombat,
       );
 
       state.progression.addFragments(rewards['fragments']!);
@@ -184,6 +178,12 @@ class GameLoop {
         if (leveledUp) {
           AudioSystem.playLevelUp();
         }
+      }
+
+      if (state.isEliteCombat) {
+        state.elitesDefeated++;
+        state.showEliteRewards();
+        return;
       }
 
       if (NodeResolver.shouldDropSpellCrystal(state.currentDepth)) {
@@ -211,19 +211,11 @@ class GameLoop {
     if (result.playerWon) {
       state.combatsWon++;
 
-      // Check if this was an elite combat
-      if (state.isEliteCombat) {
-        state.elitesDefeated++;
-        // Show elite rewards
-        state.showEliteRewards();
-        return;
-      }
-
-      // Award combat rewards (fragments)
+      // Award combat rewards (fragments & EXP)
       final rewards = NodeResolver.calculateCombatReward(
         depth: state.currentDepth,
         enemiesDefeated: state.currentEnemies?.length ?? 1,
-        isElite: false,
+        isElite: state.isEliteCombat,
       );
 
       state.progression.addFragments(rewards['fragments']!);
@@ -238,12 +230,19 @@ class GameLoop {
           if (log.contains('LEVEL UP')) {
             leveledUp = true;
           }
-          // Could add logs to a UI queue here if needed
         }
 
         if (leveledUp) {
           AudioSystem.playLevelUp();
         }
+      }
+
+      // Check if this was an elite combat
+      if (state.isEliteCombat) {
+        state.elitesDefeated++;
+        // Show elite rewards
+        state.showEliteRewards();
+        return;
       }
 
       // Check for bonus spell crystal drop (after depth 4)

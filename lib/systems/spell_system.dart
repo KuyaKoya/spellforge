@@ -195,6 +195,12 @@ class SpellSystem {
           );
           final baseDamage = effect.value;
 
+          // Phase 7.9.4: Apply Attack bonus from caster
+          final attackBonus = (caster.attack * 0.5).round();
+
+          // Phase 7.9.4: Apply Defense reduction from target
+          final defenseReduction = (target.defense * 0.3).round();
+
           // Calculate weaken status on caster
           double weakenMultiplier = 1.0;
           for (final status in caster.statusEffects) {
@@ -213,14 +219,18 @@ class SpellSystem {
               (DateTime.now().millisecondsSinceEpoch % 100) < critChance;
           final critMultiplier = isCrit ? 1.5 : 1.0;
 
-          // Apply elemental multiplier, temporary buff multiplier, weaken, and crit
-          final finalDamage =
-              (baseDamage *
+          // Phase 7.9.4: Apply attack bonus, elemental multiplier, buff multiplier, weaken, crit, then defense reduction
+          final preMitigationDamage =
+              ((baseDamage + attackBonus) *
                       multiplier *
                       damageMultiplier *
                       weakenMultiplier *
                       critMultiplier)
                   .round();
+          final finalDamage = (preMitigationDamage - defenseReduction).clamp(
+            1,
+            9999,
+          );
 
           final initialArmor = target.statusEffects
               .where((e) => e.type == EffectType.armor)

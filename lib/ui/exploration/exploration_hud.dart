@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/mage.dart';
-import '../../domain/spell.dart';
 import '../../domain/element.dart' as game_element;
 import '../../systems/shop_system.dart';
-import '../components/spell_inspection_panel.dart';
 
 /// Minimal, icon-driven exploration HUD.
 ///
@@ -37,30 +35,26 @@ class ExplorationHUD extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Player status (left)
-          _PlayerStatusCompact(mage: mage, temporaryBuffs: temporaryBuffs),
-
-          const SizedBox(width: 16),
-
-          // Spell icons (center)
-          Expanded(
-            child: _SpellBar(
-              spells: mage.spellLoadout,
-              primaryElement: mage.primaryElement,
-              currentMana: mage.mana,
-              onSpellTap: onSpellTap,
-            ),
+      child: GestureDetector(
+        onTap: () => _showStatsOverlay(context),
+        child: SizedBox(
+          width: double.infinity,
+          child: _PlayerStatusCompact(
+            mage: mage,
+            temporaryBuffs: temporaryBuffs,
           ),
-
-          const SizedBox(width: 16),
-
-          // Director indicator (right)
-          _DirectorIndicator(isActive: directorActive),
-        ],
+        ),
       ),
+    );
+  }
+
+  void _showStatsOverlay(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) =>
+          _PlayerStatsOverlay(mage: mage, temporaryBuffs: temporaryBuffs),
     );
   }
 }
@@ -75,54 +69,133 @@ class _PlayerStatusCompact extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161b22).withValues(alpha: 0.9),
+        color: const Color(0xFF161b22).withValues(alpha: 0.95),
         border: Border.all(color: const Color(0xFF30363d)),
         borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Mage name and element
+          // Row 1: Identity & Stats
           Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _getElementIcon(mage.primaryElement),
-                style: const TextStyle(fontSize: 14),
+              // Identity
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _getElementIcon(mage.primaryElement),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    mage.name,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFc9d1d9),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Level badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFf8d030).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: const Color(0xFFf8d030).withValues(alpha: 0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      'Lv${mage.level}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFf8d030),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Text(
-                mage.name,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFc9d1d9),
-                ),
-              ),
+              const SizedBox(width: 8),
               if (temporaryBuffs != null) ..._buildBuffIcons(),
+              const Spacer(),
+              // Stats
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _StatChip(
+                    label: 'ATK',
+                    value: mage.attack,
+                    color: const Color(0xFFf85149),
+                  ),
+                  const SizedBox(width: 6),
+                  _StatChip(
+                    label: 'DEF',
+                    value: mage.defense,
+                    color: const Color(0xFF58a6ff),
+                  ),
+                  const SizedBox(width: 6),
+                  _StatChip(
+                    label: 'SPD',
+                    value: mage.speed,
+                    color: const Color(0xFF79c0ff),
+                  ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
-          // HP bar
-          _CompactBar(
-            label: 'HP',
-            current: mage.currentHP,
-            max: mage.maxHP,
-            color: const Color(0xFF3fb950),
+          // Row 2: Bars
+          Row(
+            children: [
+              // HP
+              Expanded(
+                child: _CompactBar(
+                  label: 'HP',
+                  current: mage.currentHP,
+                  max: mage.maxHP,
+                  color: const Color(0xFF3fb950),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // MP
+              Expanded(
+                child: _CompactBar(
+                  label: 'MP',
+                  current: mage.mana,
+                  max: mage.maxMana,
+                  color: const Color(0xFF58a6ff),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
 
-          // Mana bar
+          // Row 3: EXP (Full width)
           _CompactBar(
-            label: 'MP',
-            current: mage.mana,
-            max: mage.maxMana,
-            color: const Color(0xFF58a6ff),
+            label: 'EXP',
+            current: mage.currentExp,
+            max: mage.expToNextLevel > 0 ? mage.expToNextLevel : 1,
+            color: const Color(0xFFf8d030),
           ),
         ],
       ),
@@ -190,6 +263,55 @@ class _PlayerStatusCompact extends StatelessWidget {
   }
 }
 
+/// Stat chip for displaying ATK/DEF/SPD.
+class _StatChip extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 7,
+              fontWeight: FontWeight.bold,
+              color: color.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            '$value',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Compact stat bar.
 class _CompactBar extends StatelessWidget {
   final String label;
@@ -209,7 +331,6 @@ class _CompactBar extends StatelessWidget {
     final percent = max > 0 ? (current / max).clamp(0.0, 1.0) : 0.0;
 
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
           width: 24,
@@ -222,20 +343,21 @@ class _CompactBar extends StatelessWidget {
             ),
           ),
         ),
-        Container(
-          width: 60,
-          height: 6,
-          decoration: BoxDecoration(
-            color: const Color(0xFF21262d),
-            borderRadius: BorderRadius.circular(3),
-          ),
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: percent,
-            child: Container(
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(3),
+        Expanded(
+          child: Container(
+            height: 6,
+            decoration: BoxDecoration(
+              color: const Color(0xFF21262d),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: percent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
             ),
           ),
@@ -256,242 +378,299 @@ class _CompactBar extends StatelessWidget {
 }
 
 /// Spell bar showing 4 spell slots.
-class _SpellBar extends StatelessWidget {
-  final List<Spell> spells;
-  final game_element.Element primaryElement;
-  final int currentMana;
-  final void Function(int index)? onSpellTap;
+/// Overlay showing full player stats.
+class _PlayerStatsOverlay extends StatelessWidget {
+  final Mage mage;
+  final List<TemporaryBuff>? temporaryBuffs;
 
-  const _SpellBar({
-    required this.spells,
-    required this.primaryElement,
-    required this.currentMana,
-    this.onSpellTap,
-  });
+  const _PlayerStatsOverlay({required this.mage, this.temporaryBuffs});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF161b22).withValues(alpha: 0.9),
+        color: const Color(0xFF0d1117),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         border: Border.all(color: const Color(0xFF30363d)),
-        borderRadius: BorderRadius.circular(8),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (int i = 0; i < 4; i++) ...[
-              if (i > 0) const SizedBox(width: 4),
-              _SpellSlot(
-                spell: i < spells.length ? spells[i] : null,
-                slotIndex: i,
-                canCast: i < spells.length && currentMana >= spells[i].manaCost,
-                onTap: onSpellTap != null ? () => onSpellTap!(i) : null,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Individual spell slot.
-class _SpellSlot extends StatelessWidget {
-  final Spell? spell;
-  final int slotIndex;
-  final bool canCast;
-  final VoidCallback? onTap;
-
-  const _SpellSlot({
-    required this.spell,
-    required this.slotIndex,
-    required this.canCast,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (spell == null) {
-      return _buildEmptySlot();
-    }
-
-    // Wrap with SpellInspectionWrapper for long-press details
-    return SpellInspectionWrapper(
-      spell: spell!,
-      enabled: true,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: canCast
-                ? _getElementColor(spell!.element).withValues(alpha: 0.2)
-                : const Color(0xFF21262d),
-            border: Border.all(
-              color: canCast
-                  ? _getElementColor(spell!.element)
-                  : const Color(0xFF30363d),
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                spell!.elementIcon,
-                style: TextStyle(
+                'PLAYER STATUS',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
                   fontSize: 14,
-                  color: canCast ? null : Colors.grey.shade600,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF8b949e),
+                  letterSpacing: 2,
                 ),
               ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const Divider(color: Color(0xFF30363d)),
+          const SizedBox(height: 16),
+
+          // Identity & Level
+          Row(
+            children: [
               Text(
-                '${spell!.manaCost}',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 7,
-                  fontWeight: FontWeight.w600,
-                  color: canCast
-                      ? _getElementColor(spell!.element)
-                      : Colors.grey.shade600,
+                _getElementIcon(mage.primaryElement),
+                style: const TextStyle(fontSize: 32),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    mage.name,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    'Level ${mage.level} Mage',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFF8b949e),
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              // EXP Progress
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'EXP: ${mage.currentExp} / ${mage.expToNextLevel > 0 ? mage.expToNextLevel : "MAX"}',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: Color(0xFFf8d030),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: 100,
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      value: mage.expProgress,
+                      backgroundColor: const Color(0xFF21262d),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFFf8d030),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Main Stats Grid
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatColumn(
+                  'HP',
+                  '${mage.currentHP}/${mage.maxHP}',
+                  const Color(0xFF3fb950),
+                ),
+              ),
+              Expanded(
+                child: _buildStatColumn(
+                  'MP',
+                  '${mage.mana}/${mage.maxMana}',
+                  const Color(0xFF58a6ff),
+                ),
+              ),
+              Expanded(
+                child: _buildStatColumn(
+                  'ATK',
+                  '${mage.attack}',
+                  const Color(0xFFf85149),
+                ),
+              ),
+              Expanded(
+                child: _buildStatColumn(
+                  'DEF',
+                  '${mage.defense}',
+                  const Color(0xFF58a6ff),
+                ),
+              ),
+              Expanded(
+                child: _buildStatColumn(
+                  'SPD',
+                  '${mage.speed}',
+                  const Color(0xFF79c0ff),
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 24),
+
+          // Buffs
+          if (temporaryBuffs != null && temporaryBuffs!.isNotEmpty) ...[
+            const Text(
+              'ACTIVE BUFFS',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF8b949e),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: temporaryBuffs!.where((b) => b.isActive).map((buff) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3fb950).withValues(alpha: 0.2),
+                    border: Border.all(color: const Color(0xFF3fb950)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    buff.displayText,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: Color(0xFF3fb950),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // Spells
+          const Text(
+            'SPELL LOADOUT',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF8b949e),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 60,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: mage.spellLoadout.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final spell = mage.spellLoadout[index];
+                return Container(
+                  width: 200,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161b22),
+                    border: Border.all(color: const Color(0xFF30363d)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        spell.elementIcon,
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              spell.name,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${spell.manaCost} MP',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                                color: Color(0xFF58a6ff),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
 
-  Widget _buildEmptySlot() {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: const Color(0xFF161b22),
-        border: Border.all(color: const Color(0xFF30363d), width: 1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Center(
-        child: Text(
-          '${slotIndex + 1}',
+  Widget _buildStatColumn(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          label,
           style: TextStyle(
             fontFamily: 'monospace',
-            fontSize: 12,
-            color: Colors.grey.shade700,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: color.withValues(alpha: 0.7),
           ),
         ),
-      ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 
-  Color _getElementColor(game_element.Element element) {
+  String _getElementIcon(game_element.Element element) {
     switch (element) {
       case game_element.Element.fire:
-        return const Color(0xFFf85149);
+        return '🔥';
       case game_element.Element.water:
-        return const Color(0xFF58a6ff);
+        return '💧';
       case game_element.Element.earth:
-        return const Color(0xFF7c6f4a);
+        return '🪨';
       case game_element.Element.air:
-        return const Color(0xFF79c0ff);
+        return '💨';
     }
-  }
-}
-
-/// Director presence indicator.
-class _DirectorIndicator extends StatefulWidget {
-  final bool isActive;
-
-  const _DirectorIndicator({required this.isActive});
-
-  @override
-  State<_DirectorIndicator> createState() => _DirectorIndicatorState();
-}
-
-class _DirectorIndicatorState extends State<_DirectorIndicator>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _pulseAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    )..repeat(reverse: true);
-
-    _pulseAnimation = Tween<double>(
-      begin: 0.3,
-      end: 0.7,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161b22).withValues(alpha: 0.9),
-        border: Border.all(color: const Color(0xFF30363d)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: widget.isActive
-                  ? const Color(
-                      0xFFf85149,
-                    ).withValues(alpha: _pulseAnimation.value)
-                  : const Color(0xFF21262d),
-              border: Border.all(
-                color: widget.isActive
-                    ? const Color(0xFFf85149)
-                    : const Color(0xFF30363d),
-                width: 2,
-              ),
-              boxShadow: widget.isActive
-                  ? [
-                      BoxShadow(
-                        color: const Color(
-                          0xFFf85149,
-                        ).withValues(alpha: _pulseAnimation.value * 0.5),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Center(
-              child: Text(
-                '👁️',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: widget.isActive ? null : Colors.grey.shade600,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
   }
 }

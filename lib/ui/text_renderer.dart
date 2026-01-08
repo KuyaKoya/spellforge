@@ -760,11 +760,6 @@ class _TextGameWidgetState extends State<TextGameWidget> {
         // Note: Enhancement shrines and spell shrines play their sounds
         // when their overlays open, not here
         switch (nodeType) {
-          case NodeType.shop:
-            await AudioManager.instance.playSfxAndWait(
-              AudioManager.sfxShopEntrance,
-            );
-            break;
           case NodeType.enhancementShrine:
           case NodeType.spellLearn:
             // Sound plays when overlay opens (in initState)

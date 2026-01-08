@@ -1,50 +1,74 @@
 import 'effect.dart';
 import 'element.dart';
 import 'spell.dart';
+import '../data/elemental_growth.dart';
 import '../systems/exp_system.dart';
 
-/// Represents the player-controlled mage.
-/// Mage element does NOT restrict spell learning.
+/// Phase 7.9.4: Player-controlled mage with separated stat categories.
+///
+/// Stats are organized into:
+/// - Base Stats: From element template at level 1
+/// - Level Stats: Accumulated from elemental growth per level
+/// - Skill Tree Bonuses: From character progression
+/// - Temporary Modifiers: Combat buffs/debuffs (via status effects)
 class Mage {
   final String id;
   final String name;
   final Element primaryElement;
   final String passiveDescription;
+
+  // ==================== BASE STATS (from template) ====================
+  final int baseHP;
+  final int baseMana;
+  final int baseAttack;
+  final int baseDefense;
+  final int baseSpeed;
+
+  // ==================== LEVEL STATS (accumulated from growth) ====================
+  int levelHP = 0;
+  int levelMana = 0;
+  int levelAttack = 0;
+  int levelDefense = 0;
+  int levelSpeed = 0;
+
+  // ==================== SKILL TREE BONUSES ====================
+  int skillTreeHPBonus = 0;
+  int skillTreeManaBonus = 0;
+  int skillTreeAttackBonus = 0;
+  int skillTreeDefenseBonus = 0;
+  int skillTreeSpeedBonus = 0;
+
+  // ==================== COMPUTED STATS ====================
+  int get maxHP => baseHP + levelHP + skillTreeHPBonus;
+  int get maxMana => baseMana + levelMana + skillTreeManaBonus;
+  int get attack => baseAttack + levelAttack + skillTreeAttackBonus;
+  int get defense => baseDefense + levelDefense + skillTreeDefenseBonus;
+  int get speed => baseSpeed + levelSpeed + skillTreeSpeedBonus;
+
+  // ==================== CURRENT VALUES ====================
   int currentHP;
-  int maxHP;
   int mana;
-  int maxMana;
-  final List<Spell> spellLoadout; // Max 4 spells
+  final List<Spell> spellLoadout;
   final List<ActiveStatusEffect> statusEffects;
   int actionsRemaining;
   int actionsPerTurn;
 
-  // Leveling system
+  // ==================== LEVELING ====================
   int level;
   int currentExp;
+  int totalExpEarned; // For save/load validation
 
   /// Phase 7.8: Mana cost modifiers from elemental progression.
-  /// Key is element, value is the flat modifier (negative = cheaper, positive = more expensive).
   Map<Element, int> manaCostModifiers = {};
 
   static const int maxLoadoutSize = 4;
 
-  /// Phase 7.9: Experience required for the current level.
-  ///
-  /// Uses formula: EXP_TO_NEXT = 40 × Level^1.35
-  ///
-  /// This curve ensures:
-  /// - Levels 1-3: Very fast progression
-  /// - Levels 4-6: Moderate progression
-  /// - Levels 7+: Slower progression to prevent overleveling before boss
+  /// Phase 7.9.4: Uses explicit thresholds from ElementalGrowth.
   static int expRequiredForLevel(int level) {
     return ExpSystem.expToNextLevel(level);
   }
 
-  /// Experience needed to reach the next level.
   int get expToNextLevel => ExpSystem.expToNextLevel(level);
-
-  /// Experience progress as a percentage (0.0 to 1.0).
   double get expProgress => ExpSystem.progressToNextLevel(currentExp, level);
 
   Mage({
@@ -52,16 +76,20 @@ class Mage {
     required this.name,
     required this.primaryElement,
     required this.passiveDescription,
+    required this.baseHP,
+    required this.baseMana,
+    required this.baseAttack,
+    required this.baseDefense,
+    required this.baseSpeed,
     required this.currentHP,
-    required this.maxHP,
     required this.mana,
-    required this.maxMana,
     List<Spell>? spellLoadout,
     List<ActiveStatusEffect>? statusEffects,
     this.actionsRemaining = 1,
     this.actionsPerTurn = 1,
     this.level = 1,
     this.currentExp = 0,
+    this.totalExpEarned = 0,
   }) : spellLoadout = spellLoadout ?? [],
        statusEffects = statusEffects ?? [],
        assert(
@@ -72,32 +100,33 @@ class Mage {
   /// Whether the mage is alive.
   bool get isAlive => currentHP > 0;
 
-  /// Whether the mage is currently affected by Slow.
+  /// Whether currently affected by Slow.
   bool get isSlowed => statusEffects.any((e) => e.type == EffectType.slow);
 
-  /// Whether the mage is below 50% HP.
+  /// Whether below 50% HP.
   bool get isBelowHalfHP => currentHP < (maxHP / 2);
 
-  /// Whether the loadout is full.
+  /// Whether loadout is full.
   bool get isLoadoutFull => spellLoadout.length >= maxLoadoutSize;
 
-  /// HP display string.
   String get hpDisplay => '$currentHP/$maxHP HP';
-
-  /// Mana display string.
   String get manaDisplay => '$mana/$maxMana Mana';
-
-  /// Level display string.
   String get levelDisplay => 'Lv.$level ($currentExp/$expToNextLevel EXP)';
+  String get statsDisplay => 'ATK:$attack DEF:$defense SPD:$speed';
 
-  /// Adds experience and handles level ups. Returns list of log messages.
+  // ==================== EXP & LEVEL UP (Phase 7.9.4) ====================
+
+  /// Adds experience and handles level-ups atomically.
+  /// Returns list of log messages for each level gained.
   List<String> gainExp(int amount) {
     final logs = <String>[];
     currentExp += amount;
+    totalExpEarned += amount;
     logs.add('Gained $amount EXP!');
 
-    while (currentExp >= expToNextLevel) {
-      currentExp -= expToNextLevel;
+    while (currentExp >= expToNextLevel && level < ExpSystem.maxLevel) {
+      final expNeeded = expToNextLevel;
+      currentExp -= expNeeded;
       level++;
       logs.addAll(_applyLevelUp());
     }
@@ -105,51 +134,67 @@ class Mage {
     return logs;
   }
 
-  /// Applies level up bonuses.
+  /// Phase 7.9.4: Applies level-up with elemental growth.
+  /// Canonical order: increment level → apply base growth → apply skill tree
   List<String> _applyLevelUp() {
     final logs = <String>[];
     logs.add('═══════════════════════════');
     logs.add('🎉 LEVEL UP! Now Level $level!');
     logs.add('═══════════════════════════');
 
-    // HP bonus: +5 per level
-    final hpBonus = 5;
-    maxHP += hpBonus;
-    currentHP += hpBonus; // Also heal the bonus amount
-    logs.add('+$hpBonus Max HP (now $maxHP)');
+    // Apply elemental growth for this level
+    final growth = ElementalGrowth.getGrowth(primaryElement);
 
-    // Mana bonus: +2 per level
-    final manaBonus = 2;
-    maxMana += manaBonus;
-    mana += manaBonus;
-    logs.add('+$manaBonus Max Mana (now $maxMana)');
+    levelHP += growth.hp;
+    levelMana += growth.mana;
+    levelAttack += growth.attack;
+    levelDefense += growth.defense;
+    levelSpeed += growth.speed;
 
-    // Every 3 levels: +1 action per turn
-    if (level % 3 == 0) {
-      actionsPerTurn++;
-      logs.add('+1 Action per turn (now $actionsPerTurn)');
-    }
+    // Also heal the bonus HP/Mana
+    currentHP += growth.hp;
+    mana += growth.mana;
+
+    logs.add('+${growth.hp} Max HP (now $maxHP)');
+    logs.add('+${growth.mana} Max Mana (now $maxMana)');
+    if (growth.attack > 0) logs.add('+${growth.attack} Attack (now $attack)');
+    if (growth.defense > 0)
+      logs.add('+${growth.defense} Defense (now $defense)');
+    if (growth.speed > 0) logs.add('+${growth.speed} Speed (now $speed)');
 
     logs.add('');
     return logs;
   }
 
-  /// Adds a spell to the loadout if there's room.
-  /// Returns true if successful.
+  /// Phase 7.9.4: Rebuilds level stats from level + element.
+  /// Used after loading to reconstruct computed stats.
+  void rebuildLevelStats() {
+    final growth = ElementalGrowth.calculateAccumulatedGrowth(
+      primaryElement,
+      1,
+      level,
+    );
+    levelHP = growth.hp;
+    levelMana = growth.mana;
+    levelAttack = growth.attack;
+    levelDefense = growth.defense;
+    levelSpeed = growth.speed;
+  }
+
+  // ==================== SPELLS ====================
+
   bool learnSpell(Spell spell) {
     if (isLoadoutFull) return false;
     spellLoadout.add(spell);
     return true;
   }
 
-  /// Replaces a spell at the given index with a new spell.
   void replaceSpell(int index, Spell newSpell) {
     if (index >= 0 && index < spellLoadout.length) {
       spellLoadout[index] = newSpell;
     }
   }
 
-  /// Removes a spell at the given index.
   Spell? discardSpell(int index) {
     if (index >= 0 && index < spellLoadout.length) {
       return spellLoadout.removeAt(index);
@@ -157,7 +202,6 @@ class Mage {
     return null;
   }
 
-  /// Upgrades a spell in the loadout.
   bool upgradeSpell(int index) {
     if (index >= 0 && index < spellLoadout.length) {
       final spell = spellLoadout[index];
@@ -169,30 +213,24 @@ class Mage {
     return false;
   }
 
-  /// Gets the effective mana cost of a spell, accounting for elemental modifiers.
   int getEffectiveManaCost(Spell spell) {
     final baseManaCost = spell.manaCost;
-    // Phase 7.8: Apply mana cost modifier for this element
     final modifier = manaCostModifiers[spell.element] ?? 0;
-    // Also check for "all elements" modifier (using null key stored as fire for simplicity)
-    // Actually, we need a separate global modifier
-    return (baseManaCost + modifier).clamp(1, 99); // Minimum 1 mana cost
+    return (baseManaCost + modifier).clamp(1, 99);
   }
 
-  /// Whether the mage can cast the given spell.
   bool canCast(Spell spell) {
     return mana >= getEffectiveManaCost(spell) && actionsRemaining > 0;
   }
 
-  /// Consumes mana and an action for casting.
   void consumeForCast(Spell spell) {
     mana -= getEffectiveManaCost(spell);
     actionsRemaining--;
   }
 
-  /// Takes damage, returning the actual damage taken.
+  // ==================== COMBAT ====================
+
   int takeDamage(int damage) {
-    // Check for armor status effect
     int remainingDamage = damage;
     final armorEffects = statusEffects
         .where((e) => e.type == EffectType.armor)
@@ -200,23 +238,12 @@ class Mage {
 
     for (final armor in armorEffects) {
       if (remainingDamage <= 0) break;
-
-      // Calculate how much this armor stack can absorb
       final absorbed = remainingDamage.clamp(0, armor.value);
-
-      // Reduce armor value (destructible armor)
       armor.value -= absorbed;
-
-      // Reduce remaining damage
       remainingDamage -= absorbed;
-
-      // If armor is fully depleted, remove it
       if (armor.value <= 0) {
         statusEffects.remove(armor);
       }
-
-      // Note: We do NOT decrement duration here.
-      // Duration represents turns, not hits.
     }
 
     final actualDamage = remainingDamage.clamp(0, currentHP);
@@ -224,25 +251,20 @@ class Mage {
     return actualDamage;
   }
 
-  /// Heals the mage.
   int heal(int amount) {
     final actualHeal = amount.clamp(0, maxHP - currentHP);
     currentHP += actualHeal;
     return actualHeal;
   }
 
-  /// Restores mana.
   int restoreMana(int amount) {
     final actualRestore = amount.clamp(0, maxMana - mana);
     mana += actualRestore;
     return actualRestore;
   }
 
-  /// Resets actions for a new turn.
   void resetActions() {
     actionsRemaining = actionsPerTurn;
-
-    // Check for action modifications from status effects
     for (final effect in statusEffects) {
       if (effect.type == EffectType.slow) {
         actionsRemaining -= effect.value;
@@ -250,13 +272,11 @@ class Mage {
         actionsRemaining += effect.value;
       }
     }
-    actionsRemaining = actionsRemaining.clamp(0, 5); // Cap at 5
+    actionsRemaining = actionsRemaining.clamp(0, 5);
   }
 
-  /// Applies a status effect.
   void applyStatusEffect(Effect effect) {
     if (!effect.isStatusEffect) return;
-
     statusEffects.add(
       ActiveStatusEffect(
         type: effect.type,
@@ -266,10 +286,8 @@ class Mage {
     );
   }
 
-  /// Processes status effects at turn boundary. Returns log messages.
   List<String> processStatusEffects() {
     final logs = <String>[];
-
     for (final effect in List.from(statusEffects)) {
       switch (effect.type) {
         case EffectType.burn:
@@ -279,43 +297,58 @@ class Mage {
         default:
           break;
       }
-
       if (!effect.tick()) {
         statusEffects.remove(effect);
         logs.add('${effect.type.displayName} wore off from $name');
       }
     }
-
     return logs;
   }
 
-  /// Creates a fresh copy for a new run.
+  // ==================== COPY / SERIALIZE ====================
+
   Mage freshCopy() {
     return Mage(
       id: id,
       name: name,
       primaryElement: primaryElement,
       passiveDescription: passiveDescription,
-      currentHP: maxHP,
-      maxHP: maxHP,
-      mana: maxMana,
-      maxMana: maxMana,
+      baseHP: baseHP,
+      baseMana: baseMana,
+      baseAttack: baseAttack,
+      baseDefense: baseDefense,
+      baseSpeed: baseSpeed,
+      currentHP: baseHP,
+      mana: baseMana,
       actionsPerTurn: actionsPerTurn,
       level: 1,
       currentExp: 0,
+      totalExpEarned: 0,
     );
   }
 
-  /// Converts to JSON for save/load serialization.
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'primaryElement': primaryElement.name,
     'passiveDescription': passiveDescription,
+    'baseHP': baseHP,
+    'baseMana': baseMana,
+    'baseAttack': baseAttack,
+    'baseDefense': baseDefense,
+    'baseSpeed': baseSpeed,
+    'levelHP': levelHP,
+    'levelMana': levelMana,
+    'levelAttack': levelAttack,
+    'levelDefense': levelDefense,
+    'levelSpeed': levelSpeed,
+    'skillTreeHPBonus': skillTreeHPBonus,
+    'skillTreeManaBonus': skillTreeManaBonus,
+    'skillTreeAttackBonus': skillTreeAttackBonus,
+    'skillTreeDefenseBonus': skillTreeDefenseBonus,
+    'skillTreeSpeedBonus': skillTreeSpeedBonus,
     'currentHP': currentHP,
-    'maxHP': maxHP,
     'mana': mana,
-    'maxMana': maxMana,
     'spellLoadout': spellLoadout.map((s) => s.toJson()).toList(),
     'statusEffects': statusEffects
         .map(
@@ -330,10 +363,10 @@ class Mage {
     'actionsPerTurn': actionsPerTurn,
     'level': level,
     'currentExp': currentExp,
+    'totalExpEarned': totalExpEarned,
     'manaCostModifiers': manaCostModifiers.map((k, v) => MapEntry(k.name, v)),
   };
 
-  /// Creates from JSON for save/load serialization.
   factory Mage.fromJson(Map<String, dynamic> json) {
     final mage = Mage(
       id: json['id'] as String,
@@ -342,10 +375,13 @@ class Mage {
         (e) => e.name == json['primaryElement'],
       ),
       passiveDescription: json['passiveDescription'] as String,
+      baseHP: json['baseHP'] as int? ?? json['maxHP'] as int,
+      baseMana: json['baseMana'] as int? ?? json['maxMana'] as int,
+      baseAttack: json['baseAttack'] as int? ?? 5,
+      baseDefense: json['baseDefense'] as int? ?? 3,
+      baseSpeed: json['baseSpeed'] as int? ?? 4,
       currentHP: json['currentHP'] as int,
-      maxHP: json['maxHP'] as int,
       mana: json['mana'] as int,
-      maxMana: json['maxMana'] as int,
       spellLoadout: (json['spellLoadout'] as List)
           .map((s) => Spell.fromJson(s as Map<String, dynamic>))
           .toList(),
@@ -362,7 +398,22 @@ class Mage {
       actionsPerTurn: json['actionsPerTurn'] as int,
       level: json['level'] as int,
       currentExp: json['currentExp'] as int,
+      totalExpEarned: json['totalExpEarned'] as int? ?? 0,
     );
+
+    // Restore level stats
+    mage.levelHP = json['levelHP'] as int? ?? 0;
+    mage.levelMana = json['levelMana'] as int? ?? 0;
+    mage.levelAttack = json['levelAttack'] as int? ?? 0;
+    mage.levelDefense = json['levelDefense'] as int? ?? 0;
+    mage.levelSpeed = json['levelSpeed'] as int? ?? 0;
+
+    // Restore skill tree bonuses
+    mage.skillTreeHPBonus = json['skillTreeHPBonus'] as int? ?? 0;
+    mage.skillTreeManaBonus = json['skillTreeManaBonus'] as int? ?? 0;
+    mage.skillTreeAttackBonus = json['skillTreeAttackBonus'] as int? ?? 0;
+    mage.skillTreeDefenseBonus = json['skillTreeDefenseBonus'] as int? ?? 0;
+    mage.skillTreeSpeedBonus = json['skillTreeSpeedBonus'] as int? ?? 0;
 
     // Restore mana cost modifiers
     final modifiersJson = json['manaCostModifiers'] as Map<String, dynamic>?;

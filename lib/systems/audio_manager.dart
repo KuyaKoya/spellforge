@@ -76,6 +76,7 @@ class AudioManager {
   static const sfxShopPurchase = 'shop_purchase';
   static const sfxShrineOpen = 'enchantment_shrine_open';
   static const sfxShrineUpgrade = 'enchantment_shrine_upgrade';
+  static const sfxExpGain = 'level_gain';
 
   // ==================== MUSIC KEYS ====================
   static const musicHome = 'home';
@@ -152,6 +153,7 @@ class AudioManager {
       'enchantment_shrine_open',
       'enchantment_shrine_upgrade',
       'level_up',
+      'level_gain',
       'skill_tree_unlock',
     ];
 
@@ -297,6 +299,39 @@ class AudioManager {
     } catch (e) {
       print('AudioManager: playSfxAndWait failed for "$key": $e');
       await Future.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
+  /// Plays a sound effect and returns its handle for manual control.
+  Future<SoundHandle?> playSfxWithControl(
+    String key, {
+    bool loop = false,
+  }) async {
+    if (_sfxVolume <= 0 || !_initialized) return null;
+
+    // Skip debounce for controlled SFX to ensure responsiveness
+
+    final source = _sfxSources[key];
+    if (source == null) {
+      print('AudioManager: SFX not found: $key');
+      return null;
+    }
+
+    try {
+      return await _soloud.play(source, volume: _sfxVolume, looping: loop);
+    } catch (e) {
+      print('AudioManager: Failed to play controlled SFX "$key": $e');
+      return null;
+    }
+  }
+
+  /// Stops a specific sound handle.
+  Future<void> stopSfx(SoundHandle handle) async {
+    if (!_initialized) return;
+    try {
+      await _soloud.stop(handle);
+    } catch (e) {
+      // Ignore if handle invalid
     }
   }
 

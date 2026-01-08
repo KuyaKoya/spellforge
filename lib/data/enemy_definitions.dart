@@ -1,7 +1,13 @@
 import '../domain/element.dart';
 import '../domain/enemy.dart';
 
-/// Pre-defined enemy templates for the game.
+/// Phase 7.9.4: Pre-defined enemy templates with Attack/Defense/Speed stats.
+///
+/// Stats follow elemental identity:
+/// - Fire: High attack, low defense, medium speed
+/// - Water: Balanced attack/defense, low speed
+/// - Earth: High HP/defense, very low speed
+/// - Air: High speed, low HP/defense
 class EnemyDefinitions {
   EnemyDefinitions._();
 
@@ -14,6 +20,9 @@ class EnemyDefinitions {
     currentHP: 15,
     maxHP: 15,
     attackDamage: 4,
+    attack: 6,
+    defense: 2,
+    speed: 5,
     armorGain: 3,
   );
 
@@ -24,6 +33,9 @@ class EnemyDefinitions {
     currentHP: 25,
     maxHP: 25,
     attackDamage: 6,
+    attack: 8,
+    defense: 3,
+    speed: 4,
     armorGain: 4,
   );
 
@@ -36,6 +48,9 @@ class EnemyDefinitions {
     currentHP: 12,
     maxHP: 12,
     attackDamage: 3,
+    attack: 4,
+    defense: 4,
+    speed: 3,
     armorGain: 5,
   );
 
@@ -46,6 +61,9 @@ class EnemyDefinitions {
     currentHP: 22,
     maxHP: 22,
     attackDamage: 5,
+    attack: 6,
+    defense: 5,
+    speed: 3,
     armorGain: 6,
   );
 
@@ -58,6 +76,9 @@ class EnemyDefinitions {
     currentHP: 30,
     maxHP: 30,
     attackDamage: 5,
+    attack: 5,
+    defense: 7,
+    speed: 1,
     armorGain: 8,
   );
 
@@ -68,6 +89,9 @@ class EnemyDefinitions {
     currentHP: 18,
     maxHP: 18,
     attackDamage: 4,
+    attack: 5,
+    defense: 5,
+    speed: 2,
     armorGain: 5,
   );
 
@@ -80,6 +104,9 @@ class EnemyDefinitions {
     currentHP: 10,
     maxHP: 10,
     attackDamage: 5,
+    attack: 7,
+    defense: 1,
+    speed: 8,
     armorGain: 2,
   );
 
@@ -90,6 +117,9 @@ class EnemyDefinitions {
     currentHP: 20,
     maxHP: 20,
     attackDamage: 7,
+    attack: 9,
+    defense: 2,
+    speed: 7,
     armorGain: 3,
   );
 
@@ -116,7 +146,6 @@ class EnemyDefinitions {
   }
 
   /// Generates a random encounter of enemies.
-  /// Phase 7.6.3: Supports biased generation based on [biasElement].
   static List<Enemy> generateEncounter({
     int minEnemies = 1,
     int maxEnemies = 3,
@@ -130,7 +159,6 @@ class EnemyDefinitions {
     List<Enemy Function()> generators;
 
     if (biasElement != null) {
-      // Find elements that are weak to bias (Fun) and strong against bias (Challenge)
       final weakToBias = Element.values
           .where((e) => biasElement.getMultiplierAgainst(e) > 1.0)
           .toList();
@@ -140,7 +168,6 @@ class EnemyDefinitions {
 
       final funEnemies = <Enemy Function()>[];
       final challengeEnemies = <Enemy Function()>[];
-      final interactionEnemies = <Enemy Function()>[];
 
       for (final gen in allEnemies) {
         final dummy = gen();
@@ -148,8 +175,6 @@ class EnemyDefinitions {
           funEnemies.add(gen);
         } else if (strongAgainstBias.contains(dummy.element)) {
           challengeEnemies.add(gen);
-        } else {
-          interactionEnemies.add(gen);
         }
       }
 
@@ -157,13 +182,10 @@ class EnemyDefinitions {
       for (int i = 0; i < count; i++) {
         final roll = DateTime.now().millisecondsSinceEpoch % 100;
         if (roll < 35 && funEnemies.isNotEmpty) {
-          // 35% Chance for "Fun" (Weak to player)
           generators.add(funEnemies[roll % funEnemies.length]);
         } else if (roll < 65 && challengeEnemies.isNotEmpty) {
-          // 30% Chance for "Challenge" (Strong against player)
           generators.add(challengeEnemies[roll % challengeEnemies.length]);
         } else {
-          // Remainder: Random selection from full pool
           generators.add(allEnemies[roll % allEnemies.length]);
         }
       }
@@ -174,7 +196,6 @@ class EnemyDefinitions {
 
     return generators.map((gen) {
       final enemy = gen();
-      // Scale by difficulty
       if (difficultyLevel > 1) {
         final hpBonus = (enemy.maxHP * 0.1 * (difficultyLevel - 1)).round();
         return Enemy(
@@ -184,6 +205,9 @@ class EnemyDefinitions {
           currentHP: enemy.maxHP + hpBonus,
           maxHP: enemy.maxHP + hpBonus,
           attackDamage: enemy.attackDamage + (difficultyLevel - 1),
+          attack: enemy.attack,
+          defense: enemy.defense,
+          speed: enemy.speed,
           armorGain: enemy.armorGain,
         );
       }

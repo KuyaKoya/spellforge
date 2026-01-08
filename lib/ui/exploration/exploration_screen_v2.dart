@@ -119,7 +119,11 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
     // If room changed completely, reload the controller
     if (widget.roomConfig.roomId != oldWidget.roomConfig.roomId) {
       // Phase 7.6.2: Play entering room sound and fade animation
-      AudioManager.instance.playEnteringRoom();
+      if (widget.roomConfig.nodeType == NodeType.shop) {
+        AudioManager.instance.playSfx(AudioManager.sfxShopEntrance);
+      } else {
+        AudioManager.instance.playEnteringRoom();
+      }
       _triggerRoomFadeIn();
       _controller.loadRoom(config: widget.roomConfig, mage: widget.mage);
       _selectedType = null;
@@ -289,7 +293,19 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
             // Layer 4: Interactive elements (enemy, doors)
             Positioned.fill(child: _buildInteractiveElements()),
 
-            // Layer 5: Preview panel (center overlay)
+            // Layer 5: HUD (bottom) - PLACED BELOW OVERLAYS
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: ExplorationHUD(
+                mage: widget.mage,
+                directorActive: _controller.directorMessage != null,
+                temporaryBuffs: widget.temporaryBuffs,
+              ),
+            ),
+
+            // Layer 6: Preview panel (center overlay)
             if (_controller.isPaused && _controller.activeInteractable != null)
               Positioned.fill(
                 child: GestureDetector(
@@ -306,7 +322,7 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
                 ),
               ),
 
-            // Layer 6: Director subtitle
+            // Layer 7: Director subtitle
             if (_controller.directorMessage != null)
               Positioned(
                 bottom: 100,
@@ -316,18 +332,6 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
                   message: _controller.directorMessage!,
                 ),
               ),
-
-            // Layer 7: HUD (bottom)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: ExplorationHUD(
-                mage: widget.mage,
-                directorActive: _controller.directorMessage != null,
-                temporaryBuffs: widget.temporaryBuffs,
-              ),
-            ),
           ],
         ),
       ),
