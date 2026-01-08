@@ -85,7 +85,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
       _showEnemyPreview = true;
       _nearDoor = null;
     });
-    _showDirectorMessage('"They sense your presence."');
+    // Director message now triggers on room entry, not on enemy approach
   }
 
   void _onDoorApproach(DoorPosition door) {
@@ -200,7 +200,10 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                 right: 0,
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF161b22).withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
@@ -237,10 +240,9 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                 right: 0,
                 child: Center(
                   child: DoorConfirmation(
-                    door: widget.roomLayout.getDoor(_nearDoor!) ?? DoorData(
-                      position: _nearDoor!,
-                      destinationNodeId: '',
-                    ),
+                    door:
+                        widget.roomLayout.getDoor(_nearDoor!) ??
+                        DoorData(position: _nearDoor!, destinationNodeId: ''),
                     isBlocked: widget.roomLayout.isDoorBlocked(_nearDoor!),
                     blockedReason: widget.roomLayout.isDoorBlocked(_nearDoor!)
                         ? 'Defeat the enemy first'
@@ -264,9 +266,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             Positioned(
               bottom: 16,
               left: 16,
-              child: _MovementControls(
-                onMove: _moveInDirection,
-              ),
+              child: _MovementControls(onMove: _moveInDirection),
             ),
 
             // Layer 8: Controls hint

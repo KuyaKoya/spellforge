@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'game/spellforge_game.dart';
 import 'ui/text_renderer.dart';
@@ -25,6 +26,9 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Keep screen awake during gameplay
+  WakelockPlus.enable();
 
   runApp(const SpellforgeApp());
 }

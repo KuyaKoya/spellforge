@@ -401,21 +401,20 @@ class ExplorationController extends ChangeNotifier {
   void _triggerDirectorRoomEntry() {
     if (_director == null || _roomConfig == null) return;
 
-    // Could add director tracking here
-    // For now, show contextual message based on room type
+    // Trigger director narration on room entry (not on enemy engage)
     if (_roomConfig!.enemy != null && !_roomConfig!.enemyDefeated) {
       if (_roomConfig!.isEliteEnemy) {
         showDirectorMessage('"A stronger presence awaits."');
+      } else {
+        showDirectorMessage('"They sense your presence."');
       }
     }
   }
 
   void _triggerDirectorApproach(InteractableComponent interactable) {
+    // Intentionally empty - narrations now trigger on room enter
+    // to provide immediate context when entering a room.
     if (_director == null) return;
-
-    if (interactable.type == InteractableType.enemy) {
-      showDirectorMessage('"They sense your presence."');
-    }
   }
 
   void _triggerDirectorRetreat() {

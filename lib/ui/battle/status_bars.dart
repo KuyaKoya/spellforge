@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
+import '../../domain/elite_enemy.dart';
 import '../../systems/shop_system.dart';
 import 'status_icons.dart';
 
@@ -207,6 +208,8 @@ class _PokemonEnemyCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     StatusIconsRow(effects: enemy.statusEffects, compact: true),
                   ],
+                  // Phase 7.9.3: Passive ability icons for elite/boss enemies
+                  ..._buildPassiveIcons(),
                 ],
               ),
             ),
@@ -254,6 +257,32 @@ class _PokemonEnemyCard extends StatelessWidget {
     } else {
       return const Color(0xFF8a2d2d);
     }
+  }
+
+  /// Builds passive icons for elite/boss enemies.
+  List<Widget> _buildPassiveIcons() {
+    if (enemy is! EliteEnemy) return [];
+
+    final elite = enemy as EliteEnemy;
+    if (elite.passives.isEmpty) return [];
+
+    return [
+      const SizedBox(height: 4),
+      PassiveIconsRow(
+        passives: elite.passives
+            .map(
+              (p) => PassiveDisplayInfo(
+                icon: p.icon,
+                name: p.name,
+                description: p.description,
+                triggerHint: p.triggerHint,
+                category: p.category.name,
+              ),
+            )
+            .toList(),
+        compact: true,
+      ),
+    ];
   }
 }
 

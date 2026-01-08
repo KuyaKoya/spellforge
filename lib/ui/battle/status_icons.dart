@@ -293,3 +293,136 @@ class StatusEffectsSummary extends StatelessWidget {
     );
   }
 }
+
+/// Displays passive ability icons for elite/boss enemies.
+///
+/// Shows compact icons with tooltips containing:
+/// - Passive name and icon
+/// - Description
+/// - Trigger condition
+class PassiveIconsRow extends StatelessWidget {
+  final List<PassiveDisplayInfo> passives;
+  final bool compact;
+
+  const PassiveIconsRow({
+    super.key,
+    required this.passives,
+    this.compact = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (passives.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Wrap(
+      spacing: compact ? 2 : 4,
+      runSpacing: 2,
+      children: passives.map((passive) {
+        return PassiveIcon(passive: passive, compact: compact);
+      }).toList(),
+    );
+  }
+}
+
+/// Individual passive ability icon.
+class PassiveIcon extends StatelessWidget {
+  final PassiveDisplayInfo passive;
+  final bool compact;
+
+  const PassiveIcon({super.key, required this.passive, this.compact = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 18.0 : 24.0;
+
+    return Tooltip(
+      richMessage: TextSpan(
+        children: [
+          TextSpan(
+            text: '${passive.icon} ${passive.name}\n',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              color: Colors.white,
+            ),
+          ),
+          TextSpan(
+            text: '${passive.description}\n',
+            style: const TextStyle(fontSize: 11, color: Color(0xFFc9d1d9)),
+          ),
+          TextSpan(
+            text: '⚡ ${passive.triggerHint}',
+            style: const TextStyle(
+              fontSize: 10,
+              fontStyle: FontStyle.italic,
+              color: Color(0xFFf0883e),
+            ),
+          ),
+        ],
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF21262d),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFF30363d)),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _getCategoryColor(passive.category).withValues(alpha: 0.3),
+              _getCategoryColor(passive.category).withValues(alpha: 0.1),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: _getCategoryColor(passive.category),
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            passive.icon,
+            style: TextStyle(fontSize: compact ? 10 : 14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'elemental':
+        return const Color(0xFF58a6ff); // Blue
+      case 'behavioral':
+        return const Color(0xFFf0883e); // Orange
+      case 'systemic':
+        return const Color(0xFFa371f7); // Purple
+      default:
+        return const Color(0xFF8b949e); // Gray
+    }
+  }
+}
+
+/// Data class for passive display information.
+class PassiveDisplayInfo {
+  final String icon;
+  final String name;
+  final String description;
+  final String triggerHint;
+  final String category;
+
+  const PassiveDisplayInfo({
+    required this.icon,
+    required this.name,
+    required this.description,
+    required this.triggerHint,
+    required this.category,
+  });
+}

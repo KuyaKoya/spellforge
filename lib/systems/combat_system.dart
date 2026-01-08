@@ -404,7 +404,38 @@ class CombatSystem {
           );
           damageDealt = 0;
         } else {
-          final damage = enemy.getEffectiveDamage();
+          int damage = enemy.getEffectiveDamage();
+
+          // Phase 7.9.3.1: Trigger damageDealt passives for elite/boss enemies
+          // Capture player state BEFORE damage is dealt for passive context
+          final targetSlowed = mage.isSlowed;
+          final targetBelowHalf = mage.isBelowHalfHP;
+
+          if (enemy is EliteEnemy) {
+            final results = enemy.triggerPassives(
+              CombatEvent.damageDealt(
+                source: enemy,
+                damage: damage,
+                turnNumber: currentTurn,
+                targetSlowed: targetSlowed,
+                targetBelowHalf: targetBelowHalf,
+              ),
+            );
+
+            // Apply passive damage modifiers (e.g. Cold Precision +20%)
+            for (final result in results) {
+              if (result.damageModifier != null && result.damageModifier! > 0) {
+                damage += result.damageModifier!;
+              }
+              if (result.logMessage != null) {
+                combatLog.add('  ⚠️ ${result.logMessage}');
+              }
+            }
+
+            // Apply passive status effects (e.g. Permafrost Edge applies Slow)
+            _applyPassiveResults(results, enemy);
+          }
+
           damageDealt = mage.takeDamage(damage);
 
           // Phase 7.8: Check for survive lethal modifier
@@ -605,7 +636,38 @@ class CombatSystem {
           // Wait for impact
           await Future.delayed(const Duration(milliseconds: 400));
 
-          final damage = enemy.getEffectiveDamage();
+          int damage = enemy.getEffectiveDamage();
+
+          // Phase 7.9.3.1: Trigger damageDealt passives for elite/boss enemies
+          // Capture player state BEFORE damage is dealt for passive context
+          final targetSlowed = mage.isSlowed;
+          final targetBelowHalf = mage.isBelowHalfHP;
+
+          if (enemy is EliteEnemy) {
+            final results = enemy.triggerPassives(
+              CombatEvent.damageDealt(
+                source: enemy,
+                damage: damage,
+                turnNumber: currentTurn,
+                targetSlowed: targetSlowed,
+                targetBelowHalf: targetBelowHalf,
+              ),
+            );
+
+            // Apply passive damage modifiers (e.g. Cold Precision +20%)
+            for (final result in results) {
+              if (result.damageModifier != null && result.damageModifier! > 0) {
+                damage += result.damageModifier!;
+              }
+              if (result.logMessage != null) {
+                combatLog.add('  ⚠️ ${result.logMessage}');
+              }
+            }
+
+            // Apply passive status effects (e.g. Permafrost Edge applies Slow)
+            _applyPassiveResults(results, enemy);
+          }
+
           final actualDamage = mage.takeDamage(damage);
 
           // Phase 7.8: Check for survive lethal modifier

@@ -72,6 +72,12 @@ class Mage {
   /// Whether the mage is alive.
   bool get isAlive => currentHP > 0;
 
+  /// Whether the mage is currently affected by Slow.
+  bool get isSlowed => statusEffects.any((e) => e.type == EffectType.slow);
+
+  /// Whether the mage is below 50% HP.
+  bool get isBelowHalfHP => currentHP < (maxHP / 2);
+
   /// Whether the loadout is full.
   bool get isLoadoutFull => spellLoadout.length >= maxLoadoutSize;
 

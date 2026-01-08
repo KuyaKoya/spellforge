@@ -195,6 +195,27 @@ class CombatEvent {
     );
   }
 
+  /// Factory for damage dealt events (enemy attacking player).
+  /// Used for passives like Permafrost Edge and Cold Precision.
+  factory CombatEvent.damageDealt({
+    required Enemy source,
+    required int damage,
+    int turnNumber = 0,
+    bool targetSlowed = false,
+    bool targetBelowHalf = false,
+  }) {
+    return CombatEvent(
+      type: CombatEventType.damageDealt,
+      source: source,
+      damage: damage,
+      turnNumber: turnNumber,
+      context: {
+        'targetSlowed': targetSlowed,
+        'targetBelowHalf': targetBelowHalf,
+      },
+    );
+  }
+
   @override
   String toString() =>
       'CombatEvent($type, source: ${source?.name}, element: $element, damage: $damage)';

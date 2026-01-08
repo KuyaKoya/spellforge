@@ -9,8 +9,10 @@ import '../../domain/enemy_passive.dart';
 /// - Passive name
 /// - Trigger condition highlight
 /// - Short description
+/// - Active state indicators (stacks, bonuses)
 ///
 /// Phase 7.5 UI Requirement: Enemy Inspection Panel Must Show passives.
+/// Phase 7.9.3: Now shows active passive state.
 class PassiveInspectionWidget extends StatelessWidget {
   /// The list of passives to display.
   final List<EnemyPassive> passives;
@@ -21,11 +23,15 @@ class PassiveInspectionWidget extends StatelessWidget {
   /// Optional accent color for styling.
   final Color? accentColor;
 
+  /// Optional passive state for showing active bonuses.
+  final PassiveState? passiveState;
+
   const PassiveInspectionWidget({
     super.key,
     required this.passives,
     this.alwaysVisible = false,
     this.accentColor,
+    this.passiveState,
   });
 
   @override
@@ -40,6 +46,8 @@ class PassiveInspectionWidget extends StatelessWidget {
         _buildHeader(),
         const SizedBox(height: 8),
         ...passives.map(_buildPassiveCard),
+        // Show active state summary if available
+        if (passiveState != null) _buildStateSummary(),
       ],
     );
   }
@@ -83,6 +91,7 @@ class PassiveInspectionWidget extends StatelessWidget {
 
   Widget _buildPassiveCard(EnemyPassive passive) {
     final categoryColor = _getCategoryColor(passive.category);
+    final stateInfo = _getPassiveStateInfo(passive);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -102,14 +111,45 @@ class PassiveInspectionWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  passive.name,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFf0f6fc),
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      passive.name,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFf0f6fc),
+                      ),
+                    ),
+                    // Show active state badge if applicable
+                    if (stateInfo != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3fb950).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: const Color(0xFF3fb950),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          stateInfo,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF3fb950),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -124,6 +164,127 @@ class PassiveInspectionWidget extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Gets state info string for a specific passive.
+  String? _getPassiveStateInfo(EnemyPassive passive) {
+    if (passiveState == null) return null;
+
+    switch (passive.id) {
+      case 'warTemper':
+        if (passiveState!.warTemperStacks > 0) {
+          return '+${passiveState!.warTemperStacks} DMG';
+        }
+        break;
+      case 'genericFrenzy':
+      case 'forgeOfEndurance':
+        if (passiveState!.permanentDamageBonus > 0) {
+          return '+${passiveState!.permanentDamageBonus} DMG';
+        }
+        break;
+      case 'cycloneMomentum':
+        if (passiveState!.consecutiveActions > 0) {
+          return '${passiveState!.consecutiveActions}x';
+        }
+        break;
+      case 'tempestFlow':
+        if (passiveState!.extraTurnCounter > 0) {
+          return '${passiveState!.extraTurnCounter}/4';
+        }
+        break;
+      case 'blazingAdaptation':
+        final totalHits = passiveState!.elementHitCounts.values.fold(
+          0,
+          (a, b) => a + b,
+        );
+        if (totalHits > 0) {
+          return '$totalHits hits';
+        }
+        break;
+    }
+    return null;
+  }
+
+  /// Builds a summary of active state bonuses.
+  Widget _buildStateSummary() {
+    final state = passiveState!;
+    final bonuses = <Widget>[];
+
+    if (state.permanentDamageBonus > 0) {
+      bonuses.add(
+        _buildBonusBadge(
+          '⚔️ +${state.permanentDamageBonus}',
+          'Permanent Damage',
+          const Color(0xFFf85149),
+        ),
+      );
+    }
+
+    if (state.warTemperStacks > 0) {
+      bonuses.add(
+        _buildBonusBadge(
+          '🔥 +${state.warTemperStacks}',
+          'War Temper Stacks',
+          const Color(0xFFf0883e),
+        ),
+      );
+    }
+
+    if (state.burnImmune) {
+      bonuses.add(
+        _buildBonusBadge(
+          '🛡️ Immune',
+          'Burn Immunity',
+          const Color(0xFF58a6ff),
+        ),
+      );
+    }
+
+    if (bonuses.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '📊 ACTIVE BONUSES',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Wrap(spacing: 6, runSpacing: 4, children: bonuses),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBonusBadge(String label, String tooltip, Color color) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: color.withValues(alpha: 0.5)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
       ),
     );
   }

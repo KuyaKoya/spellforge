@@ -589,6 +589,7 @@ class _BattleInspectionOverlayState extends State<BattleInspectionOverlay>
         passives: eliteEnemy.passives,
         alwaysVisible: isBoss,
         accentColor: isBoss ? const Color(0xFFbc8cff) : const Color(0xFFffd700),
+        passiveState: eliteEnemy.passiveState,
       ),
     );
   }

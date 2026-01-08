@@ -116,6 +116,12 @@ class EliteEnemy extends Enemy {
       damage = (damage * 1.5).round();
     }
 
+    // Apply permanent damage bonus from Frenzy, Forge of Endurance, etc.
+    damage += passiveState.permanentDamageBonus;
+
+    // Apply War Temper stacks (burn-fueled rage)
+    damage += passiveState.warTemperStacks;
+
     return damage;
   }
 
@@ -242,6 +248,13 @@ class EliteEnemy extends Enemy {
   /// Resets per-turn state for passives.
   void resetTurnState() {
     _damageTakenThisTurn = 0;
+
+    // Capture armor at turn start for Bastion Protocol passive
+    final armorEffects = statusEffects
+        .where((e) => e.type == EffectType.armor)
+        .fold(0, (sum, e) => sum + e.value);
+    passiveState.armorAtTurnStart = armorEffects;
+
     passiveState.resetTurn();
   }
 
