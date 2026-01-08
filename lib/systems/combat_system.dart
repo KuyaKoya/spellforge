@@ -86,6 +86,16 @@ class CombatSystem {
   /// Whether it's the player's turn.
   bool get isPlayerTurn => phase == CombatPhase.playerTurn;
 
+  /// Whether enemy should act first this turn (speed-based).
+  /// Compares mage's effectiveSpeed vs fastest living enemy's effectiveSpeed.
+  bool get enemyGoesFirst {
+    if (livingEnemies.isEmpty) return false;
+    final highestEnemySpeed = livingEnemies
+        .map((e) => e.effectiveSpeed)
+        .reduce((a, b) => a > b ? a : b);
+    return highestEnemySpeed > mage.effectiveSpeed;
+  }
+
   /// All living enemies.
   List<Enemy> get livingEnemies => enemies.where((e) => e.isAlive).toList();
 
@@ -150,11 +160,12 @@ class CombatSystem {
   void startCombat() {
     currentTurn = 1;
 
-    // Phase 7.9.4: Determine turn order based on Speed
+    // Pokémon-style: Determine initial turn order based on EffectiveSpeed
+    // Player goes first on ties (advantage to player)
     final highestEnemySpeed = enemies.isEmpty
         ? 0
-        : enemies.map((e) => e.speed).reduce((a, b) => a > b ? a : b);
-    if (mage.speed >= highestEnemySpeed) {
+        : enemies.map((e) => e.effectiveSpeed).reduce((a, b) => a > b ? a : b);
+    if (mage.effectiveSpeed >= highestEnemySpeed) {
       phase = CombatPhase.playerTurn;
     } else {
       phase = CombatPhase.enemyTurn;
@@ -284,8 +295,9 @@ class CombatSystem {
 
   /// Casts a spell at a target. Returns the detailed result.
   /// Note: Audio should be handled by the caller (BattleScreen) for proper timing.
+  /// Note: Phase check removed - UI is responsible for proper combat flow.
+  ///       Player may cast during "enemy turn" phase when enemy is faster.
   SpellCastResult? castSpell(int spellIndex, {int? targetIndex}) {
-    if (!isPlayerTurn) return null;
     if (spellIndex < 0 || spellIndex >= mage.spellLoadout.length) return null;
 
     final spell = mage.spellLoadout[spellIndex];
@@ -379,6 +391,24 @@ class CombatSystem {
     combatLog.add('┌──────────────────────────────────────┐');
     combatLog.add('│  TURN $currentTurn - ENEMY TURN');
     combatLog.add('└──────────────────────────────────────┘');
+    combatLog.add('');
+
+    // Capture current intents before any actions
+    return livingEnemies.map((e) => (e, e.intent)).toList();
+  }
+
+  /// Prepare for initial enemy phase when enemy is faster.
+  /// Unlike prepareEnemyPhase, this doesn't log "player ends turn".
+  /// Call this at combat start when enemyGoesFirst is true.
+  List<(Enemy, EnemyIntent)> prepareInitialEnemyPhase() {
+    _playerTurnHeaderLogged = false;
+    phase = CombatPhase.enemyTurn;
+
+    combatLog.add('┌──────────────────────────────────────┐');
+    combatLog.add('│  TURN $currentTurn - ENEMY TURN');
+    combatLog.add('└──────────────────────────────────────┘');
+    combatLog.add('');
+    combatLog.add('⚡ Enemy strikes first!');
     combatLog.add('');
 
     // Capture current intents before any actions
@@ -865,7 +895,6 @@ class CombatSystem {
   /// Starts a new player turn.
   void _startNewTurn() {
     currentTurn++;
-    phase = CombatPhase.playerTurn;
     _playerTurnHeaderLogged = false;
     mage.resetActions();
 
@@ -876,17 +905,37 @@ class CombatSystem {
       }
     }
 
-    // Restore some mana each turn
-    final manaRestored = mage.restoreMana(2);
+    // Pokémon-style: Recalculate turn order based on EffectiveSpeed each turn
+    final highestEnemySpeed = livingEnemies.isEmpty
+        ? 0
+        : livingEnemies
+              .map((e) => e.effectiveSpeed)
+              .reduce((a, b) => a > b ? a : b);
+    if (mage.effectiveSpeed >= highestEnemySpeed) {
+      phase = CombatPhase.playerTurn;
 
-    _logPlayerTurnHeader();
+      // Restore some mana each turn
+      final manaRestored = mage.restoreMana(2);
 
-    if (manaRestored > 0) {
-      combatLog.add('💧 ${mage.name} recovers $manaRestored mana.');
+      _logPlayerTurnHeader();
+
+      if (manaRestored > 0) {
+        combatLog.add('💧 ${mage.name} recovers $manaRestored mana.');
+        combatLog.add('');
+      }
+
+      _logStatus();
+    } else {
+      phase = CombatPhase.enemyTurn;
+
+      // Log that enemy acts first this turn
+      combatLog.add('┌──────────────────────────────────────┐');
+      combatLog.add('│  TURN $currentTurn - ENEMY TURN');
+      combatLog.add('└──────────────────────────────────────┘');
+      combatLog.add('');
+      combatLog.add('⚡ Enemy is faster and acts first!');
       combatLog.add('');
     }
-
-    _logStatus();
   }
 
   /// Ends combat with the given result.

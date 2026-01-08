@@ -190,12 +190,26 @@ class _StatusIconState extends State<StatusIcon>
           borderColor: const Color(0xFFf85149),
           glowColor: const Color(0xFFf85149),
         );
+      case EffectType.poison:
+        return _StatusIconData(
+          emoji: '☠️',
+          backgroundColor: const Color(0xFF1a3d1a),
+          borderColor: const Color(0xFF56d364),
+          glowColor: const Color(0xFF56d364),
+        );
       case EffectType.slow:
         return _StatusIconData(
           emoji: '🐌',
           backgroundColor: const Color(0xFF1a2d3d),
           borderColor: const Color(0xFF58a6ff),
           glowColor: const Color(0xFF58a6ff),
+        );
+      case EffectType.haste:
+        return _StatusIconData(
+          emoji: '⚡',
+          backgroundColor: const Color(0xFF3d3a1a),
+          borderColor: const Color(0xFFf0e68c),
+          glowColor: const Color(0xFFf0e68c),
         );
       case EffectType.weaken:
         return _StatusIconData(
@@ -210,6 +224,27 @@ class _StatusIconState extends State<StatusIcon>
           backgroundColor: const Color(0xFF1a3d2e),
           borderColor: const Color(0xFF3fb950),
           glowColor: const Color(0xFF3fb950),
+        );
+      case EffectType.shield:
+        return _StatusIconData(
+          emoji: '🔰',
+          backgroundColor: const Color(0xFF1a3d3d),
+          borderColor: const Color(0xFF79c0ff),
+          glowColor: const Color(0xFF79c0ff),
+        );
+      case EffectType.sleep:
+        return _StatusIconData(
+          emoji: '💤',
+          backgroundColor: const Color(0xFF1a1a3d),
+          borderColor: const Color(0xFF8b949e),
+          glowColor: const Color(0xFF8b949e),
+        );
+      case EffectType.freeze:
+        return _StatusIconData(
+          emoji: '❄️',
+          backgroundColor: const Color(0xFF1a2d3d),
+          borderColor: const Color(0xFF79c0ff),
+          glowColor: const Color(0xFF79c0ff),
         );
       case EffectType.actionGain:
         return _StatusIconData(

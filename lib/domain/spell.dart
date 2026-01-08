@@ -196,12 +196,22 @@ class Spell {
         return '⚔️  ${effect.value} damage';
       case EffectType.burn:
         return '🔥 Burn: ${effect.value}/turn for ${effect.duration} turns';
+      case EffectType.poison:
+        return '☠️ Poison: ${effect.value}/turn for ${effect.duration} turns';
       case EffectType.slow:
-        return '🐌 Slow: -${effect.value} actions for ${effect.duration} turns';
+        return '🐌 Slow: -${effect.value}% speed for ${effect.duration} turns';
+      case EffectType.haste:
+        return '⚡ Haste: +${effect.value}% speed for ${effect.duration} turns';
       case EffectType.weaken:
         return '💀 Weaken: -${effect.value}% damage for ${effect.duration} turns';
       case EffectType.armor:
         return '🛡️  +${effect.value} armor for ${effect.duration} turns';
+      case EffectType.shield:
+        return '🔰 Shield: -${effect.value}% damage taken for ${effect.duration} turns';
+      case EffectType.sleep:
+        return '💤 Sleep: skip turn for ${effect.duration} turns';
+      case EffectType.freeze:
+        return '❄️ Freeze: cannot act for ${effect.duration} turns';
       case EffectType.actionGain:
         return '⚡ +${effect.value} action(s)';
       case EffectType.delay:

@@ -193,21 +193,22 @@ class SpellSystem {
           final effectivenessText = spell.element.getEffectivenessText(
             target.element,
           );
-          final baseDamage = effect.value;
+          final basePower = effect.value;
 
-          // Phase 7.9.4: Apply Attack bonus from caster
-          final attackBonus = (caster.attack * 0.5).round();
-
-          // Phase 7.9.4: Apply Defense reduction from target
-          final defenseReduction = (target.defense * 0.3).round();
-
-          // Calculate weaken status on caster
-          double weakenMultiplier = 1.0;
+          // Pokémon-style: Get attacker's effective attack stat
+          // Burn reduces attack by 10%
+          double attackerAttack = caster.attack.toDouble();
           for (final status in caster.statusEffects) {
+            if (status.type == EffectType.burn) {
+              attackerAttack *= 0.9; // Burn reduces attack by 10%
+            }
             if (status.type == EffectType.weaken) {
-              weakenMultiplier *= (100 - status.value) / 100.0;
+              attackerAttack *= (100 - status.value) / 100.0;
             }
           }
+
+          // Pokémon-style: Get defender's effective defense stat
+          final defenderDefense = target.defense.clamp(1, 9999);
 
           // Phase 7.8: Calculate critical hit
           final critChance = ModifierService.getCritChanceModifier(
@@ -219,18 +220,16 @@ class SpellSystem {
               (DateTime.now().millisecondsSinceEpoch % 100) < critChance;
           final critMultiplier = isCrit ? 1.5 : 1.0;
 
-          // Phase 7.9.4: Apply attack bonus, elemental multiplier, buff multiplier, weaken, crit, then defense reduction
-          final preMitigationDamage =
-              ((baseDamage + attackBonus) *
-                      multiplier *
-                      damageMultiplier *
-                      weakenMultiplier *
-                      critMultiplier)
-                  .round();
-          final finalDamage = (preMitigationDamage - defenseReduction).clamp(
-            1,
-            9999,
-          );
+          // Pokémon-style damage formula:
+          // Damage = BasePower × (Attack / Defense) × ElementMultiplier × Modifiers
+          // Minimum damage: 1
+          final rawDamage =
+              basePower *
+              (attackerAttack / defenderDefense) *
+              multiplier *
+              damageMultiplier *
+              critMultiplier;
+          final finalDamage = rawDamage.round().clamp(1, 9999);
 
           final initialArmor = target.statusEffects
               .where((e) => e.type == EffectType.armor)

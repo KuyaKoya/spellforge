@@ -1,10 +1,24 @@
 /// Types of effects that can be applied by spells.
+///
+/// Pokémon-style status effects:
+/// - [burn]: DOT + 10% reduced attack
+/// - [poison]: DOT only (no attack reduction)
+/// - [slow]: Speed reduction (percentage)
+/// - [haste]: Speed increase (percentage)
+/// - [sleep]: Skip turn (wakes on damage)
+/// - [freeze]: Cannot act (thaws over time)
+/// - [shield]: Temporary damage reduction (percentage)
 enum EffectType {
   damage,
   burn,
+  poison, // DOT without attack reduction
   slow,
+  haste, // Speed increase
   weaken,
   armor,
+  shield, // Damage reduction percentage
+  sleep, // Skip turn
+  freeze, // Cannot act
   actionGain,
   delay;
 
@@ -14,12 +28,22 @@ enum EffectType {
         return 'Damage';
       case EffectType.burn:
         return 'Burn';
+      case EffectType.poison:
+        return 'Poison';
       case EffectType.slow:
         return 'Slow';
+      case EffectType.haste:
+        return 'Haste';
       case EffectType.weaken:
         return 'Weaken';
       case EffectType.armor:
         return 'Armor';
+      case EffectType.shield:
+        return 'Shield';
+      case EffectType.sleep:
+        return 'Sleep';
+      case EffectType.freeze:
+        return 'Freeze';
       case EffectType.actionGain:
         return 'Action Gain';
       case EffectType.delay:
@@ -77,13 +101,23 @@ class Effect {
       case EffectType.damage:
         return 'Deal $value damage';
       case EffectType.burn:
-        return 'Apply Burn ($value damage/turn)$durationText';
+        return 'Apply Burn ($value damage/turn, -10% ATK)$durationText';
+      case EffectType.poison:
+        return 'Apply Poison ($value damage/turn)$durationText';
       case EffectType.slow:
-        return 'Apply Slow (-$value actions)$durationText';
+        return 'Apply Slow (-$value% speed)$durationText';
+      case EffectType.haste:
+        return 'Apply Haste (+$value% speed)$durationText';
       case EffectType.weaken:
         return 'Apply Weaken (-$value% damage)$durationText';
       case EffectType.armor:
         return 'Gain $value Armor$durationText';
+      case EffectType.shield:
+        return 'Apply Shield (-$value% damage taken)$durationText';
+      case EffectType.sleep:
+        return 'Apply Sleep (skip turn, wakes on damage)$durationText';
+      case EffectType.freeze:
+        return 'Apply Freeze (cannot act)$durationText';
       case EffectType.actionGain:
         return 'Gain $value action(s)';
       case EffectType.delay:

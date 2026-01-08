@@ -137,6 +137,8 @@ class _BattleScreenState extends State<BattleScreen> {
       onDamageDealt: _onDamageDealt,
       onStatusApplied: _onStatusApplied,
     );
+    // Player always selects action first (Pokémon-style)
+    // Speed determines execution order AFTER selection
     _setDialogText('What will ${widget.mage.name} do?');
   }
 
@@ -261,12 +263,11 @@ class _BattleScreenState extends State<BattleScreen> {
 
   // ==================== PLAYER ACTION PHASE ====================
 
-  /// Execute player spell with proper timing sequence:
-  /// 1. Show cast message + play animation + play sound immediately
-  /// 2. WAIT for sound to finish
-  /// 3. Apply damage
-  /// 4. Show result/effectiveness
-  /// 5. Update UI
+  /// Pokémon-style turn execution:
+  /// 1. Player selects action (already done when this is called)
+  /// 2. Speed determines execution order
+  /// 3. Faster combatant attacks first, then slower
+  /// 4. Turn ends
   Future<void> _executePlayerSpell(Spell spell, int targetIndex) async {
     final spellIndex = widget.mage.spellLoadout.indexOf(spell);
     if (spellIndex < 0) return;
@@ -279,14 +280,44 @@ class _BattleScreenState extends State<BattleScreen> {
     // Start new action sequence - cancels any pending events from previous actions
     final seqId = _startNewActionSequence();
 
-    // Transition to player action phase
+    // Transition to action phase
     setState(() {
       _phase = CombatPhase.playerAction;
       _menuState = BattleMenuState.root;
       _pendingSpell = null;
     });
 
-    // STEP 1: Show spell cast message, play animation AND sound IMMEDIATELY
+    // Check speed: if enemy is faster, enemy attacks first BEFORE player spell
+    if (widget.combat.enemyGoesFirst) {
+      // Enemy attacks first
+      await _executeEnemyFirstThenPlayer(
+        seqId,
+        spell,
+        spellIndex,
+        targetIndex,
+        enemy,
+      );
+    } else {
+      // Player attacks first (normal flow)
+      await _executePlayerFirstThenEnemy(
+        seqId,
+        spell,
+        spellIndex,
+        targetIndex,
+        enemy,
+      );
+    }
+  }
+
+  /// Execute when player is faster: player spell → enemy attack → turn end
+  Future<void> _executePlayerFirstThenEnemy(
+    int seqId,
+    Spell spell,
+    int spellIndex,
+    int targetIndex,
+    Enemy enemy,
+  ) async {
+    // Show spell cast message
     _setDialogText('${widget.mage.name} used ${spell.name}!');
     _battleScene.playMageCast();
 
@@ -298,14 +329,278 @@ class _BattleScreenState extends State<BattleScreen> {
       ),
     );
 
-    // STEP 2: Wait for sound to finish
+    // Wait for sound to finish
     await AudioManager.instance.playSpellSfxAndWait(spell.id);
-
-    // Check sequence validity after await
     if (!_isSequenceValid(seqId)) return;
 
-    // STEP 3: Apply damage immediately after sound
+    // Apply player damage
     _applyPlayerSpellDamage(seqId, spell, spellIndex, targetIndex, enemy);
+  }
+
+  /// Execute when enemy is faster: enemy attack → player spell → turn end
+  Future<void> _executeEnemyFirstThenPlayer(
+    int seqId,
+    Spell spell,
+    int spellIndex,
+    int targetIndex,
+    Enemy enemy,
+  ) async {
+    // Store the spell info for after enemy attack
+    _pendingSpellForAfterEnemy = (spell, spellIndex, targetIndex, enemy);
+    _currentSeqIdForEnemyFirst = seqId;
+
+    // Prepare enemy phase (get intents without ending player turn)
+    _cachedEnemyActions = widget.combat.prepareInitialEnemyPhase();
+
+    if (_cachedEnemyActions.isEmpty) {
+      // No enemies to act, proceed with player spell
+      await _continueWithPlayerSpell(seqId);
+      return;
+    }
+
+    // Execute enemy actions, then continue with player spell
+    _executeEnemyActionThenPlayerSpell(0);
+  }
+
+  /// Stored spell info for when enemy attacks first
+  (Spell, int, int, Enemy)? _pendingSpellForAfterEnemy;
+  int _currentSeqIdForEnemyFirst = 0;
+
+  /// Execute enemy action, then proceed with player's pending spell
+  Future<void> _executeEnemyActionThenPlayerSpell(int index) async {
+    final seqId = _currentSeqIdForEnemyFirst;
+
+    if (index >= _cachedEnemyActions.length) {
+      // All enemies have acted, now player's spell executes
+      await _continueWithPlayerSpell(seqId);
+      return;
+    }
+
+    final (enemyActor, intent) = _cachedEnemyActions[index];
+
+    if (!enemyActor.isAlive) {
+      _executeEnemyActionThenPlayerSpell(index + 1);
+      return;
+    }
+
+    // Show enemy intent and play sound
+    final intentText = intent.vagueDescription;
+    _setDialogText('${enemyActor.name} $intentText');
+
+    switch (intent) {
+      case EnemyIntent.attack:
+        await AudioManager.instance.playSfxAndWait('enemy_attack');
+        break;
+      case EnemyIntent.defend:
+        await AudioManager.instance.playSfxAndWait('armor');
+        break;
+      case EnemyIntent.debuff:
+        await AudioManager.instance.playSfxAndWait('debuff');
+        break;
+    }
+
+    if (!_isSequenceValid(seqId) || !mounted) return;
+
+    // Apply enemy action
+    final result = widget.combat.executeEnemyActionManual(enemyActor, intent);
+
+    if (result.skipped) {
+      _setDialogText('${enemyActor.name} is stunned and skips their turn!');
+      await Future.delayed(
+        const Duration(milliseconds: BattleTiming.enemyOtherActionDisplay),
+      );
+      if (_isSequenceValid(seqId)) {
+        _executeEnemyActionThenPlayerSpell(index + 1);
+      }
+      return;
+    }
+
+    // Show result
+    switch (intent) {
+      case EnemyIntent.attack:
+        _onDamageDealt(0, result.damageDealt, true);
+        _setDialogText(
+          '${widget.mage.name} took ${result.damageDealt} damage!',
+        );
+
+        await Future.delayed(
+          const Duration(milliseconds: BattleTiming.enemyDamageDisplay),
+        );
+        if (!_isSequenceValid(seqId)) return;
+
+        // Check if player died
+        if (result.targetDefeated || !widget.mage.isAlive) {
+          AudioManager.instance.playPlayerDefeat();
+          _checkCombatEnd();
+          return;
+        }
+        break;
+
+      case EnemyIntent.defend:
+        _setDialogText('${enemyActor.name} is defending!');
+        await Future.delayed(
+          const Duration(milliseconds: BattleTiming.enemyOtherActionDisplay),
+        );
+        break;
+
+      case EnemyIntent.debuff:
+        _setDialogText('${enemyActor.name} weakens ${widget.mage.name}!');
+        await Future.delayed(
+          const Duration(milliseconds: BattleTiming.enemyOtherActionDisplay),
+        );
+        break;
+    }
+
+    if (!_isSequenceValid(seqId)) return;
+
+    // Next enemy or continue to player spell
+    _executeEnemyActionThenPlayerSpell(index + 1);
+  }
+
+  /// Continue with player's spell after enemy has attacked first
+  Future<void> _continueWithPlayerSpell(int seqId) async {
+    if (!_isSequenceValid(seqId) || !mounted) return;
+    if (_pendingSpellForAfterEnemy == null) return;
+
+    final (spell, spellIndex, targetIndex, enemy) = _pendingSpellForAfterEnemy!;
+    _pendingSpellForAfterEnemy = null;
+
+    // Check if player is still alive
+    if (!widget.mage.isAlive) {
+      _checkCombatEnd();
+      return;
+    }
+
+    // Now execute player spell
+    _setDialogText('${widget.mage.name} used ${spell.name}!');
+    _battleScene.playMageCast();
+
+    _logCombat(
+      CombatLogBuilder.spellCast(
+        widget.mage.name,
+        spell.name,
+        spell.element.displayName,
+      ),
+    );
+
+    await AudioManager.instance.playSpellSfxAndWait(spell.id);
+    if (!_isSequenceValid(seqId)) return;
+
+    // Apply player damage - but need to re-check target
+    final enemies = widget.combat.livingEnemies;
+    if (enemies.isEmpty) {
+      // All enemies died from something, check combat end
+      _checkCombatEnd();
+      return;
+    }
+
+    final currentEnemy = enemies[targetIndex.clamp(0, enemies.length - 1)];
+    _applyPlayerSpellDamageAfterEnemy(
+      seqId,
+      spell,
+      spellIndex,
+      targetIndex,
+      currentEnemy,
+    );
+  }
+
+  /// Apply player spell damage after enemy has already attacked (skip enemy phase after)
+  void _applyPlayerSpellDamageAfterEnemy(
+    int seqId,
+    Spell spell,
+    int spellIndex,
+    int targetIndex,
+    Enemy enemy,
+  ) {
+    if (!_isSequenceValid(seqId)) return;
+
+    final result = widget.combat.castSpell(
+      spellIndex,
+      targetIndex: targetIndex,
+    );
+
+    if (result == null || !result.success) {
+      _setDialogText('But it failed...');
+      _afterPlayerActionSkipEnemyPhase(seqId);
+      return;
+    }
+
+    // Play sounds for defeated enemies
+    if (result.enemiesDefeated > 0) {
+      bool bossDead = false, eliteDead = false;
+      for (final e in widget.enemies) {
+        if (!e.isAlive) {
+          if (e is BossEnemy)
+            bossDead = true;
+          else if (e is EliteEnemy)
+            eliteDead = true;
+        }
+      }
+      if (bossDead)
+        AudioManager.instance.playSfx('boss_death');
+      else if (eliteDead)
+        AudioManager.instance.playSfx('elite_death');
+      else
+        AudioManager.instance.playEnemyDeath();
+    }
+
+    // Show floating damage
+    if (result.totalDamage > 0) {
+      _onDamageDealt(targetIndex, result.totalDamage, false);
+      _logCombat(CombatLogBuilder.damage(enemy.name, result.totalDamage));
+    }
+
+    // Effectiveness message
+    final multiplier = spell.element.getMultiplierAgainst(enemy.element);
+    if (multiplier > 1.0) {
+      _setDialogText("It's super effective!");
+      _delayedAction(seqId, BattleTiming.effectivenessDisplay, () {
+        _showDamageResultSkipEnemy(seqId, enemy, result.totalDamage);
+      });
+    } else if (multiplier < 1.0) {
+      _setDialogText("It's not very effective...");
+      _delayedAction(seqId, BattleTiming.effectivenessDisplay, () {
+        _showDamageResultSkipEnemy(seqId, enemy, result.totalDamage);
+      });
+    } else {
+      _showDamageResultSkipEnemy(seqId, enemy, result.totalDamage);
+    }
+  }
+
+  void _showDamageResultSkipEnemy(int seqId, Enemy enemy, int damage) {
+    if (!_isSequenceValid(seqId)) return;
+
+    if (!enemy.isAlive) {
+      _setDialogText('${enemy.name} fainted!');
+      _delayedAction(seqId, BattleTiming.enemyFaintedDisplay, () {
+        _afterPlayerActionSkipEnemyPhase(seqId);
+      });
+    } else {
+      _setDialogText('${enemy.name} took $damage damage!');
+      _delayedAction(seqId, BattleTiming.damageResultDisplay, () {
+        _afterPlayerActionSkipEnemyPhase(seqId);
+      });
+    }
+  }
+
+  /// After player action when enemy has already attacked this turn
+  void _afterPlayerActionSkipEnemyPhase(int seqId) {
+    if (!_isSequenceValid(seqId)) return;
+
+    // Check for combat end
+    if (_checkCombatEnd()) return;
+
+    // Finalize the turn (status effects, etc.) then start new turn
+    widget.combat.finalizeEnemyPhase();
+    if (_checkCombatEnd()) return;
+
+    // Check if player can still act (multi-action)
+    if (widget.combat.canPlayerAct) {
+      setState(() => _phase = CombatPhase.playerSelect);
+      _setDialogText('What will ${widget.mage.name} do?');
+    } else {
+      _startNewPlayerTurn();
+    }
   }
 
   /// Apply spell damage and show results (called after animation + sound).

@@ -45,6 +45,34 @@ class Mage {
   int get defense => baseDefense + levelDefense + skillTreeDefenseBonus;
   int get speed => baseSpeed + levelSpeed + skillTreeSpeedBonus;
 
+  // ==================== EFFECTIVE SPEED (Pokémon-style) ====================
+  /// Constants for speed calculation.
+  static const int minSpeed = 1;
+  static const int maxSpeedCap = 99;
+
+  /// Calculates effective speed including temporary modifiers from status effects.
+  ///
+  /// Formula: BaseSpeed × (1 + sum of Haste%) × (1 - sum of Slow%)
+  /// Clamped to [minSpeed, maxSpeedCap].
+  int get effectiveSpeed {
+    int base = speed; // Already includes base + level + skillTree
+
+    // Calculate cumulative speed modifiers
+    double multiplier = 1.0;
+    for (final effect in statusEffects) {
+      if (effect.type == EffectType.haste) {
+        multiplier += effect.value / 100.0;
+      } else if (effect.type == EffectType.slow) {
+        multiplier -= effect.value / 100.0;
+      }
+    }
+
+    // Ensure multiplier doesn't go negative
+    if (multiplier < 0.1) multiplier = 0.1;
+
+    return (base * multiplier).round().clamp(minSpeed, maxSpeedCap);
+  }
+
   // ==================== CURRENT VALUES ====================
   int currentHP;
   int mana;
@@ -108,6 +136,14 @@ class Mage {
 
   /// Whether loadout is full.
   bool get isLoadoutFull => spellLoadout.length >= maxLoadoutSize;
+
+  /// Whether the mage can act this turn (not incapacitated).
+  /// Sleep and Freeze prevent actions.
+  bool get canActThisTurn {
+    if (statusEffects.any((e) => e.type == EffectType.sleep)) return false;
+    if (statusEffects.any((e) => e.type == EffectType.freeze)) return false;
+    return true;
+  }
 
   String get hpDisplay => '$currentHP/$maxHP HP';
   String get manaDisplay => '$mana/$maxMana Mana';
@@ -293,6 +329,16 @@ class Mage {
         case EffectType.burn:
           final damage = takeDamage(effect.value);
           logs.add('$name takes $damage burn damage');
+          break;
+        case EffectType.poison:
+          final damage = takeDamage(effect.value);
+          logs.add('$name takes $damage poison damage');
+          break;
+        case EffectType.sleep:
+          logs.add('$name is fast asleep');
+          break;
+        case EffectType.freeze:
+          logs.add('$name is frozen solid');
           break;
         default:
           break;
