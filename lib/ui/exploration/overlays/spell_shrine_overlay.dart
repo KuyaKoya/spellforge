@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 import '../../../domain/mage.dart';
 import '../../../domain/spell.dart';
 import '../../../domain/element.dart' as game_element;
@@ -31,27 +32,77 @@ class SpellShrineOverlay extends StatefulWidget {
   State<SpellShrineOverlay> createState() => _SpellShrineOverlayState();
 }
 
-class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
+class _SpellShrineOverlayState extends State<SpellShrineOverlay>
+    with TickerProviderStateMixin {
   // If not null, we are selecting a slot to replace with this spell
   Spell? _replacingSpell;
+  int? _learningIndex; // Index of the spell currently being learned
+
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
+  late AnimationController _learnBurstController;
+  late Animation<double> _learnBurstAnimation;
 
   @override
   void initState() {
     super.initState();
     // Play shrine open sound when overlay appears
     AudioManager.instance.playShrineOpen();
+
+    // Setup glow animation for the shrine icon
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+
+    _glowAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+
+    // Setup learn burst animation
+    _learnBurstController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _learnBurstAnimation = CurvedAnimation(
+      parent: _learnBurstController,
+      curve: Curves.easeOutBack,
+    );
   }
 
-  /// Handle learning a spell with audio feedback
-  void _handleLearn(int choiceIndex) {
-    // Phase 7.6.2: Play shrine sound when actually learning
+  @override
+  void dispose() {
+    _glowController.dispose();
+    _learnBurstController.dispose();
+    super.dispose();
+  }
+
+  /// Handle learning a spell with audio feedback and animation
+  Future<void> _handleLearn(int choiceIndex) async {
+    if (_learningIndex != null) return;
+
+    setState(() {
+      _learningIndex = choiceIndex;
+    });
+
+    // Phase 7.6.2: Play shrine (upgrade) sound when learning
     AudioManager.instance.playShrineUpgrade();
+
+    // Play visual flair
+    await _learnBurstController.forward(from: 0.0);
+
+    // Short delay to let the animation play out a bit before closing/callback
+    await Future.delayed(const Duration(milliseconds: 1000));
+
     widget.onLearn(choiceIndex);
+
+    // We don't clear _learningIndex here because the overlay likely closes or refreshing
+    // happens via parent. If it stays open, the parent would rebuild it.
   }
 
   /// Handle replacing a spell with audio feedback
-  void _handleReplace(int loadoutIndex, Spell newSpell) {
-    // Phase 7.6.2: Play shrine upgrade sound
+  Future<void> _handleReplace(int loadoutIndex, Spell newSpell) async {
+    // For replace, we might just play the sound as before since it involves a second step
     AudioManager.instance.playShrineUpgrade();
     widget.onReplace(loadoutIndex, newSpell);
   }
@@ -62,78 +113,44 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
       return _buildReplaceScreen();
     }
 
-    // Responsive layout
-    final size = MediaQuery.of(context).size;
-    final overlayHeight = size.height * 0.8;
-    final overlayWidth = size.width > 750 ? 700.0 : size.width * 0.95;
-
-    return SafeArea(
-      child: Center(
-        child: Container(
-          width: overlayWidth,
-          height: overlayHeight,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF161b22).withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF30363d), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
+    return Center(
+      child: Container(
+        width: 700,
+        constraints: const BoxConstraints(maxHeight: 750),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [const Color(0xFF1a1f2e), const Color(0xFF0d1117)],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header with Depth Bonus indicator (Phase 7.6 Rule 15)
-              Row(
-                children: [
-                  const Icon(
-                    Icons.menu_book,
-                    color: Colors.blueAccent,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Spell Shrine',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const Text(
-                          'Ancient knowledge inscribed in light.',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Depth Bonus indicator (Phase 7.6 Rule 15)
-                  _buildDepthBonusIndicator(),
-                ],
-              ),
-              const SizedBox(height: 24),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.cyanAccent.withValues(alpha: 0.3),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.cyanAccent.withValues(alpha: 0.15),
+              blurRadius: 30,
+              spreadRadius: 5,
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            _buildHeader(),
 
-              // Choices - Expanded to fill fixed height
-              Expanded(
+            // Spell List
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ListView.separated(
                   itemCount: widget.spellChoices.length,
                   separatorBuilder: (context, index) =>
@@ -146,24 +163,124 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
                   },
                 ),
               ),
-              const SizedBox(height: 24),
+            ),
 
-              // Skip
-              Center(
-                child: TextButton(
-                  onPressed: widget.onSkip,
-                  child: Text(
-                    'Leave Shrine',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: Colors.grey.shade500,
-                    ),
+            const SizedBox(height: 16),
+
+            // Leave Button
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: TextButton.icon(
+                onPressed: widget.onSkip,
+                icon: Icon(
+                  Icons.exit_to_app,
+                  color: Colors.grey.shade500,
+                  size: 18,
+                ),
+                label: Text(
+                  'Leave Shrine',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Colors.grey.shade500,
+                    fontSize: 14,
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.cyan.withValues(alpha: 0.15), Colors.transparent],
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      child: Column(
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: const Text(
+              'Spell Shrine',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              // Animated Shrine Icon
+              AnimatedBuilder(
+                animation: _glowAnimation,
+                builder: (context, child) {
+                  return Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          Colors.cyanAccent.withValues(
+                            alpha: _glowAnimation.value * 0.3,
+                          ),
+                          Colors.transparent,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.cyanAccent.withValues(
+                            alpha: _glowAnimation.value * 0.4,
+                          ),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.menu_book,
+                        color: Colors.cyanAccent,
+                        size: 32,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Ancient knowledge inscribed in light.',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Depth Bonus indicator (Phase 7.6 Rule 15)
+              _buildDepthBonusIndicator(),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -173,123 +290,230 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
         spell.rarity == SpellRarity.rare ||
         spell.rarity == SpellRarity.signature;
     final isUpgraded = spell.starLevel >= 2;
+    final isLearning = _learningIndex == index;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0d1117),
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isHighTier
+              ? [
+                  _getRarityColor(spell.rarity).withValues(alpha: 0.15),
+                  const Color(0xFF0d1117),
+                ]
+              : [const Color(0xFF161b22), const Color(0xFF0d1117)],
+        ),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isHighTier
-              ? _getRarityColor(spell.rarity)
-              : _getElementColor(spell.element),
+              ? _getRarityColor(spell.rarity).withValues(alpha: 0.5)
+              : _getElementColor(spell.element).withValues(alpha: 0.3),
           width: isHighTier ? 2 : 1,
         ),
-        // Subtle glow for rare+ spells
         boxShadow: isHighTier
             ? [
                 BoxShadow(
-                  color: _getRarityColor(spell.rarity).withValues(alpha: 0.2),
-                  blurRadius: 8,
+                  color: _getRarityColor(spell.rarity).withValues(alpha: 0.1),
+                  blurRadius: 12,
                   spreadRadius: 1,
                 ),
               ]
             : null,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  spell.elementIcon,
-                  style: const TextStyle(fontSize: 28),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      spell.displayName,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: _getElementColor(spell.element),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildTierBadge(spell.rarity, isUpgraded),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ScaleTransition(
+                    scale: isLearning
+                        ? Tween<double>(
+                            begin: 1.0,
+                            end: 1.2,
+                          ).animate(_learnBurstAnimation)
+                        : const AlwaysStoppedAnimation(1.0),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            _getElementColor(
+                              spell.element,
+                            ).withValues(alpha: 0.3),
+                            _getElementColor(
+                              spell.element,
+                            ).withValues(alpha: 0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _getElementColor(
+                            spell.element,
+                          ).withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          spell.elementIcon,
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              spell.displayName,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: _getElementColor(spell.element),
-                              ),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            _buildStatChip(
+                              '💠 ${spell.manaCost}',
+                              Colors.blue.shade300,
                             ),
-                          ),
+                            _buildStatChip(
+                              '⚔️ ${spell.baseDamage}',
+                              Colors.red.shade300,
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    // Phase 7.6: Tier badge (Rule 15)
-                    _buildTierBadge(spell.rarity, isUpgraded),
-                    const SizedBox(height: 4),
+                  ),
+                  const SizedBox(width: 12),
+                  // Learn Button (Hidden when learning this spell)
+                  !isLearning
+                      ? ElevatedButton(
+                          onPressed:
+                              (widget.isActionCompleted ||
+                                  _learningIndex != null)
+                              ? null
+                              : () {
+                                  if (widget.mage.isLoadoutFull) {
+                                    setState(() {
+                                      _replacingSpell = spell;
+                                    });
+                                  } else {
+                                    _handleLearn(index);
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: widget.isActionCompleted
+                                ? Colors.grey
+                                : const Color(0xFF238636),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey.shade900,
+                            disabledForegroundColor: Colors.grey.shade600,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: const Text(
+                            'LEARN',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Spell Description
+              Padding(
+                padding: const EdgeInsets.only(left: 62),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      spell.element.displayName,
+                      spell.baseDescription,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 12,
-                        color: Colors.grey.shade500,
+                        color: Colors.grey.shade400,
+                        height: 1.4,
                       ),
                     ),
+                    if (spell.effectsDescription.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        spell.effectsDescription,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: widget.isActionCompleted
-                    ? null
-                    : () {
-                        if (widget.mage.isLoadoutFull) {
-                          setState(() {
-                            _replacingSpell = spell;
-                          });
-                        } else {
-                          _handleLearn(index);
-                        }
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.isActionCompleted
-                      ? Colors.grey
-                      : const Color(0xFF238636),
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade800,
-                ),
-                child: const Text('LEARN'),
-              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            spell.baseDescription,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 13,
-              color: Colors.grey.shade400,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            spell.effectsDescription,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 12,
-              color: Colors.grey.shade600,
-            ),
-          ),
+          // Sparkle Overlay when learning
+          if (isLearning) const Positioned.fill(child: _CardSparkleOverlay()),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -521,15 +745,126 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay> {
   }
 
   Color _getElementColor(game_element.Element element) {
-    switch (element) {
-      case game_element.Element.fire:
+    switch (element.toString().split('.').last) {
+      case 'fire':
         return const Color(0xFFf85149);
-      case game_element.Element.water:
+      case 'water':
         return const Color(0xFF58a6ff);
-      case game_element.Element.earth:
+      case 'earth':
         return const Color(0xFF7c6f4a);
-      case game_element.Element.air:
+      case 'air':
         return const Color(0xFF79c0ff);
+      default:
+        return Colors.grey;
     }
   }
+}
+
+class _CardSparkleOverlay extends StatefulWidget {
+  const _CardSparkleOverlay();
+
+  @override
+  State<_CardSparkleOverlay> createState() => _CardSparkleOverlayState();
+}
+
+class _CardSparkleOverlayState extends State<_CardSparkleOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final List<_StarSpec> _stars = [];
+  final Random _random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat();
+
+    // Generate random stars
+    for (int i = 0; i < 20; i++) {
+      _stars.add(
+        _StarSpec(
+          position: Offset(_random.nextDouble(), _random.nextDouble()),
+          scale: 0.5 + _random.nextDouble() * 1.0, // 0.5 to 1.5
+          phaseOffset: _random.nextDouble(),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(painter: _CardSparklePainter(_controller, _stars)),
+    );
+  }
+}
+
+class _StarSpec {
+  final Offset position;
+  final double scale;
+  final double phaseOffset;
+
+  _StarSpec({
+    required this.position,
+    required this.scale,
+    required this.phaseOffset,
+  });
+}
+
+class _CardSparklePainter extends CustomPainter {
+  final Animation<double> animation;
+  final List<_StarSpec> stars;
+
+  _CardSparklePainter(this.animation, this.stars) : super(repaint: animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (var star in stars) {
+      final t = (animation.value + star.phaseOffset) % 1.0;
+      // Fade in and out
+      final opacity = (sin(t * 2 * pi) + 1) / 2;
+
+      paint.color = Colors.cyanAccent.withValues(alpha: 0.6 * opacity);
+
+      final center = Offset(
+        star.position.dx * size.width,
+        star.position.dy * size.height,
+      );
+
+      // Draw star
+      // Base radius ~10-20 pixels
+      final radius = 8.0 * star.scale * (0.8 + 0.2 * opacity);
+
+      _drawStar(canvas, center, radius, paint);
+
+      // Draw core (white)
+      paint.color = Colors.white.withValues(alpha: 0.8 * opacity);
+      _drawStar(canvas, center, radius * 0.5, paint);
+    }
+  }
+
+  void _drawStar(Canvas canvas, Offset center, double radius, Paint paint) {
+    // 4-point star (diamond shape)
+    final path = Path();
+    path.moveTo(center.dx, center.dy - radius);
+    path.quadraticBezierTo(center.dx, center.dy, center.dx + radius, center.dy);
+    path.quadraticBezierTo(center.dx, center.dy, center.dx, center.dy + radius);
+    path.quadraticBezierTo(center.dx, center.dy, center.dx - radius, center.dy);
+    path.quadraticBezierTo(center.dx, center.dy, center.dx, center.dy - radius);
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CardSparklePainter oldDelegate) => true;
 }
