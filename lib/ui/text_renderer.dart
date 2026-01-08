@@ -731,6 +731,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       currentDepth: gameState.currentDepth,
       totalDepths: gameState.nodeMapSystem.totalDepths,
       temporaryBuffs: gameState.temporaryBuffs,
+      characterProgress: widget.game.progressionSystem.characterProgress,
       runNumber: 1,
       onEngageEnemy: (enemy, isElite) async {
         // Phase 7.7: Check if we should show narrative dialogue

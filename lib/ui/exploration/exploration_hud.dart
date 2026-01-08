@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/element.dart' as game_element;
 import '../../systems/shop_system.dart';
+import '../../progression/character_progress.dart';
 
 /// Minimal, icon-driven exploration HUD.
 ///
@@ -23,12 +24,16 @@ class ExplorationHUD extends StatelessWidget {
   /// Temporary buffs active on the player.
   final List<TemporaryBuff>? temporaryBuffs;
 
+  /// Active character progression (for ascension bonuses).
+  final CharacterProgress? characterProgress;
+
   const ExplorationHUD({
     super.key,
     required this.mage,
     this.directorActive = false,
     this.onSpellTap,
     this.temporaryBuffs,
+    this.characterProgress,
   });
 
   @override
@@ -53,8 +58,11 @@ class ExplorationHUD extends StatelessWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) =>
-          _PlayerStatsOverlay(mage: mage, temporaryBuffs: temporaryBuffs),
+      builder: (context) => _PlayerStatsOverlay(
+        mage: mage,
+        temporaryBuffs: temporaryBuffs,
+        characterProgress: characterProgress,
+      ),
     );
   }
 }
@@ -386,8 +394,13 @@ class _CompactBar extends StatelessWidget {
 class _PlayerStatsOverlay extends StatelessWidget {
   final Mage mage;
   final List<TemporaryBuff>? temporaryBuffs;
+  final CharacterProgress? characterProgress;
 
-  const _PlayerStatsOverlay({required this.mage, this.temporaryBuffs});
+  const _PlayerStatsOverlay({
+    required this.mage,
+    this.temporaryBuffs,
+    this.characterProgress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -563,6 +576,61 @@ class _PlayerStatsOverlay extends StatelessWidget {
                   ),
                 );
               }).toList(),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // Elemental Bonuses
+          if (characterProgress != null &&
+              characterProgress!.getActiveBenefits().isNotEmpty) ...[
+            const Text(
+              'ASCENSION BONUSES',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF8b949e),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161b22),
+                border: Border.all(color: const Color(0xFF30363d)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: characterProgress!.getActiveBenefits().map((benefit) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '• ',
+                          style: TextStyle(
+                            color: Color(0xFFd2a8ff),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            benefit,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              color: Color(0xFFd2a8ff),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
             const SizedBox(height: 24),
           ],

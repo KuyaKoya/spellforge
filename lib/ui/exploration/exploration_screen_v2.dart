@@ -13,6 +13,7 @@ import '../components/node_breadcrumbs.dart';
 import '../battle/director_subtitle_overlay.dart';
 import 'exploration_hud.dart';
 import 'preview_panels/preview_panels.dart';
+import '../../progression/character_progress.dart';
 
 /// Simplified tap-based exploration screen.
 ///
@@ -40,6 +41,9 @@ class ExplorationScreenV2 extends StatefulWidget {
   /// Temporary buffs active on the player.
   final List<TemporaryBuff>? temporaryBuffs;
 
+  /// Active character progression.
+  final CharacterProgress? characterProgress;
+
   /// Callback when player engages an enemy.
   final void Function(Enemy enemy, bool isElite)? onEngageEnemy;
 
@@ -64,6 +68,7 @@ class ExplorationScreenV2 extends StatefulWidget {
     required this.totalDepths,
     this.runNumber = 1,
     this.temporaryBuffs,
+    this.characterProgress,
     this.onEngageEnemy,
     this.onTravel,
     this.onInteractableTapped,
@@ -302,6 +307,7 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
                 mage: widget.mage,
                 directorActive: _controller.directorMessage != null,
                 temporaryBuffs: widget.temporaryBuffs,
+                characterProgress: widget.characterProgress,
               ),
             ),
 
