@@ -665,6 +665,8 @@ class _EliteRewardOverlayState extends State<EliteRewardOverlay>
         return Colors.amber;
       case SpellRarity.legendary:
         return const Color(0xFFbc8cff);
+      case SpellRarity.fusion:
+        return const Color(0xFF00d4aa);
     }
   }
 

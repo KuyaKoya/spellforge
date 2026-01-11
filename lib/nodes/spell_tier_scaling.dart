@@ -74,6 +74,7 @@ class SpellTierConfig {
           break;
         case SpellRarity.signature:
         case SpellRarity.legendary:
+        case SpellRarity.fusion:
           // Never offered at spell learn nodes
           break;
       }
@@ -200,6 +201,8 @@ extension SpellLearnDisplay on SpellRarity {
         return 'Signature';
       case SpellRarity.legendary:
         return 'Legendary';
+      case SpellRarity.fusion:
+        return 'Fusion';
     }
   }
 
@@ -216,6 +219,8 @@ extension SpellLearnDisplay on SpellRarity {
         return 0xFFf0b429; // Gold
       case SpellRarity.legendary:
         return 0xFFbc8cff; // Purple
+      case SpellRarity.fusion:
+        return 0xFF00d4aa; // Cyan/Teal
     }
   }
 }

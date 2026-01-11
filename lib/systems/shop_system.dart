@@ -243,6 +243,7 @@ class ShopSystem {
       case SpellRarity.signature:
         return 150;
       case SpellRarity.legendary:
+      case SpellRarity.fusion:
         return 200;
     }
   }

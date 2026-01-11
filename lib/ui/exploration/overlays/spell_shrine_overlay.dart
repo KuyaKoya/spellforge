@@ -582,6 +582,8 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay>
         return const Color(0xFFf0b429); // Gold
       case SpellRarity.legendary:
         return const Color(0xFFbc8cff); // Purple
+      case SpellRarity.fusion:
+        return const Color(0xFF00d4aa); // Cyan/Teal
     }
   }
 
@@ -616,6 +618,10 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay>
       case SpellRarity.legendary:
         tierText = 'Tier V';
         tierColor = const Color(0xFFbc8cff);
+        break;
+      case SpellRarity.fusion:
+        tierText = 'Fusion';
+        tierColor = const Color(0xFF00d4aa);
         break;
     }
 

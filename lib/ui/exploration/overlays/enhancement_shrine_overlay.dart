@@ -1075,6 +1075,8 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
         return Colors.amber;
       case SpellRarity.legendary:
         return const Color(0xFFbc8cff); // Purple
+      case SpellRarity.fusion:
+        return const Color(0xFF00d4aa); // Cyan/Teal
     }
   }
 }
