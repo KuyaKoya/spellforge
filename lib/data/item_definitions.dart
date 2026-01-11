@@ -37,6 +37,9 @@ class RelicItem extends ItemDefinition {
   final Element element;
   final RelicEffect passiveEffect;
 
+  /// Stat modifiers: keys like 'maxHpPercent', 'damagePercent', 'manaFlat', etc.
+  final Map<String, num> stats;
+
   const RelicItem({
     required super.id,
     required super.name,
@@ -44,6 +47,7 @@ class RelicItem extends ItemDefinition {
     required super.baseCost,
     required this.element,
     required this.passiveEffect,
+    this.stats = const {},
     super.rarity,
   }) : super(type: ItemType.relic);
 }
@@ -105,57 +109,220 @@ class ItemRegistry {
   ];
 
   static final List<RelicItem> relics = [
-    // Fire Relics
+    // ==================== FIRE RELICS ====================
     RelicItem(
-      id: 'relic_fire_ember',
-      name: 'Undying Ember',
-      description: '+10 Max HP.',
-      baseCost: 150,
+      id: 'relic_fire_crown',
+      name: 'Ember Crown',
+      description: '+8% Damage.',
+      baseCost: 60,
       element: Element.fire,
-      passiveEffect: RelicEffect(description: 'Increases Max HP by 10'),
+      passiveEffect: RelicEffect(
+        description: '+8% Damage',
+        params: {'damagePercent': 8},
+      ),
+      stats: {'damagePercent': 8},
       rarity: 1,
     ),
     RelicItem(
       id: 'relic_fire_ruby',
       name: 'Flame Ruby',
-      description: '+5% Fire Damage.',
-      baseCost: 200,
+      description: '+5% Burn Potency.',
+      baseCost: 90,
       element: Element.fire,
-      passiveEffect: RelicEffect(description: '+5% to Fire spells'),
+      passiveEffect: RelicEffect(
+        description: '+5% Burn Potency',
+        params: {'burnPotency': 5},
+      ),
+      stats: {'burnPotency': 5},
       rarity: 2,
     ),
+    RelicItem(
+      id: 'relic_fire_core',
+      name: 'Inferno Core',
+      description: '+6% Max HP.',
+      baseCost: 90,
+      element: Element.fire,
+      passiveEffect: RelicEffect(
+        description: '+6% Max HP',
+        params: {'maxHpPercent': 6},
+      ),
+      stats: {'maxHpPercent': 6},
+      rarity: 2,
+    ),
+    RelicItem(
+      id: 'relic_fire_sigil',
+      name: 'Blaze Sigil',
+      description: 'Burn deals +3 damage per tick.',
+      baseCost: 150,
+      element: Element.fire,
+      passiveEffect: RelicEffect(
+        description: 'Burn deals +3 damage per tick',
+        params: {'burnBonusDamage': 3},
+      ),
+      stats: {'burnBonusDamage': 3},
+      rarity: 3,
+    ),
 
-    // Water Relics
+    // ==================== WATER RELICS ====================
+    RelicItem(
+      id: 'relic_water_circlet',
+      name: 'Tidal Circlet',
+      description: '+10 Max Mana.',
+      baseCost: 60,
+      element: Element.water,
+      passiveEffect: RelicEffect(
+        description: '+10 Max Mana',
+        params: {'manaFlat': 10},
+      ),
+      stats: {'manaFlat': 10},
+      rarity: 1,
+    ),
     RelicItem(
       id: 'relic_water_pearl',
       name: 'Ocean Pearl',
-      description: '+10 Max Mana.',
+      description: '+5% Slow Potency.',
+      baseCost: 90,
+      element: Element.water,
+      passiveEffect: RelicEffect(
+        description: '+5% Slow Potency',
+        params: {'slowPotency': 5},
+      ),
+      stats: {'slowPotency': 5},
+      rarity: 2,
+    ),
+    RelicItem(
+      id: 'relic_water_core',
+      name: 'Frost Core',
+      description: '+5% Max HP.',
+      baseCost: 90,
+      element: Element.water,
+      passiveEffect: RelicEffect(
+        description: '+5% Max HP',
+        params: {'maxHpPercent': 5},
+      ),
+      stats: {'maxHpPercent': 5},
+      rarity: 2,
+    ),
+    RelicItem(
+      id: 'relic_water_sigil',
+      name: 'Wave Sigil',
+      description: 'Heal 2 HP when casting Water spells.',
       baseCost: 150,
       element: Element.water,
-      passiveEffect: RelicEffect(description: 'Increases Max Mana by 10'),
-      rarity: 1,
+      passiveEffect: RelicEffect(
+        description: 'Heal 2 HP when casting Water spells',
+        params: {'healOnWaterCast': 2},
+      ),
+      stats: {'healOnWaterCast': 2},
+      rarity: 3,
     ),
 
-    // Earth Relics
+    // ==================== EARTH RELICS ====================
     RelicItem(
-      id: 'relic_earth_stone',
+      id: 'relic_earth_helm',
+      name: 'Stone Helm',
+      description: '+10% Armor.',
+      baseCost: 60,
+      element: Element.earth,
+      passiveEffect: RelicEffect(
+        description: '+10% Armor',
+        params: {'armorPercent': 10},
+      ),
+      stats: {'armorPercent': 10},
+      rarity: 1,
+    ),
+    RelicItem(
+      id: 'relic_earth_shard',
       name: 'Granite Shard',
-      description: 'Start battles with 5 Armor.',
+      description: '+8 Max HP.',
+      baseCost: 90,
+      element: Element.earth,
+      passiveEffect: RelicEffect(
+        description: '+8 Max HP',
+        params: {'maxHpFlat': 8},
+      ),
+      stats: {'maxHpFlat': 8},
+      rarity: 2,
+    ),
+    RelicItem(
+      id: 'relic_earth_core',
+      name: 'Bedrock Core',
+      description: '+5 Defense.',
+      baseCost: 90,
+      element: Element.earth,
+      passiveEffect: RelicEffect(
+        description: '+5 Defense',
+        params: {'defenseFlat': 5},
+      ),
+      stats: {'defenseFlat': 5},
+      rarity: 2,
+    ),
+    RelicItem(
+      id: 'relic_earth_sigil',
+      name: 'Terra Sigil',
+      description: 'Start combat with 8 Armor.',
       baseCost: 150,
       element: Element.earth,
-      passiveEffect: RelicEffect(description: 'Start battle with 5 Armor'),
-      rarity: 1,
+      passiveEffect: RelicEffect(
+        description: 'Start combat with 8 Armor',
+        params: {'startingArmor': 8},
+      ),
+      stats: {'startingArmor': 8},
+      rarity: 3,
     ),
 
-    // Air Relics
+    // ==================== AIR RELICS ====================
+    RelicItem(
+      id: 'relic_air_crown',
+      name: 'Zephyr Crown',
+      description: '+5% Speed.',
+      baseCost: 60,
+      element: Element.air,
+      passiveEffect: RelicEffect(
+        description: '+5% Speed',
+        params: {'speedPercent': 5},
+      ),
+      stats: {'speedPercent': 5},
+      rarity: 1,
+    ),
     RelicItem(
       id: 'relic_air_feather',
-      name: 'Zephyr Feather',
-      description: 'First spell each combat costs 2 less mana.',
-      baseCost: 200,
+      name: 'Gale Feather',
+      description: '-3% Mana Cost.',
+      baseCost: 90,
       element: Element.air,
-      passiveEffect: RelicEffect(description: '-2 Mana cost for first spell'),
+      passiveEffect: RelicEffect(
+        description: '-3% Mana Cost',
+        params: {'manaCostReduction': 3},
+      ),
+      stats: {'manaCostReduction': 3},
       rarity: 2,
+    ),
+    RelicItem(
+      id: 'relic_air_core',
+      name: 'Storm Core',
+      description: '+6% Damage.',
+      baseCost: 90,
+      element: Element.air,
+      passiveEffect: RelicEffect(
+        description: '+6% Damage',
+        params: {'damagePercent': 6},
+      ),
+      stats: {'damagePercent': 6},
+      rarity: 2,
+    ),
+    RelicItem(
+      id: 'relic_air_sigil',
+      name: 'Wind Sigil',
+      description: 'First spell each combat costs 0 mana.',
+      baseCost: 150,
+      element: Element.air,
+      passiveEffect: RelicEffect(
+        description: 'First spell each combat costs 0 mana',
+        params: {'firstSpellFree': true},
+      ),
+      stats: {},
+      rarity: 3,
     ),
   ];
 

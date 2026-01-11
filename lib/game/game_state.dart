@@ -490,6 +490,7 @@ class GameState {
       damageMultiplier: temporaryBuffMultiplier,
       onStateChanged: onStateChanged,
       elementalModifiers: progression.getActiveModifiers(),
+      equippedRelics: progression.equippedRelics,
     );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;
@@ -517,6 +518,7 @@ class GameState {
       damageMultiplier: temporaryBuffMultiplier,
       onStateChanged: onStateChanged,
       elementalModifiers: progression.getActiveModifiers(),
+      equippedRelics: progression.equippedRelics,
     );
     currentCombat!.startCombat();
     currentScreen = GameScreen.combat;

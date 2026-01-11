@@ -7,6 +7,7 @@ import '../../../progression/core_path.dart';
 import 'elemental_path_view.dart';
 import 'core_path_view.dart';
 import '../../../systems/inventory_system.dart';
+import '../../../systems/relic_effect_service.dart';
 import '../../../data/item_definitions.dart'; // For ItemRegistry
 // domain/element.dart is already imported as domain at line 2
 
@@ -52,36 +53,116 @@ class _CharacterTabState extends State<CharacterTab>
   Widget build(BuildContext context) {
     return PopScope(
       // Only allow pop if we're at the overview (no element or core selected)
-      canPop: _selectedElement == null && !_showCorePath && !_showRelics,
+      canPop: _selectedElement == null && !_showCorePath,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         // If we didn't pop and have something selected, go back to overview
         if (_showCorePath) {
           setState(() => _showCorePath = false);
-        } else if (_showRelics) {
-          setState(() => _showRelics = false);
         } else if (_selectedElement != null) {
           setState(() => _selectedElement = null);
         }
       },
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: _showCorePath
-            ? CorePathView(
-                key: const ValueKey('core'),
-                progressionSystem: widget.progressionSystem,
-                onBack: () => setState(() => _showCorePath = false),
-              )
-            : _showRelics
-            ? _buildRelicManager()
-            : _selectedElement == null
-            ? _buildOverview()
-            : ElementalPathView(
-                key: ValueKey(_selectedElement),
-                element: _selectedElement!,
-                progressionSystem: widget.progressionSystem,
-                onBack: () => setState(() => _selectedElement = null),
+      child: Column(
+        children: [
+          // Tab Header
+          _buildTabHeader(),
+          // Content
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _showRelics
+                  ? _buildRelicManager()
+                  : _showCorePath
+                  ? CorePathView(
+                      key: const ValueKey('core'),
+                      progressionSystem: widget.progressionSystem,
+                      onBack: () => setState(() => _showCorePath = false),
+                    )
+                  : _selectedElement == null
+                  ? _buildOverview()
+                  : ElementalPathView(
+                      key: ValueKey(_selectedElement),
+                      element: _selectedElement!,
+                      progressionSystem: widget.progressionSystem,
+                      onBack: () => setState(() => _selectedElement = null),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0d1117),
+        border: Border(bottom: BorderSide(color: Color(0xFF30363d))),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showRelics = false),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: !_showRelics
+                      ? const Color(0xFF1f6feb).withOpacity(0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: !_showRelics
+                        ? const Color(0xFF1f6feb)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Text(
+                  'ASCENSION',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: !_showRelics ? const Color(0xFF58a6ff) : Colors.grey,
+                    letterSpacing: 1,
+                  ),
+                ),
               ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showRelics = true),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _showRelics
+                      ? Colors.amber.withOpacity(0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _showRelics ? Colors.amber : Colors.transparent,
+                  ),
+                ),
+                child: Text(
+                  'RELICS',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: _showRelics ? Colors.amber : Colors.grey,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -128,12 +209,6 @@ class _CharacterTabState extends State<CharacterTab>
             // Core node (info)
             _buildCoreNode(),
             const SizedBox(height: 24),
-
-            // Relic Button (During Run Only)
-            if (widget.inventory != null) ...[
-              _buildRelicButton(),
-              const SizedBox(height: 24),
-            ],
 
             // Element paths
             _buildElementPaths(progress),
@@ -537,92 +612,48 @@ class _CharacterTabState extends State<CharacterTab>
     );
   }
 
-  Widget _buildRelicButton() {
-    return GestureDetector(
-      onTap: () => setState(() => _showRelics = true),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161b22),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.amber.shade700),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.amber.withValues(alpha: 0.1),
-              blurRadius: 10,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.shield_moon, color: Colors.amber),
-            const SizedBox(width: 12),
-            const Text(
-              'MANAGE RELICS',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.bold,
-                color: Colors.amber,
-                letterSpacing: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildRelicManager() {
-    if (widget.inventory == null) return const SizedBox.shrink();
-
-    final inventory = widget.inventory!;
-    final equipped = inventory.progression.equippedRelics;
+    // Use ProgressionSystem directly (works from home screen too)
+    final progression =
+        widget.inventory?.progression ?? widget.progressionSystem;
+    final equipped = List<String>.from(progression.equippedRelics);
     // ensure size 4
-    if (equipped.length < 4) {
-      for (int i = equipped.length; i < 4; i++) equipped.add('');
+    while (equipped.length < 4) {
+      equipped.add('');
     }
 
-    final owned = inventory.progression.ownedRelics;
-    final activeSets = inventory.getActiveSetBonuses();
+    final owned = progression.ownedRelics;
+    final activeSets = RelicEffectService.getActiveSetBonuses(equipped);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => setState(() => _showRelics = false),
-              ),
-              const Expanded(
-                child: Text(
-                  'RELIC LOADOUT',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(width: 48), // Balance back button
-            ],
+          // Title
+          const Text(
+            'RELIC LOADOUT',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.amber,
+              letterSpacing: 2,
+            ),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Equipped Slots
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(4, (index) {
-              final relicId = equipped[index];
+              final relicId = index < equipped.length ? equipped[index] : '';
               final isEmpty = relicId.isEmpty;
+              final relicItem = !isEmpty
+                  ? ItemRegistry.getItem(relicId) as RelicItem?
+                  : null;
+
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: GestureDetector(
@@ -630,7 +661,7 @@ class _CharacterTabState extends State<CharacterTab>
                     // Tap to unequip
                     if (!isEmpty) {
                       setState(() {
-                        inventory.unequipRelic(index);
+                        _unequipRelic(progression, index);
                       });
                     }
                   },
@@ -660,7 +691,10 @@ class _CharacterTabState extends State<CharacterTab>
                               color: Colors.grey.shade800,
                               size: 24,
                             )
-                          : const Text('💍', style: TextStyle(fontSize: 32)),
+                          : Text(
+                              relicItem?.element.icon ?? '💍',
+                              style: const TextStyle(fontSize: 28),
+                            ),
                     ),
                   ),
                 ),
@@ -668,6 +702,11 @@ class _CharacterTabState extends State<CharacterTab>
             }),
           ),
           const SizedBox(height: 8),
+
+          // Set Progress Indicator
+          _buildSetProgress(equipped),
+          const SizedBox(height: 8),
+
           const Text(
             'Tap slot to unequip',
             textAlign: TextAlign.center,
@@ -785,7 +824,7 @@ class _CharacterTabState extends State<CharacterTab>
                               color: Colors.white,
                             ),
                             onPressed: () {
-                              _equipToFirstEmpty(inventory, relicId);
+                              _equipToFirstEmpty(progression, relicId);
                             },
                           ),
                   ),
@@ -798,9 +837,9 @@ class _CharacterTabState extends State<CharacterTab>
     );
   }
 
-  void _equipToFirstEmpty(InventorySystem inventory, String relicId) {
+  void _equipToFirstEmpty(ProgressionSystem progression, String relicId) {
     // Find first empty slot
-    final equipped = inventory.progression.equippedRelics;
+    final equipped = progression.equippedRelics;
     int targetSlot = -1;
     for (int i = 0; i < 4; i++) {
       // Handle list size
@@ -812,7 +851,7 @@ class _CharacterTabState extends State<CharacterTab>
 
     if (targetSlot != -1) {
       setState(() {
-        inventory.equipRelic(targetSlot, relicId);
+        progression.equipRelic(targetSlot, relicId);
       });
     } else {
       // All full, maybe show snackbar?
@@ -820,6 +859,54 @@ class _CharacterTabState extends State<CharacterTab>
         const SnackBar(content: Text('No empty slots! Unequip a relic first.')),
       );
     }
+  }
+
+  void _unequipRelic(ProgressionSystem progression, int slotIndex) {
+    progression.unequipRelic(slotIndex);
+  }
+
+  Widget _buildSetProgress(List<String> equipped) {
+    final progress = RelicEffectService.getSetProgress(equipped);
+    if (progress.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 12,
+      alignment: WrapAlignment.center,
+      children: progress.entries.map((entry) {
+        final element = entry.key;
+        final count = entry.value;
+        final isComplete = count >= 4;
+        final color = _getElementColor(element);
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withOpacity(isComplete ? 0.3 : 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isComplete ? color : color.withOpacity(0.5),
+              width: isComplete ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(element.icon, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Text(
+                '$count/4',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: isComplete ? color : Colors.grey,
+                  fontWeight: isComplete ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 
   Color _getElementColor(domain.Element element) {

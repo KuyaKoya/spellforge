@@ -266,6 +266,32 @@ class ProgressionSystem {
     await _saveData();
   }
 
+  /// Phase 7.9.5: Equips a relic to a slot (0-3).
+  void equipRelic(int slotIndex, String relicId) {
+    if (slotIndex < 0 || slotIndex > 3) return;
+
+    // Ensure list has enough slots
+    while (equippedRelics.length < 4) {
+      equippedRelics.add('');
+    }
+
+    // Remove from any existing slot first (can't be in two slots)
+    equippedRelics.remove(relicId);
+    while (equippedRelics.length < 4) {
+      equippedRelics.add('');
+    }
+
+    equippedRelics[slotIndex] = relicId;
+    _saveData();
+  }
+
+  /// Phase 7.9.5: Unequips a relic from a slot (0-3).
+  void unequipRelic(int slotIndex) {
+    if (slotIndex < 0 || slotIndex >= equippedRelics.length) return;
+    equippedRelics[slotIndex] = '';
+    _saveData();
+  }
+
   /// Calculates fragments earned for a combat victory.
   int calculateCombatReward(int nodeIndex, int enemiesDefeated) {
     final baseReward = 10;

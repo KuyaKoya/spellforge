@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/item_definitions.dart';
 import '../../../systems/progression_system.dart';
+import '../../../systems/shop_rotation.dart';
 
 class HomeShopOverlay extends StatefulWidget {
   final ProgressionSystem progressionSystem;
@@ -13,57 +14,79 @@ class HomeShopOverlay extends StatefulWidget {
 
 class _HomeShopOverlayState extends State<HomeShopOverlay> {
   late List<ConsumableItem> _consumables;
-  late List<RelicItem> _relics;
+  late List<RelicItem> _dailyRelics;
 
   @override
   void initState() {
     super.initState();
     _consumables = ItemRegistry.consumables;
-    _relics = ItemRegistry.relics;
+    // Get daily rotating relics (excludes already owned for next run)
+    _dailyRelics = ShopRotation.getDailyRelics(
+      DateTime.now(),
+      widget.progressionSystem.nextRunRelics,
+    );
   }
 
-  void _purchaseItem(ItemDefinition item) async {
-    // Check cost
+  void _purchaseConsumable(ConsumableItem item) async {
+    // Consumables use fragments
     if (widget.progressionSystem.spellFragments < item.baseCost) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Not enough fragments!',
-            style: TextStyle(fontFamily: 'monospace'),
-          ),
-          backgroundColor: Colors.red,
-          duration: Duration(milliseconds: 500),
-        ),
-      );
+      _showError('Not enough fragments!');
       return;
     }
 
-    // Check if relic already owned for next run
-    if (item.type == ItemType.relic &&
-        widget.progressionSystem.nextRunRelics.contains(item.id)) {
-      return;
-    }
-
-    // Deduct cost
     await widget.progressionSystem.spendFragments(item.baseCost);
-
-    // Add to next run inventory
     await widget.progressionSystem.purchaseNextRunItem(item.id, item.type);
 
-    setState(() {}); // Refresh UI
+    setState(() {});
+    _showSuccess('Purchased ${item.name}!');
+  }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Purchased ${item.name}!',
-            style: const TextStyle(fontFamily: 'monospace'),
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(milliseconds: 500),
-        ),
-      );
+  void _purchaseRelic(RelicItem item) async {
+    // Relics use crystals
+    final cost = ShopRotation.getRelicCost(item);
+    if (widget.progressionSystem.spellCrystals < cost) {
+      _showError('Not enough crystals!');
+      return;
     }
+
+    // Check if already owned
+    if (widget.progressionSystem.nextRunRelics.contains(item.id)) {
+      return;
+    }
+
+    await widget.progressionSystem.spendCrystals(cost);
+    await widget.progressionSystem.purchaseNextRunItem(item.id, item.type);
+
+    setState(() {
+      // Refresh daily relics to exclude newly purchased
+      _dailyRelics = ShopRotation.getDailyRelics(
+        DateTime.now(),
+        widget.progressionSystem.nextRunRelics,
+      );
+    });
+    _showSuccess('Purchased ${item.name}!');
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontFamily: 'monospace')),
+        backgroundColor: Colors.red,
+        duration: const Duration(milliseconds: 500),
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontFamily: 'monospace')),
+        backgroundColor: Colors.green,
+        duration: const Duration(milliseconds: 500),
+      ),
+    );
   }
 
   @override
@@ -83,10 +106,23 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSectionHeader('CONSUMABLES (One-time use per run)'),
-                    _buildGrid(_consumables),
+                    _buildConsumableGrid(_consumables),
                     const SizedBox(height: 24),
-                    _buildSectionHeader('RELICS (Permanent for one run)'),
-                    _buildGrid(_relics),
+                    _buildSectionHeader("TODAY'S RELICS (Rotates Daily)"),
+                    if (_dailyRelics.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'All available relics already owned!',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: Colors.grey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      )
+                    else
+                      _buildRelicGrid(_dailyRelics),
                   ],
                 ),
               ),
@@ -116,25 +152,50 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
             ),
           ),
           const Spacer(),
-          // Currency Display
+          // Fragments (for consumables)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFF0d1117),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF30363d)),
+              border: Border.all(color: Colors.purple.withOpacity(0.5)),
             ),
             child: Row(
               children: [
-                const Text('💎', style: TextStyle(fontSize: 16)),
-                const SizedBox(width: 8),
+                const Text('🔮', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 6),
                 Text(
                   '${widget.progressionSystem.spellFragments}',
                   style: const TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF79c0ff),
+                    color: Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Crystals (for relics)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0d1117),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.amber.withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                const Text('✨', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 6),
+                Text(
+                  '${widget.progressionSystem.spellCrystals}',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber,
                   ),
                 ),
               ],
@@ -160,67 +221,60 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
     );
   }
 
-  Widget _buildGrid(List<ItemDefinition> items) {
+  Widget _buildConsumableGrid(List<ConsumableItem> items) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.8, // Taller cards
+        childAspectRatio: 0.8,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
-        return _buildItemCard(items[index]);
+        return _buildConsumableCard(items[index]);
       },
     );
   }
 
-  Widget _buildItemCard(ItemDefinition item) {
-    final isRelic = item.type == ItemType.relic;
-    final isOwnedRelic =
-        isRelic && widget.progressionSystem.nextRunRelics.contains(item.id);
+  Widget _buildRelicGrid(List<RelicItem> items) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.75, // Taller for more info
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        return _buildRelicCard(items[index]);
+      },
+    );
+  }
+
+  Widget _buildConsumableCard(ConsumableItem item) {
     final canAfford = widget.progressionSystem.spellFragments >= item.baseCost;
 
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF161b22),
-        border: Border.all(
-          color: isOwnedRelic
-              ? const Color(0xFF238636)
-              : const Color(0xFF30363d),
-          width: isOwnedRelic ? 2 : 1,
-        ),
+        border: Border.all(color: const Color(0xFF30363d)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: (isOwnedRelic || !canAfford)
-              ? null
-              : () => _purchaseItem(item),
+          onTap: canAfford ? () => _purchaseConsumable(item) : null,
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      isRelic ? '💍' : '🧪',
-                      style: const TextStyle(fontSize: 24),
-                    ),
-                    const Spacer(),
-                    if (isOwnedRelic)
-                      const Icon(
-                        Icons.check_circle,
-                        color: Color(0xFF238636),
-                        size: 20,
-                      ),
-                  ],
-                ),
+                const Text('🧪', style: TextStyle(fontSize: 24)),
                 const SizedBox(height: 8),
                 Text(
                   item.name,
@@ -242,7 +296,7 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
                       fontSize: 11,
                       color: Color(0xFF8b949e),
                     ),
-                    maxLines: 4,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -251,28 +305,21 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: isOwnedRelic
-                        ? const Color(0xFF238636).withOpacity(0.2)
-                        : (canAfford
-                              ? const Color(0xFF1f6feb).withOpacity(0.1)
-                              : Colors.grey.withOpacity(0.1)),
+                    color: (canAfford ? const Color(0xFF1f6feb) : Colors.grey)
+                        .withOpacity(0.1),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: isOwnedRelic
-                          ? const Color(0xFF238636)
-                          : (canAfford ? const Color(0xFF1f6feb) : Colors.grey),
+                      color: canAfford ? const Color(0xFF1f6feb) : Colors.grey,
                     ),
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    isOwnedRelic ? 'OWNED' : '${item.baseCost} 💎',
+                    '${item.baseCost} 🔮',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isOwnedRelic
-                          ? const Color(0xFF238636)
-                          : (canAfford ? const Color(0xFF58a6ff) : Colors.grey),
+                      color: canAfford ? const Color(0xFF58a6ff) : Colors.grey,
                     ),
                   ),
                 ),
@@ -282,5 +329,127 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
         ),
       ),
     );
+  }
+
+  Widget _buildRelicCard(RelicItem item) {
+    final cost = ShopRotation.getRelicCost(item);
+    final canAfford = widget.progressionSystem.spellCrystals >= cost;
+    final rarityColor = _getRarityColor(item.rarity);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF161b22),
+        border: Border.all(color: rarityColor.withOpacity(0.5)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: canAfford ? () => _purchaseRelic(item) : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      item.element.icon,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _getRarityLabel(item.rarity),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        color: rarityColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  item.name,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: rarityColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Expanded(
+                  child: Text(
+                    item.description,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: Color(0xFF8b949e),
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: (canAfford ? Colors.amber : Colors.grey).withOpacity(
+                      0.1,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: canAfford ? Colors.amber : Colors.grey,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$cost ✨',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: canAfford ? Colors.amber : Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getRarityColor(int rarity) {
+    switch (rarity) {
+      case 1:
+        return Colors.grey.shade400;
+      case 2:
+        return Colors.greenAccent;
+      case 3:
+        return Colors.amber;
+      default:
+        return Colors.white;
+    }
+  }
+
+  String _getRarityLabel(int rarity) {
+    switch (rarity) {
+      case 1:
+        return 'COMMON';
+      case 2:
+        return 'UNCOMMON';
+      case 3:
+        return 'RARE';
+      default:
+        return '';
+    }
   }
 }

@@ -8,6 +8,7 @@ import '../progression/node_modifier.dart';
 import 'spell_system.dart';
 import 'audio_system.dart';
 import 'modifier_service.dart';
+import 'relic_effect_service.dart';
 
 /// Represents the state of an ongoing combat.
 enum CombatPhase { playerTurn, enemyTurn, statusResolution, victory, defeat }
@@ -55,6 +56,15 @@ class CombatSystem {
   /// Phase 7.8: Elemental node modifiers from character progression.
   final List<NodeModifier> elementalModifiers;
 
+  /// Phase 7.9.5: Equipped relic IDs for stat/effect application.
+  final List<String> equippedRelics;
+
+  /// Phase 7.9.5: Cached relic stats for combat.
+  late final RelicStats _relicStats;
+
+  /// Phase 7.9.5: Track first spell free passive usage.
+  bool _firstSpellFreeUsed = false;
+
   /// Phase 7.8: Tracks if "evade first hit" has been used this battle.
   bool _evadeUsed = false;
 
@@ -75,9 +85,13 @@ class CombatSystem {
     this.damageMultiplier = 1.0,
     this.onStateChanged,
     this.elementalModifiers = const [],
+    this.equippedRelics = const [],
   }) : combatLog = [],
        phase = CombatPhase.playerTurn,
-       currentTurn = 1;
+       currentTurn = 1 {
+    // Cache relic stats for combat
+    _relicStats = RelicEffectService.calculateEquippedStats(equippedRelics);
+  }
 
   /// Whether combat is still ongoing.
   bool get isOngoing =>
@@ -152,6 +166,48 @@ class CombatSystem {
     }
   }
 
+  /// Phase 7.9.5: Applies equipped relic effects at combat start.
+  void _applyRelicCombatStartEffects() {
+    // Apply starting armor from Terra Sigil
+    if (_relicStats.startingArmor > 0) {
+      mage.applyStatusEffect(
+        Effect(
+          type: EffectType.armor,
+          value: _relicStats.startingArmor,
+          duration: 99,
+        ),
+      );
+      combatLog.add(
+        '💎 Relic bonus: +${_relicStats.startingArmor} starting armor!',
+      );
+      combatLog.add('');
+    }
+
+    // Apply flat mana bonus from Water relics
+    if (_relicStats.manaFlat > 0) {
+      mage.mana = (mage.mana + _relicStats.manaFlat).clamp(
+        0,
+        mage.maxMana + _relicStats.manaFlat,
+      );
+      combatLog.add('💎 Relic bonus: +${_relicStats.manaFlat} mana!');
+      combatLog.add('');
+    }
+
+    // Log first spell free if Wind Sigil equipped
+    if (_relicStats.firstSpellFree) {
+      combatLog.add('💎 Wind Sigil: First spell this combat is free!');
+      combatLog.add('');
+    }
+
+    // Log damage bonus if present
+    if (_relicStats.damagePercent > 0) {
+      combatLog.add(
+        '💎 Relic bonus: +${_relicStats.damagePercent.toInt()}% damage!',
+      );
+      combatLog.add('');
+    }
+  }
+
   /// Starts combat, resetting states.
   ///
   /// Note: Battle start SFX should be played by the caller BEFORE calling this
@@ -213,6 +269,9 @@ class CombatSystem {
       );
       combatLog.add('');
     }
+
+    // Phase 7.9.5: Apply relic bonuses at combat start
+    _applyRelicCombatStartEffects();
 
     // Phase 7.6.8: Trigger battle start passives for elites
     for (final enemy in enemies) {
@@ -310,6 +369,12 @@ class CombatSystem {
 
     final spell = mage.spellLoadout[spellIndex];
 
+    // Phase 7.9.5: Track first spell free for Wind Sigil
+    final isFirstSpell = !_firstSpellFreeUsed && _relicStats.firstSpellFree;
+    if (isFirstSpell) {
+      _firstSpellFreeUsed = true;
+    }
+
     // NOTE: Audio removed - BattleScreen handles audio with proper timing:
     // Animation -> Sound -> Delay -> Damage
 
@@ -318,7 +383,11 @@ class CombatSystem {
       elementalModifiers,
       element: spell.element,
     );
-    final totalDamageMultiplier = damageMultiplier * elementalDamageMultiplier;
+
+    // Phase 7.9.5: Add relic damage bonus
+    final relicDamageMultiplier = 1.0 + (_relicStats.damagePercent / 100.0);
+    final totalDamageMultiplier =
+        damageMultiplier * elementalDamageMultiplier * relicDamageMultiplier;
 
     final result = SpellSystem.castSpell(
       caster: mage,
@@ -328,6 +397,13 @@ class CombatSystem {
       damageMultiplier: totalDamageMultiplier,
       elementalModifiers: elementalModifiers,
     );
+
+    // Phase 7.9.5: Refund mana for first spell if Wind Sigil equipped
+    if (isFirstSpell && result.success) {
+      final manaCost = mage.getEffectiveManaCost(spell);
+      mage.mana = (mage.mana + manaCost).clamp(0, mage.maxMana);
+      combatLog.add('💨 Wind Sigil: Spell cast for free!');
+    }
 
     // NOTE: Audio removed from here - BattleScreen plays sounds after
     // the animation completes and before showing damage results
