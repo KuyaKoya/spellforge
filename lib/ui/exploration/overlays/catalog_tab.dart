@@ -3,10 +3,12 @@ import '../../../data/spell_definitions.dart';
 import '../../../data/enemy_definitions.dart';
 import '../../../data/elite_definitions.dart';
 import '../../../data/passive_definitions.dart';
-import '../../../domain/spell.dart';
+
 import '../../../domain/elite_enemy.dart';
 import '../../../domain/effect.dart';
 import '../../../domain/enemy_passive.dart';
+import '../../../progression/spell_pool_manager.dart';
+import '../../../progression/bestiary_manager.dart';
 
 class CatalogTab extends StatefulWidget {
   const CatalogTab({super.key});
@@ -74,6 +76,15 @@ class _CatalogTabState extends State<CatalogTab>
       itemCount: spells.length,
       itemBuilder: (context, index) {
         final spell = spells[index];
+        // Check if spell is discovered
+        final isDiscovered = SpellPoolManager.instance.isSpellDiscovered(
+          spell.id,
+        );
+
+        if (!isDiscovered) {
+          return _buildLockedSpellCard();
+        }
+
         return Card(
           color: const Color(0xFF0d1117),
           margin: const EdgeInsets.only(bottom: 12),
@@ -129,45 +140,44 @@ class _CatalogTabState extends State<CatalogTab>
                   spell.baseDescription,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 14,
+                    fontSize: 12,
                     color: Colors.grey.shade400,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: spell.effects
-                      .map(
-                        (e) => Padding(
-                          padding: const EdgeInsets.only(bottom: 2),
-                          child: Text(
-                            spell.getEffectLine(e),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 13,
-                              color: Colors.amberAccent,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 4,
-                  children: [
-                    _buildTag(
-                      spell.rarity.name.toUpperCase(),
-                      _getRarityColor(spell.rarity),
-                    ),
-                    _buildTag(spell.element.displayName, null),
-                  ],
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLockedSpellCard() {
+    return Card(
+      color: Colors.black12,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Colors.grey.shade900),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.lock, color: Colors.grey, size: 20),
+            SizedBox(width: 12),
+            Text(
+              '???',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 16,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -198,6 +208,15 @@ class _CatalogTabState extends State<CatalogTab>
       itemCount: allEnemies.length,
       itemBuilder: (context, index) {
         final enemy = allEnemies[index];
+        final isDiscovered = BestiaryManager.instance.isEnemyDiscovered(
+          enemy.id,
+        );
+
+        // Show locked card for undiscovered enemies
+        if (!isDiscovered) {
+          return _buildLockedEnemyCard();
+        }
+
         final isElite = enemy is EliteEnemy;
         final passives = PassiveDefinitions.getPassivesForEnemy(enemy.id);
 
@@ -320,6 +339,45 @@ class _CatalogTabState extends State<CatalogTab>
     );
   }
 
+  Widget _buildLockedEnemyCard() {
+    return Card(
+      color: Colors.black12,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Colors.grey.shade900),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.help_outline, color: Colors.grey, size: 20),
+            SizedBox(width: 12),
+            Text(
+              '???',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 16,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Spacer(),
+            Text(
+              'Encounter to discover',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTag(String label, Color? color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -338,19 +396,6 @@ class _CatalogTabState extends State<CatalogTab>
         ),
       ),
     );
-  }
-
-  Color _getRarityColor(SpellRarity rarity) {
-    switch (rarity) {
-      case SpellRarity.common:
-        return Colors.white;
-      case SpellRarity.uncommon:
-        return Colors.green;
-      case SpellRarity.rare:
-        return Colors.blue;
-      case SpellRarity.signature:
-        return Colors.purple;
-    }
   }
 
   Widget _buildStatusEffectsList() {
@@ -499,6 +544,15 @@ class _CatalogTabState extends State<CatalogTab>
       itemCount: allPassives.length,
       itemBuilder: (context, index) {
         final passive = allPassives[index];
+        final isDiscovered = BestiaryManager.instance.isPassiveDiscovered(
+          passive.id,
+        );
+
+        // Show locked card for undiscovered passives
+        if (!isDiscovered) {
+          return _buildLockedPassiveCard();
+        }
+
         return Card(
           color: const Color(0xFF0d1117),
           margin: const EdgeInsets.only(bottom: 12),
@@ -543,6 +597,45 @@ class _CatalogTabState extends State<CatalogTab>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLockedPassiveCard() {
+    return Card(
+      color: Colors.black12,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Colors.grey.shade900),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.help_outline, color: Colors.grey, size: 20),
+            SizedBox(width: 12),
+            Text(
+              '???',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 16,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Spacer(),
+            Text(
+              'Encounter to discover',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

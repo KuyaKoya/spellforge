@@ -100,7 +100,7 @@ class _RootActionGrid extends StatelessWidget {
                   icon: '🎒',
                   color: const Color(0xFF8b949e),
                   onTap: () => onAction(BattleMenuAction.items),
-                  disabled: true,
+                  disabled: false,
                 ),
               ),
             ],

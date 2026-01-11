@@ -269,12 +269,53 @@ class SpellDefinitions {
   /// All signature spells.
   static List<Spell> get signatureSpells => [phoenixFlame, tsunami];
 
+  // ==================== LEGENDARY SPELLS ====================
+  // Unlocked by defeating bosses for the first time
+
+  /// Forge Collapse - Legendary Fire spell from Gatekeeper of Pyre
+  static const forgeCollapse = Spell(
+    id: 'forgeCollapse',
+    name: 'Forge Collapse',
+    element: Element.fire,
+    rarity: SpellRarity.legendary,
+    starLevel: 1,
+    baseDescription: 'The forge erupts. All is consumed by eternal flame.',
+    manaCost: 6,
+    effects: [
+      Effect(type: EffectType.damage, value: 20),
+      Effect(type: EffectType.burn, value: 8, duration: 4),
+      Effect(type: EffectType.weaken, value: 30, duration: 3),
+    ],
+    allowedUpgrades: [UpgradePath.addRepeated],
+  );
+
+  /// Tidal Severance - Legendary Water spell from Gatekeeper of Tide
+  static const tidalSeverance = Spell(
+    id: 'tidalSeverance',
+    name: 'Tidal Severance',
+    element: Element.water,
+    rarity: SpellRarity.legendary,
+    starLevel: 1,
+    baseDescription: 'The tide cuts through all defense. Barriers shatter.',
+    manaCost: 5,
+    effects: [
+      Effect(type: EffectType.damage, value: 15),
+      Effect(type: EffectType.weaken, value: 50, duration: 3), // Major debuff
+      Effect(type: EffectType.slow, value: 30, duration: 2),
+    ],
+    allowedUpgrades: [UpgradePath.addDelayed],
+  );
+
+  /// All legendary spells.
+  static List<Spell> get legendarySpells => [forgeCollapse, tidalSeverance];
+
   /// All spells in the game.
   static List<Spell> get allSpells => [
     ...commonSpells,
     ...uncommonSpells,
     ...rareSpells,
     ...signatureSpells,
+    ...legendarySpells,
   ];
 
   /// Get spells by element.

@@ -21,6 +21,8 @@ class ShopOverlay extends StatefulWidget {
 }
 
 class _ShopOverlayState extends State<ShopOverlay> {
+  int? _purchasingIndex;
+
   @override
   void initState() {
     super.initState();
@@ -30,9 +32,19 @@ class _ShopOverlayState extends State<ShopOverlay> {
 
   /// Handle purchase with audio feedback
   Future<void> _handlePurchase(int index) async {
-    await widget.onPurchase(index);
-    // Phase 7.6.2: Play shop purchase sound on successful purchase
-    AudioManager.instance.playShopPurchase();
+    if (_purchasingIndex != null) return;
+
+    setState(() => _purchasingIndex = index);
+
+    try {
+      await widget.onPurchase(index);
+      // Phase 7.6.2: Play shop purchase sound on successful purchase
+      AudioManager.instance.playShopPurchase();
+    } finally {
+      if (mounted) {
+        setState(() => _purchasingIndex = null);
+      }
+    }
   }
 
   @override
@@ -100,8 +112,13 @@ class _ShopOverlayState extends State<ShopOverlay> {
                   ),
                 ),
                 IconButton(
-                  onPressed: widget.onLeave,
-                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: _purchasingIndex != null ? null : widget.onLeave,
+                  icon: Icon(
+                    Icons.close,
+                    color: _purchasingIndex != null
+                        ? Colors.grey.shade700
+                        : Colors.grey,
+                  ),
                 ),
               ],
             ),
@@ -135,12 +152,14 @@ class _ShopOverlayState extends State<ShopOverlay> {
 
             const SizedBox(height: 16),
             TextButton(
-              onPressed: widget.onLeave,
+              onPressed: _purchasingIndex != null ? null : widget.onLeave,
               child: Text(
-                'Leave Shop',
+                _purchasingIndex != null ? 'Purchasing...' : 'Leave Shop',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: Colors.grey.shade500,
+                  color: _purchasingIndex != null
+                      ? Colors.grey.shade700
+                      : Colors.grey.shade500,
                 ),
               ),
             ),
@@ -219,7 +238,9 @@ class _ShopOverlayState extends State<ShopOverlay> {
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: canAfford ? () => _handlePurchase(index) : null,
+                onPressed: (canAfford && _purchasingIndex == null)
+                    ? () => _handlePurchase(index)
+                    : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green.shade800,
                   disabledBackgroundColor: Colors.grey.shade800,
@@ -250,6 +271,10 @@ class _ShopOverlayState extends State<ShopOverlay> {
         return '❤️';
       case ShopItemType.tempBuff:
         return '⚡';
+      case ShopItemType.consumable:
+        return '🧪';
+      case ShopItemType.relic:
+        return '💍';
     }
   }
 }

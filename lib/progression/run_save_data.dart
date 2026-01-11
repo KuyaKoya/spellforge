@@ -72,6 +72,21 @@ class RunSaveData {
   /// Crystals earned this run.
   final int crystalsEarnedThisRun;
 
+  /// Current fragments available to spend.
+  final int currentFragments;
+
+  /// Current crystals available to spend.
+  final int currentCrystals;
+
+  /// Inventory: Consumable Item IDs.
+  final List<String> consumables;
+
+  /// Inventory: Owned Relic IDs.
+  final List<String> ownedRelics;
+
+  /// Inventory: Equipped Relic IDs (Max 4).
+  final List<String> equippedRelics;
+
   /// RNG seed for deterministic randomness.
   final int rngSeed;
 
@@ -126,6 +141,11 @@ class RunSaveData {
     required this.spellsUpgraded,
     required this.fragmentsEarnedThisRun,
     required this.crystalsEarnedThisRun,
+    required this.currentFragments,
+    required this.currentCrystals,
+    required this.consumables,
+    required this.ownedRelics,
+    required this.equippedRelics,
     required this.rngSeed,
     this.totalRunDepth = 10,
     required this.shownEliteDialogues,
@@ -164,6 +184,11 @@ class RunSaveData {
     'spellsUpgraded': spellsUpgraded,
     'fragmentsEarnedThisRun': fragmentsEarnedThisRun,
     'crystalsEarnedThisRun': crystalsEarnedThisRun,
+    'currentFragments': currentFragments,
+    'currentCrystals': currentCrystals,
+    'consumables': consumables,
+    'ownedRelics': ownedRelics,
+    'equippedRelics': equippedRelics,
     'rngSeed': rngSeed,
     'totalRunDepth': totalRunDepth,
     'shownEliteDialogues': shownEliteDialogues,
@@ -209,6 +234,11 @@ class RunSaveData {
       spellsUpgraded: json['spellsUpgraded'] as int,
       fragmentsEarnedThisRun: json['fragmentsEarnedThisRun'] as int,
       crystalsEarnedThisRun: json['crystalsEarnedThisRun'] as int,
+      currentFragments: json['currentFragments'] as int? ?? 0,
+      currentCrystals: json['currentCrystals'] as int? ?? 0,
+      consumables: (json['consumables'] as List?)?.cast<String>() ?? [],
+      ownedRelics: (json['ownedRelics'] as List?)?.cast<String>() ?? [],
+      equippedRelics: (json['equippedRelics'] as List?)?.cast<String>() ?? [],
       rngSeed: json['rngSeed'] as int,
       totalRunDepth: json['totalRunDepth'] as int? ?? 10,
       shownEliteDialogues: (json['shownEliteDialogues'] as List).cast<String>(),

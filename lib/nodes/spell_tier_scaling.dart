@@ -73,6 +73,7 @@ class SpellTierConfig {
           weights[rarity] = 0.25;
           break;
         case SpellRarity.signature:
+        case SpellRarity.legendary:
           // Never offered at spell learn nodes
           break;
       }
@@ -197,6 +198,8 @@ extension SpellLearnDisplay on SpellRarity {
         return 'Rare';
       case SpellRarity.signature:
         return 'Signature';
+      case SpellRarity.legendary:
+        return 'Legendary';
     }
   }
 
@@ -211,6 +214,8 @@ extension SpellLearnDisplay on SpellRarity {
         return 0xFF58a6ff; // Blue
       case SpellRarity.signature:
         return 0xFFf0b429; // Gold
+      case SpellRarity.legendary:
+        return 0xFFbc8cff; // Purple
     }
   }
 }

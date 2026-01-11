@@ -333,20 +333,14 @@ class ModifierService {
 
     final buffer = StringBuffer();
     final benefits = modifiers.where((m) => m.isPositive).toList();
-    final tradeoffs = modifiers.where((m) => !m.isPositive).toList();
 
     if (benefits.isNotEmpty) {
       buffer.writeln('✨ Bonuses:');
       for (final b in benefits) {
         buffer.writeln('  • ${b.description}');
       }
-    }
-
-    if (tradeoffs.isNotEmpty) {
-      buffer.writeln('⚠️ Tradeoffs:');
-      for (final t in tradeoffs) {
-        buffer.writeln('  • ${t.description}');
-      }
+    } else {
+      buffer.writeln('No elemental bonuses active.');
     }
 
     return buffer.toString();

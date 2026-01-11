@@ -1,12 +1,15 @@
 import 'dart:math';
 import 'effect.dart';
 import 'element.dart';
+import 'spell.dart';
 
+/// Enemy intent types.
 /// Enemy intent types.
 enum EnemyIntent {
   attack,
   defend,
-  debuff;
+  debuff,
+  spell; // Phase 7.9.5: Cast a spell
 
   String get displayName => name[0].toUpperCase() + name.substring(1);
 
@@ -18,6 +21,8 @@ enum EnemyIntent {
         return 'Intends to defend';
       case EnemyIntent.debuff:
         return 'Intends to debuff';
+      case EnemyIntent.spell:
+        return 'Intends to cast a spell';
     }
   }
 
@@ -29,6 +34,8 @@ enum EnemyIntent {
         return 'Takes a defensive stance';
       case EnemyIntent.debuff:
         return 'Dark energy swirls...';
+      case EnemyIntent.spell:
+        return 'Arcane power gathers...';
     }
   }
 
@@ -40,6 +47,8 @@ enum EnemyIntent {
         return '🛡️';
       case EnemyIntent.debuff:
         return '💀';
+      case EnemyIntent.spell:
+        return '✨';
     }
   }
 }
@@ -64,6 +73,14 @@ class Enemy {
   final List<ActiveStatusEffect> statusEffects;
   bool isDelayed;
 
+  /// Phase 7.9.5: Spell system for enemies
+  final List<Spell> spellLoadout;
+  int currentMana;
+  final int maxMana;
+
+  /// Phase 7.9.5: The spell to cast when intent is spell
+  Spell? pendingSpell;
+
   Enemy({
     required this.id,
     required this.name,
@@ -78,7 +95,14 @@ class Enemy {
     this.intent = EnemyIntent.attack,
     List<ActiveStatusEffect>? statusEffects,
     this.isDelayed = false,
-  }) : statusEffects = statusEffects ?? [];
+    List<Spell>? spellLoadout,
+    int? currentMana,
+    int? maxMana,
+    this.pendingSpell,
+  }) : statusEffects = statusEffects ?? [],
+       spellLoadout = spellLoadout ?? [],
+       maxMana = maxMana ?? 0,
+       currentMana = currentMana ?? (maxMana ?? 0);
 
   // ==================== EFFECTIVE SPEED (Pokémon-style) ====================
   /// Constants for speed calculation.
@@ -207,14 +231,54 @@ class Enemy {
   }
 
   void chooseNextIntent() {
-    final roll = DateTime.now().millisecondsSinceEpoch % 10;
-    if (roll < 6) {
+    final roll = DateTime.now().millisecondsSinceEpoch % 100;
+
+    // Phase 7.9.5: Enemies act more like mages now
+    // If has spells and mana, 70% chance to cast spell (was 20%)
+    if (spellLoadout.isNotEmpty && canCastAnySpell) {
+      if (roll < 70) {
+        intent = EnemyIntent.spell;
+        pendingSpell = getAffordableSpell();
+        return;
+      }
+    }
+
+    // Fallback distribution for remaining 30% or if no casting possible
+    // Normalized roll for remaining range
+    final actionRoll = roll % 30;
+
+    if (actionRoll < 15) {
       intent = EnemyIntent.attack;
-    } else if (roll < 8) {
+    } else if (actionRoll < 25) {
       intent = EnemyIntent.defend;
     } else {
       intent = EnemyIntent.debuff;
     }
+  }
+
+  /// Phase 7.9.5: Check if enemy can cast any spell
+  bool get canCastAnySpell =>
+      spellLoadout.any((s) => s.manaCost <= currentMana);
+
+  /// Phase 7.9.5: Get an affordable spell to cast
+  Spell? getAffordableSpell() {
+    final affordable = spellLoadout
+        .where((s) => s.manaCost <= currentMana)
+        .toList();
+    if (affordable.isEmpty) return null;
+    // Pick randomly
+    affordable.shuffle();
+    return affordable.first;
+  }
+
+  /// Phase 7.9.5: Consume mana for a spell cast
+  void consumeMana(int amount) {
+    currentMana = (currentMana - amount).clamp(0, maxMana);
+  }
+
+  /// Phase 7.9.5: Restore mana (e.g., at turn start)
+  void restoreMana(int amount) {
+    currentMana = (currentMana + amount).clamp(0, maxMana);
   }
 
   /// Phase 7.9.4: Effective damage includes attack stat bonus.
@@ -244,6 +308,10 @@ class Enemy {
       speed: speed,
       armorGain: armorGain,
       intent: intent,
+      spellLoadout: List.from(spellLoadout),
+      currentMana: currentMana,
+      maxMana: maxMana,
+      pendingSpell: pendingSpell,
     );
   }
 
@@ -269,6 +337,9 @@ class Enemy {
         )
         .toList(),
     'isDelayed': isDelayed,
+    'spellLoadout': spellLoadout.map((s) => s.toJson()).toList(),
+    'currentMana': currentMana,
+    'maxMana': maxMana,
   };
 
   factory Enemy.fromJson(Map<String, dynamic> json) {
@@ -298,6 +369,13 @@ class Enemy {
               .toList() ??
           [],
       isDelayed: json['isDelayed'] as bool? ?? false,
+      spellLoadout:
+          (json['spellLoadout'] as List?)
+              ?.map((s) => Spell.fromJson(s as Map<String, dynamic>))
+              .toList() ??
+          [],
+      currentMana: json['currentMana'] as int? ?? 0,
+      maxMana: json['maxMana'] as int? ?? 0,
     );
   }
 

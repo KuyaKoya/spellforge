@@ -304,6 +304,7 @@ class _AnimatedEnemySpriteState extends State<_AnimatedEnemySprite>
       EnemyIntent.attack => '⚔️',
       EnemyIntent.defend => '🛡️',
       EnemyIntent.debuff => '💀',
+      EnemyIntent.spell => '✨',
     };
 
     return Container(

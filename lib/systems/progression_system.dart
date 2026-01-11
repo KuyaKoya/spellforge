@@ -2,6 +2,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../progression/character_progress.dart';
 import '../progression/node_modifier.dart';
 import '../data/elemental_paths_data.dart';
+import '../data/core_path_data.dart';
+import '../data/item_definitions.dart'; // For ItemType
 import 'meta_difficulty.dart';
 
 /// Manages persistent resources across runs (fragments, crystals).
@@ -14,6 +16,8 @@ class ProgressionSystem {
   static const String _bestNodeKey = 'best_node_reached';
   static const String _lastRunElementKey = 'last_run_element';
   static const String _hasSeenIntroKey = 'has_seen_intro'; // Phase 7.7
+  static const String _nextRunConsumablesKey = 'next_run_consumables';
+  static const String _nextRunRelicsKey = 'next_run_relics';
 
   SharedPreferences? _prefs;
 
@@ -80,12 +84,37 @@ class ProgressionSystem {
   int _runCrystals = 0;
   int get runCrystals => _runCrystals;
 
+  /// Current spendable fragments in the run.
+  int currentFragments = 0;
+
+  /// Current spendable crystals in the run.
+  int currentCrystals = 0;
+
+  /// Inventory: Consumable Item IDs.
+  List<String> consumables = [];
+
+  /// Inventory: Owned Relic IDs.
+  List<String> ownedRelics = [];
+
+  /// Inventory: Equipped Relic IDs (Max 4).
+  List<String> equippedRelics = [];
+
+  /// Items purchased for the NEXT run (persisted until run start).
+  List<String> _nextRunConsumables = [];
+  List<String> get nextRunConsumables => List.unmodifiable(_nextRunConsumables);
+
+  List<String> _nextRunRelics = [];
+  List<String> get nextRunRelics => List.unmodifiable(_nextRunRelics);
+
   /// Initializes the system, loading saved data.
   Future<void> initialize() async {
     _prefs = await SharedPreferences.getInstance();
 
     // Phase 7.8: Initialize elemental paths data
     initializeElementalPaths();
+
+    // Initialize core path data
+    initializeCorePath();
 
     // Phase 7.8: Initialize character progress
     await characterProgress.initialize();
@@ -104,7 +133,10 @@ class ProgressionSystem {
     _totalVictories = _prefs?.getInt(_victoriesKey) ?? 0; // Phase 7.9
     _bestNodeReached = _prefs?.getInt(_bestNodeKey) ?? 0;
     _lastRunElement = _prefs?.getString(_lastRunElementKey);
+    _lastRunElement = _prefs?.getString(_lastRunElementKey);
     _hasSeenIntro = _prefs?.getBool(_hasSeenIntroKey) ?? false; // Phase 7.7
+    _nextRunConsumables = _prefs?.getStringList(_nextRunConsumablesKey) ?? [];
+    _nextRunRelics = _prefs?.getStringList(_nextRunRelicsKey) ?? [];
   }
 
   Future<void> _saveData() async {
@@ -117,12 +149,49 @@ class ProgressionSystem {
       await _prefs?.setString(_lastRunElementKey, _lastRunElement!);
     }
     await _prefs?.setBool(_hasSeenIntroKey, _hasSeenIntro); // Phase 7.7
+    await _prefs?.setStringList(_nextRunConsumablesKey, _nextRunConsumables);
+    await _prefs?.setStringList(_nextRunRelicsKey, _nextRunRelics);
   }
 
   /// Starts a new run, resetting transient state.
   void startNewRun() {
     _currentRunLevel = 1;
     _currentNodeIndex = 0;
+    _runFragments = 0;
+    _runCrystals = 0;
+    currentFragments = 0;
+    currentCrystals = 0;
+    currentFragments = 0;
+    currentCrystals = 0;
+
+    // Transfer purchased items to tracking logic
+    consumables.clear();
+    consumables.addAll(_nextRunConsumables);
+
+    ownedRelics.clear();
+    ownedRelics.addAll(_nextRunRelics);
+
+    equippedRelics.clear();
+
+    // Clear the "next run" pending list now that they are active
+    _nextRunConsumables.clear();
+    _nextRunRelics.clear();
+    _saveData(); // Persist the clearing
+  }
+
+  /// Restores inventory from save data.
+  void restoreInventory({
+    required int fragments,
+    required int crystals,
+    required List<String> consumables,
+    required List<String> ownedRelics,
+    required List<String> equippedRelics,
+  }) {
+    currentFragments = fragments;
+    currentCrystals = crystals;
+    this.consumables = List.from(consumables);
+    this.ownedRelics = List.from(ownedRelics);
+    this.equippedRelics = List.from(equippedRelics);
   }
 
   /// Ends the current run.
@@ -140,6 +209,13 @@ class ProgressionSystem {
     }
     _spellFragments += fragmentsEarned;
     _spellCrystals += crystalsEarned;
+
+    // Clear run inventory
+    consumables.clear();
+    ownedRelics.clear();
+    equippedRelics.clear();
+    currentFragments = 0;
+    currentCrystals = 0;
 
     if (nodesCompleted > _bestNodeReached) {
       _bestNodeReached = nodesCompleted;
@@ -219,6 +295,18 @@ ${characterProgress.getSummary()}
     await _saveData();
   }
 
+  /// Purchases an item for the next run.
+  Future<void> purchaseNextRunItem(String itemId, ItemType type) async {
+    if (type == ItemType.consumable) {
+      _nextRunConsumables.add(itemId);
+    } else if (type == ItemType.relic) {
+      if (!_nextRunRelics.contains(itemId)) {
+        _nextRunRelics.add(itemId);
+      }
+    }
+    await _saveData();
+  }
+
   /// Resets all persistent data (for testing).
   Future<void> resetAll() async {
     _spellFragments = 0;
@@ -228,6 +316,8 @@ ${characterProgress.getSummary()}
     _bestNodeReached = 0;
     _lastRunElement = null;
     _hasSeenIntro = false; // Phase 7.7
+    _nextRunConsumables.clear();
+    _nextRunRelics.clear();
     await characterProgress.resetAll(); // Phase 7.8
     await _saveData();
   }

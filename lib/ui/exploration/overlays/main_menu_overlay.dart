@@ -5,6 +5,7 @@ import '../../../narrative/narrative.dart';
 import '../../../systems/progression_system.dart';
 import '../../narrative_overlay.dart';
 import '../../settings/settings_overlay.dart';
+import 'home_shop_overlay.dart';
 
 class MainMenuOverlay extends StatefulWidget {
   final VoidCallback onNewGame;
@@ -111,6 +112,7 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
               label: 'CHARACTER',
             ),
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
+            BottomNavigationBarItem(icon: Icon(Icons.store), label: 'SHOP'),
             BottomNavigationBarItem(
               icon: Icon(Icons.menu_book),
               label: 'CATALOG',
@@ -129,6 +131,8 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
       case 1:
         return _buildHomeTab();
       case 2:
+        return HomeShopOverlay(progressionSystem: widget.progressionSystem);
+      case 3:
         return const CatalogTab();
       default:
         return _buildHomeTab();
@@ -204,6 +208,8 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 16),
 
                 // Phase 7.9.3: Continue/Discard saved run
                 if (widget.hasSavedRun && widget.onContinue != null) ...[
@@ -300,10 +306,13 @@ class _MainMenuOverlayState extends State<MainMenuOverlay> {
                           children: [
                             _buildStat(
                               'FRAGMENTS',
-                              '${widget.totalFragments} 💎',
+                              '${widget.progressionSystem.spellFragments} 💎',
                             ),
                             const SizedBox(width: 32),
-                            _buildStat('CRYSTALS', '${widget.totalCrystals} ✨'),
+                            _buildStat(
+                              'CRYSTALS',
+                              '${widget.progressionSystem.spellCrystals} ✨',
+                            ),
                           ],
                         ),
                         if (widget.lastRunElement != null) ...[

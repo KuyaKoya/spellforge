@@ -99,6 +99,8 @@ class EliteEnemy extends Enemy {
     super.speed = 4,
     super.armorGain = 5,
     super.intent = EnemyIntent.attack,
+    super.spellLoadout = const [],
+    super.maxMana = 0,
     required this.modifiers,
     this.resistantElement,
     List<EnemyPassive>? passives,

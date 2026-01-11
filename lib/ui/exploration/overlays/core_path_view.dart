@@ -1,29 +1,25 @@
 import 'package:flutter/material.dart';
-import '../../../domain/element.dart' as domain;
 import '../../../systems/progression_system.dart';
-import '../../../progression/elemental_path.dart';
-import '../../../progression/elemental_node.dart';
+import '../../../progression/core_path.dart';
 import '../../../systems/audio_system.dart';
 
-/// Displays a single elemental path with all its nodes.
-/// Allows unlocking nodes with crystals.
-class ElementalPathView extends StatefulWidget {
-  final domain.Element element;
+/// Displays the core path with all its nodes.
+/// Allows unlocking nodes with fragments (tier 1) or crystals (tier 2-3).
+class CorePathView extends StatefulWidget {
   final ProgressionSystem progressionSystem;
   final VoidCallback onBack;
 
-  const ElementalPathView({
+  const CorePathView({
     super.key,
-    required this.element,
     required this.progressionSystem,
     required this.onBack,
   });
 
   @override
-  State<ElementalPathView> createState() => _ElementalPathViewState();
+  State<CorePathView> createState() => _CorePathViewState();
 }
 
-class _ElementalPathViewState extends State<ElementalPathView>
+class _CorePathViewState extends State<CorePathView>
     with SingleTickerProviderStateMixin {
   late AnimationController _glowController;
   int? _selectedNodeIndex;
@@ -43,25 +39,15 @@ class _ElementalPathViewState extends State<ElementalPathView>
     super.dispose();
   }
 
-  ElementalPath? get _path => ElementalPathRegistry.getPath(widget.element);
+  CorePath? get _path => CorePathRegistry.path;
 
-  int get _unlockedCount => widget.progressionSystem.characterProgress
-      .getUnlockedCount(widget.element);
+  int get _unlockedCount =>
+      widget.progressionSystem.characterProgress.unlockedCoreNodes;
 
+  int get _fragments => widget.progressionSystem.spellFragments;
   int get _crystals => widget.progressionSystem.spellCrystals;
 
-  Color get _elementColor {
-    switch (widget.element) {
-      case domain.Element.fire:
-        return Colors.orange;
-      case domain.Element.water:
-        return Colors.blue;
-      case domain.Element.earth:
-        return Colors.brown;
-      case domain.Element.air:
-        return Colors.teal;
-    }
-  }
+  static const Color _coreColor = Color(0xFFFFD700); // Gold
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +55,7 @@ class _ElementalPathViewState extends State<ElementalPathView>
     if (path == null) {
       return Center(
         child: Text(
-          'Path not found',
+          'Core path not found',
           style: TextStyle(color: Colors.grey.shade500),
         ),
       );
@@ -90,14 +76,14 @@ class _ElementalPathViewState extends State<ElementalPathView>
     );
   }
 
-  Widget _buildHeader(ElementalPath path) {
+  Widget _buildHeader(CorePath path) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [_elementColor.withValues(alpha: 0.3), Colors.transparent],
+          colors: [_coreColor.withValues(alpha: 0.3), Colors.transparent],
         ),
       ),
       child: Column(
@@ -112,62 +98,44 @@ class _ElementalPathViewState extends State<ElementalPathView>
 
               const Spacer(),
 
-              // Crystal display
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black38,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.amber.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('✨', style: TextStyle(fontSize: 14)),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$_crystals',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.amber,
-                      ),
-                    ),
-                  ],
-                ),
+              // Currency display
+              _buildCurrencyChip(
+                icon: '🔮',
+                value: _fragments,
+                color: Colors.purple,
+              ),
+              const SizedBox(width: 8),
+              _buildCurrencyChip(
+                icon: '✨',
+                value: _crystals,
+                color: Colors.amber,
               ),
             ],
           ),
 
           const SizedBox(height: 12),
 
-          // Element title
+          // Core title
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(path.icon, style: const TextStyle(fontSize: 32)),
+              const Text(CorePath.icon, style: TextStyle(fontSize: 32)),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.element.displayName.toUpperCase(),
+                    CorePath.name.toUpperCase(),
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: _elementColor,
+                      color: _coreColor,
                       letterSpacing: 2,
                     ),
                   ),
                   Text(
-                    path.theme,
+                    CorePath.theme,
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 12,
@@ -186,7 +154,7 @@ class _ElementalPathViewState extends State<ElementalPathView>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                '$_unlockedCount / ${path.nodes.length}',
+                '$_unlockedCount / ${path.maxNodes}',
                 style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 14,
@@ -199,21 +167,71 @@ class _ElementalPathViewState extends State<ElementalPathView>
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
-                    value: _unlockedCount / path.nodes.length,
+                    value: _unlockedCount / path.maxNodes,
                     backgroundColor: Colors.grey.shade800,
-                    valueColor: AlwaysStoppedAnimation(_elementColor),
+                    valueColor: AlwaysStoppedAnimation(_coreColor),
                     minHeight: 8,
                   ),
                 ),
               ),
             ],
           ),
+
+          const SizedBox(height: 8),
+
+          // Currency info
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Tier 1: Fragments  •  Tier 2-3: Crystals',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildNodeList(ElementalPath path) {
+  Widget _buildCurrencyChip({
+    required String icon,
+    required int value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black38,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNodeList(CorePath path) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       itemCount: path.nodes.length,
@@ -222,7 +240,7 @@ class _ElementalPathViewState extends State<ElementalPathView>
         final isUnlocked = index < _unlockedCount;
         final isNext = index == _unlockedCount;
         final isSelected = _selectedNodeIndex == index;
-        final canAfford = isNext && _crystals >= node.cost;
+        final canAfford = isNext && _canAfford(node);
 
         return _buildNodeItem(
           node: node,
@@ -237,8 +255,16 @@ class _ElementalPathViewState extends State<ElementalPathView>
     );
   }
 
+  bool _canAfford(CoreNode node) {
+    if (node.currency == CoreCurrency.fragments) {
+      return _fragments >= node.cost;
+    } else {
+      return _crystals >= node.cost;
+    }
+  }
+
   Widget _buildNodeItem({
-    required ElementalNode node,
+    required CoreNode node,
     required int index,
     required bool isUnlocked,
     required bool isNext,
@@ -246,6 +272,10 @@ class _ElementalPathViewState extends State<ElementalPathView>
     required bool canAfford,
     required bool isLast,
   }) {
+    final nodeColor = node.currency == CoreCurrency.fragments
+        ? Colors.purple
+        : Colors.amber;
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -274,8 +304,8 @@ class _ElementalPathViewState extends State<ElementalPathView>
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                _elementColor,
-                                _elementColor.withValues(alpha: 0.7),
+                                _coreColor,
+                                _coreColor.withValues(alpha: 0.7),
                               ],
                             )
                           : null,
@@ -286,16 +316,16 @@ class _ElementalPathViewState extends State<ElementalPathView>
                           : Colors.grey.shade900,
                       border: Border.all(
                         color: isUnlocked
-                            ? _elementColor
+                            ? _coreColor
                             : isNext
-                            ? _elementColor.withValues(alpha: 0.5)
+                            ? nodeColor.withValues(alpha: 0.5)
                             : Colors.grey.shade700,
                         width: isSelected ? 3 : 2,
                       ),
                       boxShadow: canAfford
                           ? [
                               BoxShadow(
-                                color: _elementColor.withValues(
+                                color: nodeColor.withValues(
                                   alpha: glowIntensity,
                                 ),
                                 blurRadius: 15,
@@ -305,7 +335,7 @@ class _ElementalPathViewState extends State<ElementalPathView>
                           : isUnlocked
                           ? [
                               BoxShadow(
-                                color: _elementColor.withValues(alpha: 0.3),
+                                color: _coreColor.withValues(alpha: 0.3),
                                 blurRadius: 10,
                               ),
                             ]
@@ -313,8 +343,12 @@ class _ElementalPathViewState extends State<ElementalPathView>
                     ),
                     child: Center(
                       child: isUnlocked
-                          ? Icon(Icons.check, color: Colors.white, size: 24)
-                          : node.isPassive
+                          ? const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 24,
+                            )
+                          : node.isCapstone
                           ? const Text('★', style: TextStyle(fontSize: 20))
                           : Text(
                               node.tierIcon,
@@ -362,19 +396,22 @@ class _ElementalPathViewState extends State<ElementalPathView>
                             ),
                             decoration: BoxDecoration(
                               color: canAfford
-                                  ? Colors.amber.withValues(alpha: 0.2)
+                                  ? nodeColor.withValues(alpha: 0.2)
                                   : Colors.grey.shade800,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: canAfford
-                                    ? Colors.amber
+                                    ? nodeColor
                                     : Colors.grey.shade700,
                               ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text('✨', style: TextStyle(fontSize: 10)),
+                                Text(
+                                  node.currencyIcon,
+                                  style: const TextStyle(fontSize: 10),
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '${node.cost}',
@@ -383,7 +420,7 @@ class _ElementalPathViewState extends State<ElementalPathView>
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: canAfford
-                                        ? Colors.amber
+                                        ? nodeColor
                                         : Colors.grey.shade500,
                                   ),
                                 ),
@@ -420,9 +457,9 @@ class _ElementalPathViewState extends State<ElementalPathView>
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    isUnlocked ? _elementColor : Colors.grey.shade700,
+                    isUnlocked ? _coreColor : Colors.grey.shade700,
                     index + 1 < _unlockedCount
-                        ? _elementColor
+                        ? _coreColor
                         : Colors.grey.shade700,
                   ],
                 ),
@@ -433,20 +470,20 @@ class _ElementalPathViewState extends State<ElementalPathView>
     );
   }
 
-  Widget _buildPreviewPanel(ElementalNode node) {
+  Widget _buildPreviewPanel(CoreNode node) {
     final isUnlocked = node.index < _unlockedCount;
     final isNext = node.index == _unlockedCount;
-    final canAfford = isNext && _crystals >= node.cost;
+    final canAfford = isNext && _canAfford(node);
+    final nodeColor = node.currency == CoreCurrency.fragments
+        ? Colors.purple
+        : Colors.amber;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF161b22),
         border: Border(
-          top: BorderSide(
-            color: _elementColor.withValues(alpha: 0.5),
-            width: 2,
-          ),
+          top: BorderSide(color: _coreColor.withValues(alpha: 0.5), width: 2),
         ),
       ),
       child: Column(
@@ -459,7 +496,7 @@ class _ElementalPathViewState extends State<ElementalPathView>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _elementColor.withValues(alpha: 0.2),
+                  color: _coreColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -468,28 +505,58 @@ class _ElementalPathViewState extends State<ElementalPathView>
                     fontFamily: 'monospace',
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: _elementColor,
+                    color: _coreColor,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  node.displayName,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: nodeColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      node.currencyIcon,
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      node.currency == CoreCurrency.fragments
+                          ? 'FRAGMENTS'
+                          : 'CRYSTALS',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: nodeColor,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const Spacer(),
               IconButton(
                 onPressed: () => setState(() => _selectedNodeIndex = null),
                 icon: const Icon(Icons.close, size: 20),
                 color: Colors.grey,
               ),
             ],
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            node.displayName,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
 
           const SizedBox(height: 12),
@@ -521,16 +588,16 @@ class _ElementalPathViewState extends State<ElementalPathView>
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: _elementColor.withValues(alpha: 0.2),
+                color: _coreColor.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _elementColor),
+                border: Border.all(color: _coreColor),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.check, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  const Text(
+                  Icon(Icons.check, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text(
                     'UNLOCKED',
                     style: TextStyle(
                       fontFamily: 'monospace',
@@ -573,7 +640,11 @@ class _ElementalPathViewState extends State<ElementalPathView>
     );
   }
 
-  Widget _buildUnlockButton(ElementalNode node, bool canAfford) {
+  Widget _buildUnlockButton(CoreNode node, bool canAfford) {
+    final nodeColor = node.currency == CoreCurrency.fragments
+        ? Colors.purple
+        : Colors.amber;
+
     return GestureDetector(
       onTap: canAfford ? () => _unlockNode(node) : null,
       child: Container(
@@ -581,16 +652,14 @@ class _ElementalPathViewState extends State<ElementalPathView>
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           gradient: canAfford
-              ? LinearGradient(
-                  colors: [Colors.amber.shade700, Colors.amber.shade600],
-                )
+              ? LinearGradient(colors: [nodeColor.shade700, nodeColor.shade600])
               : null,
           color: canAfford ? null : Colors.grey.shade800,
           borderRadius: BorderRadius.circular(8),
           boxShadow: canAfford
               ? [
                   BoxShadow(
-                    color: Colors.amber.withValues(alpha: 0.3),
+                    color: nodeColor.withValues(alpha: 0.3),
                     blurRadius: 10,
                     spreadRadius: 1,
                   ),
@@ -600,7 +669,7 @@ class _ElementalPathViewState extends State<ElementalPathView>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('✨', style: TextStyle(fontSize: 16)),
+            Text(node.currencyIcon, style: const TextStyle(fontSize: 16)),
             const SizedBox(width: 8),
             Text(
               'UNLOCK FOR ${node.cost}',
@@ -617,9 +686,12 @@ class _ElementalPathViewState extends State<ElementalPathView>
     );
   }
 
-  Future<void> _unlockNode(ElementalNode node) async {
+  Future<void> _unlockNode(CoreNode node) async {
     final cost = await widget.progressionSystem.characterProgress
-        .unlockNextNode(widget.element, widget.progressionSystem.spendCrystals);
+        .unlockNextCoreNode(
+          spendFragments: widget.progressionSystem.spendFragments,
+          spendCrystals: widget.progressionSystem.spendCrystals,
+        );
 
     if (cost != null) {
       setState(() {
@@ -630,25 +702,34 @@ class _ElementalPathViewState extends State<ElementalPathView>
       AudioSystem.playSkillUnlock();
 
       if (mounted) {
+        final currencyName = node.currency == CoreCurrency.fragments
+            ? 'fragments'
+            : 'crystals';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                Text(widget.element.icon, style: const TextStyle(fontSize: 18)),
+                const Text('🌟', style: TextStyle(fontSize: 18)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '${node.displayName} unlocked!',
+                    '${node.displayName} unlocked! (-$cost $currencyName)',
                     style: const TextStyle(fontFamily: 'monospace'),
                   ),
                 ),
               ],
             ),
-            backgroundColor: _elementColor.withValues(alpha: 0.9),
+            backgroundColor: _coreColor.withValues(alpha: 0.9),
             duration: const Duration(seconds: 2),
           ),
         );
       }
     }
   }
+}
+
+// Extension to get shade colors for non-material colors
+extension ColorShade on Color {
+  Color get shade700 => Color.lerp(this, Colors.black, 0.3)!;
+  Color get shade600 => Color.lerp(this, Colors.black, 0.2)!;
 }

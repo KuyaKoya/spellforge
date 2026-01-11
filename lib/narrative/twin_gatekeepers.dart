@@ -1,4 +1,5 @@
 import '../data/passive_definitions.dart';
+import '../data/spell_definitions.dart';
 import '../domain/boss_enemy.dart';
 import '../domain/element.dart';
 import '../domain/elite_enemy.dart';
@@ -41,6 +42,8 @@ class TwinGatekeepers {
       modifiers: [EliteModifier.burnImmune, EliteModifier.resistant],
       resistantElement: Element.fire,
       passives: PassiveDefinitions.gatekeeperPyrePassives(),
+      maxMana: 20,
+      spellLoadout: [SpellDefinitions.blazeStrike, SpellDefinitions.inferno],
     );
   }
 
@@ -65,6 +68,8 @@ class TwinGatekeepers {
       modifiers: [EliteModifier.slowImmune, EliteModifier.resistant],
       resistantElement: Element.water,
       passives: PassiveDefinitions.gatekeeperTidePassives(),
+      maxMana: 20,
+      spellLoadout: [SpellDefinitions.tidalWave, SpellDefinitions.frostArmor],
     );
   }
 

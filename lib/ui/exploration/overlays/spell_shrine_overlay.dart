@@ -85,26 +85,47 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay>
       _learningIndex = choiceIndex;
     });
 
+    // Register the spell FIRST (non-blocking) to prevent deadlock
+    widget.onLearn(choiceIndex);
+
     // Phase 7.6.2: Play shrine (upgrade) sound when learning
     AudioManager.instance.playShrineUpgrade();
 
-    // Play visual flair
-    await _learnBurstController.forward(from: 0.0);
+    // Play visual flair (non-blocking)
+    _learnBurstController.forward(from: 0.0);
 
-    // Short delay to let the animation play out a bit before closing/callback
-    await Future.delayed(const Duration(milliseconds: 1000));
+    // Auto-close after 2 seconds
+    await Future.delayed(const Duration(seconds: 2));
 
-    widget.onLearn(choiceIndex);
-
-    // We don't clear _learningIndex here because the overlay likely closes or refreshing
-    // happens via parent. If it stays open, the parent would rebuild it.
+    if (mounted) {
+      widget.onSkip();
+    }
   }
 
   /// Handle replacing a spell with audio feedback
   Future<void> _handleReplace(int loadoutIndex, Spell newSpell) async {
-    // For replace, we might just play the sound as before since it involves a second step
-    AudioManager.instance.playShrineUpgrade();
+    if (_learningIndex != null) return;
+
+    // Use _learningIndex to block leaving during replace
+    setState(() {
+      _learningIndex = loadoutIndex;
+    });
+
+    // Register the replacement FIRST (non-blocking)
     widget.onReplace(loadoutIndex, newSpell);
+
+    // Play the sound
+    AudioManager.instance.playShrineUpgrade();
+
+    // Play visual flair (non-blocking)
+    _learnBurstController.forward(from: 0.0);
+
+    // Auto-close after 2 seconds
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (mounted) {
+      widget.onSkip();
+    }
   }
 
   @override
@@ -167,21 +188,25 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay>
 
             const SizedBox(height: 16),
 
-            // Leave Button
+            // Leave Button (disabled while action in progress)
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: TextButton.icon(
-                onPressed: widget.onSkip,
+                onPressed: _learningIndex != null ? null : widget.onSkip,
                 icon: Icon(
                   Icons.exit_to_app,
-                  color: Colors.grey.shade500,
+                  color: _learningIndex != null
+                      ? Colors.grey.shade700
+                      : Colors.grey.shade500,
                   size: 18,
                 ),
                 label: Text(
-                  'Leave Shrine',
+                  _learningIndex != null ? 'Learning...' : 'Leave Shrine',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: Colors.grey.shade500,
+                    color: _learningIndex != null
+                        ? Colors.grey.shade700
+                        : Colors.grey.shade500,
                     fontSize: 14,
                   ),
                 ),
@@ -555,6 +580,8 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay>
         return const Color(0xFF58a6ff); // Blue
       case SpellRarity.signature:
         return const Color(0xFFf0b429); // Gold
+      case SpellRarity.legendary:
+        return const Color(0xFFbc8cff); // Purple
     }
   }
 
@@ -585,6 +612,10 @@ class _SpellShrineOverlayState extends State<SpellShrineOverlay>
       case SpellRarity.signature:
         tierText = 'Tier IV';
         tierColor = const Color(0xFFf0b429);
+        break;
+      case SpellRarity.legendary:
+        tierText = 'Tier V';
+        tierColor = const Color(0xFFbc8cff);
         break;
     }
 

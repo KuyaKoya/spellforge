@@ -6,7 +6,8 @@ enum SpellRarity {
   common,
   uncommon,
   rare,
-  signature;
+  signature,
+  legendary;
 
   String get displayName {
     return name[0].toUpperCase() + name.substring(1);
@@ -23,6 +24,8 @@ enum SpellRarity {
         return '🔵';
       case SpellRarity.signature:
         return '🟡';
+      case SpellRarity.legendary:
+        return '🟣';
     }
   }
 
@@ -37,6 +40,8 @@ enum SpellRarity {
         return 'blue';
       case SpellRarity.signature:
         return 'gold';
+      case SpellRarity.legendary:
+        return 'purple';
     }
   }
 }
@@ -215,6 +220,7 @@ class Spell {
         additionalMana = 2;
         break;
       case SpellRarity.signature:
+      case SpellRarity.legendary:
         additionalMana = 3;
         break;
     }

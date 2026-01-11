@@ -582,6 +582,7 @@ class _EnemySprite extends PositionComponent with HasGameReference {
       EnemyIntent.attack => '⚔️',
       EnemyIntent.defend => '🛡️',
       EnemyIntent.debuff => '💀',
+      EnemyIntent.spell => '✨',
     };
 
     final intentPainter = TextPainter(

@@ -1,5 +1,6 @@
 import '../domain/element.dart';
 import '../domain/enemy.dart';
+import 'spell_definitions.dart';
 
 /// Phase 7.9.4: Pre-defined enemy templates with Attack/Defense/Speed stats.
 ///
@@ -12,31 +13,36 @@ class EnemyDefinitions {
   EnemyDefinitions._();
 
   // ==================== FIRE ENEMIES ====================
+  // Phase 7.10: Increased base stats to prevent one-shotting
 
   static Enemy fireImp() => Enemy(
     id: 'fireImp',
     name: 'Fire Imp',
     element: Element.fire,
-    currentHP: 15,
-    maxHP: 15,
-    attackDamage: 4,
-    attack: 6,
-    defense: 2,
+    currentHP: 22,
+    maxHP: 22,
+    attackDamage: 6,
+    attack: 8,
+    defense: 3,
     speed: 5,
-    armorGain: 3,
+    armorGain: 4,
+    maxMana: 8,
+    spellLoadout: [SpellDefinitions.fireball],
   );
 
   static Enemy flameSerpent() => Enemy(
     id: 'flameSerpent',
     name: 'Flame Serpent',
     element: Element.fire,
-    currentHP: 25,
-    maxHP: 25,
-    attackDamage: 6,
-    attack: 8,
-    defense: 3,
+    currentHP: 35,
+    maxHP: 35,
+    attackDamage: 8,
+    attack: 10,
+    defense: 4,
     speed: 4,
-    armorGain: 4,
+    armorGain: 5,
+    maxMana: 12,
+    spellLoadout: [SpellDefinitions.fireball, SpellDefinitions.inferno],
   );
 
   // ==================== WATER ENEMIES ====================
@@ -45,26 +51,30 @@ class EnemyDefinitions {
     id: 'waterSpirit',
     name: 'Water Spirit',
     element: Element.water,
-    currentHP: 12,
-    maxHP: 12,
-    attackDamage: 3,
-    attack: 4,
-    defense: 4,
+    currentHP: 20,
+    maxHP: 20,
+    attackDamage: 5,
+    attack: 6,
+    defense: 6,
     speed: 3,
-    armorGain: 5,
+    armorGain: 6,
+    maxMana: 8,
+    spellLoadout: [SpellDefinitions.waterBolt],
   );
 
   static Enemy seaSerpent() => Enemy(
     id: 'seaSerpent',
     name: 'Sea Serpent',
     element: Element.water,
-    currentHP: 22,
-    maxHP: 22,
-    attackDamage: 5,
-    attack: 6,
-    defense: 5,
+    currentHP: 32,
+    maxHP: 32,
+    attackDamage: 7,
+    attack: 8,
+    defense: 7,
     speed: 3,
-    armorGain: 6,
+    armorGain: 8,
+    maxMana: 12,
+    spellLoadout: [SpellDefinitions.waterBolt, SpellDefinitions.tidalWave],
   );
 
   // ==================== EARTH ENEMIES ====================
@@ -73,26 +83,30 @@ class EnemyDefinitions {
     id: 'earthGolem',
     name: 'Earth Golem',
     element: Element.earth,
-    currentHP: 30,
-    maxHP: 30,
-    attackDamage: 5,
-    attack: 5,
-    defense: 7,
+    currentHP: 45,
+    maxHP: 45,
+    attackDamage: 7,
+    attack: 7,
+    defense: 10,
     speed: 1,
-    armorGain: 8,
+    armorGain: 12,
+    maxMana: 10,
+    spellLoadout: [SpellDefinitions.rockThrow, SpellDefinitions.earthquake],
   );
 
   static Enemy mudCrawler() => Enemy(
     id: 'mudCrawler',
     name: 'Mud Crawler',
     element: Element.earth,
-    currentHP: 18,
-    maxHP: 18,
-    attackDamage: 4,
-    attack: 5,
-    defense: 5,
+    currentHP: 28,
+    maxHP: 28,
+    attackDamage: 6,
+    attack: 7,
+    defense: 7,
     speed: 2,
-    armorGain: 5,
+    armorGain: 7,
+    maxMana: 8,
+    spellLoadout: [SpellDefinitions.rockThrow],
   );
 
   // ==================== AIR ENEMIES ====================
@@ -101,26 +115,30 @@ class EnemyDefinitions {
     id: 'windWisp',
     name: 'Wind Wisp',
     element: Element.air,
-    currentHP: 10,
-    maxHP: 10,
-    attackDamage: 5,
-    attack: 7,
-    defense: 1,
+    currentHP: 16,
+    maxHP: 16,
+    attackDamage: 7,
+    attack: 9,
+    defense: 2,
     speed: 8,
-    armorGain: 2,
+    armorGain: 3,
+    maxMana: 10,
+    spellLoadout: [SpellDefinitions.windSlash, SpellDefinitions.gust],
   );
 
   static Enemy stormHawk() => Enemy(
     id: 'stormHawk',
     name: 'Storm Hawk',
     element: Element.air,
-    currentHP: 20,
-    maxHP: 20,
-    attackDamage: 7,
-    attack: 9,
-    defense: 2,
+    currentHP: 28,
+    maxHP: 28,
+    attackDamage: 9,
+    attack: 11,
+    defense: 3,
     speed: 7,
-    armorGain: 3,
+    armorGain: 4,
+    maxMana: 12,
+    spellLoadout: [SpellDefinitions.windSlash, SpellDefinitions.hurricane],
   );
 
   /// All enemy generators.
@@ -209,6 +227,8 @@ class EnemyDefinitions {
           defense: enemy.defense,
           speed: enemy.speed,
           armorGain: enemy.armorGain,
+          spellLoadout: enemy.spellLoadout,
+          maxMana: enemy.maxMana,
         );
       }
       return enemy;

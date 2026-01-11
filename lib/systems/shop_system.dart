@@ -1,6 +1,13 @@
 import 'dart:math';
 import '../domain/spell.dart';
 import '../data/spell_definitions.dart';
+import '../data/item_definitions.dart';
+import '../domain/mage.dart';
+import '../progression/run_state.dart';
+import '../progression/spell_pool_manager.dart';
+import 'progression_system.dart';
+
+export '../progression/run_state.dart' show TemporaryBuff;
 
 /// Types of items available in the shop.
 enum ShopItemType {
@@ -8,7 +15,9 @@ enum ShopItemType {
   spellCrystal,
   randomSpell,
   heal,
-  tempBuff;
+  tempBuff,
+  consumable,
+  relic;
 
   String get displayName {
     switch (this) {
@@ -22,6 +31,9 @@ enum ShopItemType {
         return 'Health Potion';
       case ShopItemType.tempBuff:
         return 'Power Surge';
+      case ShopItemType.consumable:
+      case ShopItemType.relic:
+        return 'Item';
     }
   }
 
@@ -37,6 +49,10 @@ enum ShopItemType {
         return '❤️';
       case ShopItemType.tempBuff:
         return '⚡';
+      case ShopItemType.consumable:
+        return '🧪';
+      case ShopItemType.relic:
+        return '💍';
     }
   }
 
@@ -52,6 +68,9 @@ enum ShopItemType {
         return 'Restores a portion of your HP.';
       case ShopItemType.tempBuff:
         return 'Gain a temporary damage boost for 3 nodes.';
+      case ShopItemType.consumable:
+      case ShopItemType.relic:
+        return 'An item for your journey.';
     }
   }
 }
@@ -62,6 +81,7 @@ class ShopItem {
   final int cost;
   final int value; // Amount for fragments, HP for heal, etc.
   final Spell? spell; // For random spell type
+  final ItemDefinition? itemDefinition; // For consumables/relics
   bool isPurchased;
 
   ShopItem({
@@ -69,6 +89,7 @@ class ShopItem {
     required this.cost,
     required this.value,
     this.spell,
+    this.itemDefinition,
     this.isPurchased = false,
   });
 
@@ -89,7 +110,17 @@ class ShopItem {
         return '${type.icon} Heal $value HP';
       case ShopItemType.tempBuff:
         return '${type.icon} +$value% Damage (3 nodes)';
+      case ShopItemType.consumable:
+      case ShopItemType.relic:
+        return '${type.icon} ${itemDefinition?.name ?? 'Unknown Item'}';
     }
+  }
+
+  String get description {
+    if (itemDefinition != null) {
+      return itemDefinition!.description;
+    }
+    return type.description;
   }
 
   String get costText => '💰 $cost fragments';
@@ -211,31 +242,70 @@ class ShopSystem {
         return 80;
       case SpellRarity.signature:
         return 150;
-    }
-  }
-}
-
-/// Temporary buff that lasts for a number of nodes.
-class TemporaryBuff {
-  final String name;
-  final int value; // Percentage bonus
-  int remainingNodes;
-
-  TemporaryBuff({
-    required this.name,
-    required this.value,
-    required this.remainingNodes,
-  });
-
-  /// Whether the buff is still active.
-  bool get isActive => remainingNodes > 0;
-
-  /// Decrements the remaining nodes.
-  void tick() {
-    if (remainingNodes > 0) {
-      remainingNodes--;
+      case SpellRarity.legendary:
+        return 200;
     }
   }
 
-  String get displayText => '$name (+$value%) - $remainingNodes nodes';
+  /// Processes the purchase of an item (logic only, doesn't update UI).
+  /// Returns a string message describing the result.
+  static String performPurchaseEffect({
+    required ShopItem item,
+    required Mage mage,
+    required ProgressionSystem progression,
+    required Function() onSpellLearned,
+    required Function(TemporaryBuff) onBuffAdded,
+  }) {
+    switch (item.type) {
+      case ShopItemType.spellFragments:
+        progression.addFragments(item.value);
+        return 'Gained ${item.value} Fragments';
+
+      case ShopItemType.spellCrystal:
+        progression.addCrystals(item.value);
+        return 'Gained ${item.value} Crystal';
+
+      case ShopItemType.randomSpell:
+        if (item.spell != null) {
+          mage.learnSpell(item.spell!);
+          SpellPoolManager.instance.markSpellDiscovered(item.spell!.id);
+          onSpellLearned();
+          return 'Learned ${item.spell!.name}';
+        }
+        return 'Learned a spell';
+
+      case ShopItemType.heal:
+        final oldHP = mage.currentHP;
+        mage.heal(item.value);
+        final healed = mage.currentHP - oldHP;
+        return 'Healed $healed HP';
+
+      case ShopItemType.tempBuff:
+        onBuffAdded(
+          TemporaryBuff(
+            name: 'Power Surge',
+            value: item.value,
+            remainingNodes: 3,
+          ),
+        );
+        return 'Buff applied: +${item.value}% Damage';
+
+      case ShopItemType.consumable:
+        if (item.itemDefinition != null) {
+          progression.consumables.add(item.itemDefinition!.id);
+          return 'Added ${item.itemDefinition!.name} to inventory';
+        }
+        return 'Item added to inventory';
+
+      case ShopItemType.relic:
+        if (item.itemDefinition != null) {
+          if (!progression.ownedRelics.contains(item.itemDefinition!.id)) {
+            progression.ownedRelics.add(item.itemDefinition!.id);
+            return 'Relic obtained: ${item.itemDefinition!.name}';
+          }
+          return 'Already owned';
+        }
+        return 'Relic obtained';
+    }
+  }
 }

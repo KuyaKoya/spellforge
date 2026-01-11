@@ -9,6 +9,8 @@ import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
 import '../../domain/elite_enemy.dart';
 import '../../domain/boss_enemy.dart';
+import '../../game/game_loop.dart'; // Import GameLoop
+import '../../data/item_definitions.dart'; // Import ItemRegistry
 import '../../domain/spell.dart';
 import '../../domain/effect.dart';
 import '../../narrative/journey_log.dart';
@@ -71,6 +73,7 @@ class BattleScreen extends StatefulWidget {
   final VoidCallback? onCombatEnd;
   final VoidCallback? onRetreat;
   final void Function(String)? onInput;
+  final GameLoop? gameLoop; // Add GameLoop
 
   const BattleScreen({
     super.key,
@@ -86,6 +89,7 @@ class BattleScreen extends StatefulWidget {
     this.onCombatEnd,
     this.onRetreat,
     this.onInput,
+    this.gameLoop, // Optional for now to avoid breaking tests/previews immediately
   });
 
   @override
@@ -214,7 +218,7 @@ class _BattleScreenState extends State<BattleScreen> {
         setState(() => _showBattleInspection = true);
         break;
       case BattleMenuAction.items:
-        _setDialogText('No items available.');
+        _showInventoryDialog();
         break;
       case BattleMenuAction.retreat:
         _handleRetreat();
@@ -397,6 +401,9 @@ class _BattleScreenState extends State<BattleScreen> {
       case EnemyIntent.debuff:
         await AudioManager.instance.playSfxAndWait('debuff');
         break;
+      case EnemyIntent.spell:
+        await AudioManager.instance.playSfxAndWait('spell_cast');
+        break;
     }
 
     if (!_isSequenceValid(seqId) || !mounted) return;
@@ -448,6 +455,25 @@ class _BattleScreenState extends State<BattleScreen> {
         await Future.delayed(
           const Duration(milliseconds: BattleTiming.enemyOtherActionDisplay),
         );
+        break;
+
+      case EnemyIntent.spell:
+        final spell = enemyActor.pendingSpell;
+        if (spell != null) {
+          _setDialogText('${enemyActor.name} casts ${spell.name}!');
+        } else {
+          _setDialogText('${enemyActor.name} casts a spell!');
+        }
+        _onDamageDealt(0, result.damageDealt, true);
+        await Future.delayed(
+          const Duration(milliseconds: BattleTiming.damageResultDisplay),
+        );
+        if (!_isSequenceValid(seqId)) return;
+        if (result.targetDefeated || !widget.mage.isAlive) {
+          AudioManager.instance.playPlayerDefeat();
+          _checkCombatEnd();
+          return;
+        }
         break;
     }
 
@@ -716,6 +742,199 @@ class _BattleScreenState extends State<BattleScreen> {
     }
   }
 
+  // ==================== INVENTORY UI ====================
+
+  void _showInventoryDialog() {
+    if (widget.gameLoop == null) {
+      _setDialogText('Inventory unavailable.');
+      return;
+    }
+
+    // Access inventory via GameLoop -> GameState
+    final consumables =
+        widget.gameLoop!.state.inventory.progression.consumables;
+
+    if (consumables.isEmpty) {
+      _setDialogText('Your inventory is empty.');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF161b22),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade800),
+          ),
+          child: Container(
+            width: 300,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'INVENTORY',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  child: Builder(
+                    builder: (context) {
+                      // Group items by ID to count quantities
+                      final Map<String, int> counts = {};
+                      for (final id in consumables) {
+                        counts[id] = (counts[id] ?? 0) + 1;
+                      }
+
+                      final uniqueIds = counts.keys.toList();
+
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                        itemCount: uniqueIds.length,
+                        itemBuilder: (context, index) {
+                          final itemId = uniqueIds[index];
+                          final count = counts[itemId] ?? 0;
+                          final itemDef = ItemRegistry.getItem(itemId);
+
+                          if (itemDef == null) return const SizedBox.shrink();
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF21262d),
+                              border: Border.all(
+                                color: const Color(0xFF30363d),
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  _useItem(itemId, itemDef.name);
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text(
+                                        '🧪',
+                                        style: TextStyle(fontSize: 24),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        itemDef.name,
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF161b22),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFF30363d),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'x$count',
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF58a6ff),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                    child: const Text(
+                      'CLOSE',
+                      style: TextStyle(fontFamily: 'monospace'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _useItem(String itemId, String itemName) {
+    if (widget.gameLoop == null) return;
+
+    // Use the item
+    final resultMsg = widget.gameLoop!.useConsumable(itemId);
+
+    // Show result
+    _setDialogText('Used $itemName! $resultMsg');
+
+    // Play sound?
+    AudioManager.instance.playSfx(
+      'potion_use',
+    ); // Assuming sound exists or will check
+
+    // End turn? Usually items take a turn.
+    // Pokemon style: Items take a turn.
+    // "Mage used Potion!" -> Result -> Enemy Turn.
+    _delayedAction(
+      _startNewActionSequence(),
+      BattleTiming.damageResultDisplay,
+      () {
+        _startEnemyPhase();
+      },
+    );
+  }
+
   // ==================== ENEMY ACTION PHASE ====================
 
   /// Cached enemy actions for manual execution (enemy, intent pairs).
@@ -784,6 +1003,9 @@ class _BattleScreenState extends State<BattleScreen> {
       case EnemyIntent.debuff:
         await AudioManager.instance.playSfxAndWait('debuff');
         break;
+      case EnemyIntent.spell:
+        await AudioManager.instance.playSfxAndWait('spell_cast');
+        break;
     }
 
     // Check validity after await
@@ -847,6 +1069,21 @@ class _BattleScreenState extends State<BattleScreen> {
       case EnemyIntent.debuff:
         _setDialogText('${enemy.name} weakens ${widget.mage.name}!');
         _delayedAction(seqId, BattleTiming.enemyOtherActionDisplay, () {
+          _executeEnemyActionWithTiming(index + 1);
+        });
+        break;
+
+      case EnemyIntent.spell:
+        final spell = enemy.pendingSpell;
+        final spellName = spell?.name ?? 'a spell';
+        _setDialogText('${enemy.name} casts $spellName!');
+        _onDamageDealt(0, result.damageDealt, true);
+        _delayedAction(seqId, BattleTiming.damageResultDisplay, () {
+          if (result.targetDefeated || !widget.mage.isAlive) {
+            AudioManager.instance.playPlayerDefeat();
+            _checkCombatEnd();
+            return;
+          }
           _executeEnemyActionWithTiming(index + 1);
         });
         break;

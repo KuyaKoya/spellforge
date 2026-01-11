@@ -89,7 +89,7 @@ class ElementalPathRegistry {
       for (int i = 0; i < unlockedCount && i < path.nodes.length; i++) {
         final node = path.nodes[i];
         modifiers.add(node.benefit);
-        modifiers.add(node.tradeoff);
+        // Tradeoffs removed - crystal cost is sufficient balance
       }
     }
 

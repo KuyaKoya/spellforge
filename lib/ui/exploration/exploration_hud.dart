@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/element.dart' as game_element;
 import '../../systems/shop_system.dart';
+import '../../systems/progression_system.dart';
 import '../../progression/character_progress.dart';
+import '../../systems/inventory_system.dart';
+import 'overlays/character_tab.dart'; // For managing relics
 
 /// Minimal, icon-driven exploration HUD.
 ///
@@ -27,6 +30,9 @@ class ExplorationHUD extends StatelessWidget {
   /// Active character progression (for ascension bonuses).
   final CharacterProgress? characterProgress;
 
+  /// Inventory system for managing relics.
+  final InventorySystem? inventory;
+
   const ExplorationHUD({
     super.key,
     required this.mage,
@@ -34,6 +40,7 @@ class ExplorationHUD extends StatelessWidget {
     this.onSpellTap,
     this.temporaryBuffs,
     this.characterProgress,
+    this.inventory,
   });
 
   @override
@@ -62,6 +69,8 @@ class ExplorationHUD extends StatelessWidget {
         mage: mage,
         temporaryBuffs: temporaryBuffs,
         characterProgress: characterProgress,
+        inventory: inventory,
+        progressionSystem: inventory?.progression,
       ),
     );
   }
@@ -395,11 +404,15 @@ class _PlayerStatsOverlay extends StatelessWidget {
   final Mage mage;
   final List<TemporaryBuff>? temporaryBuffs;
   final CharacterProgress? characterProgress;
+  final InventorySystem? inventory;
+  final ProgressionSystem? progressionSystem;
 
   const _PlayerStatsOverlay({
     required this.mage,
     this.temporaryBuffs,
     this.characterProgress,
+    this.inventory,
+    this.progressionSystem,
   });
 
   @override
@@ -429,6 +442,38 @@ class _PlayerStatsOverlay extends StatelessWidget {
                   letterSpacing: 2,
                 ),
               ),
+              if (inventory != null && progressionSystem != null)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Scaffold(
+                          backgroundColor: const Color(0xFF0d1117),
+                          body: SafeArea(
+                            child: CharacterTab(
+                              progressionSystem: progressionSystem!,
+                              inventory: inventory,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.shield_moon,
+                    color: Colors.amber,
+                    size: 16,
+                  ),
+                  label: const Text(
+                    'RELICS',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber,
+                    ),
+                  ),
+                ),
               IconButton(
                 icon: const Icon(Icons.close, color: Colors.white),
                 onPressed: () => Navigator.pop(context),

@@ -23,6 +23,7 @@ class NodeResolver {
   /// Generates a standard combat encounter for the given depth.
   /// Phase 7.6.3: Accepts [startingElement] for biased generation.
   /// Phase 7.9: Accepts [metaMods] for anti-snowball difficulty scaling.
+  /// Phase 7.10: Now scales all stats (HP, damage, attack, defense, speed).
   static List<Enemy> generateCombatEncounter(
     int depth, {
     Element? startingElement,
@@ -41,7 +42,7 @@ class NodeResolver {
     // Get meta difficulty modifiers (use tier 0 if not provided)
     final mods = metaMods ?? MetaDifficultySystem.getModifiers(0);
 
-    // Apply depth + meta scaling
+    // Phase 7.10: Apply depth + meta scaling to ALL stats
     return enemies.map((enemy) {
       final scaledHP = DifficultyScaler.calculateFinalHP(
         baseHP: enemy.maxHP,
@@ -53,6 +54,23 @@ class NodeResolver {
         depth: depth,
         metaMods: mods,
       );
+      final scaledDefense = DifficultyScaler.calculateFinalDefense(
+        baseDefense: enemy.defense,
+        depth: depth,
+        metaMods: mods,
+      );
+      final scaledAttack = DifficultyScaler.calculateFinalAttack(
+        baseAttack: enemy.attack,
+        depth: depth,
+        metaMods: mods,
+      );
+      final scaledSpeed = DifficultyScaler.calculateFinalSpeed(
+        baseSpeed: enemy.speed,
+        metaMods: mods,
+      );
+
+      // Scale armor gain with depth for more defensive enemies
+      final scaledArmorGain = enemy.armorGain + (depth ~/ 2);
 
       return Enemy(
         id: enemy.id,
@@ -61,7 +79,12 @@ class NodeResolver {
         currentHP: scaledHP,
         maxHP: scaledHP,
         attackDamage: scaledDamage,
-        armorGain: enemy.armorGain,
+        attack: scaledAttack,
+        defense: scaledDefense,
+        speed: scaledSpeed,
+        armorGain: scaledArmorGain,
+        spellLoadout: enemy.spellLoadout,
+        maxMana: enemy.maxMana,
       );
     }).toList();
   }
@@ -84,6 +107,7 @@ class NodeResolver {
   /// Generates a boss encounter for the final depth.
   /// For Act 1, this is the Twin Gatekeepers.
   /// Phase 7.9: Accepts [metaMods] for anti-snowball difficulty scaling.
+  /// Phase 7.10: Moderately increased boss stats for better challenge.
   static List<Enemy> generateBossEncounter(
     int depth, {
     MetaDifficultyModifiers? metaMods,
@@ -94,9 +118,10 @@ class NodeResolver {
     final difficultyLevel = (depth / 3).ceil().clamp(1, 3);
     final mods = metaMods ?? MetaDifficultySystem.getModifiers(0);
 
-    // Gatekeeper of Pyre (Fire + Earth aspects)
-    final basePyreHp = 60 + (difficultyLevel * 10);
-    final basePyreDamage = 8 + difficultyLevel;
+    // Phase 7.10: Balanced boss stats - challenging but fair
+    // Gatekeeper of Pyre (Fire + Earth aspects) - TANKY BRUISER
+    final basePyreHp = 80 + (difficultyLevel * 12);
+    final basePyreDamage = 10 + difficultyLevel;
     final pyreHp = DifficultyScaler.calculateFinalHP(
       baseHP: basePyreHp,
       depth: depth,
@@ -108,9 +133,9 @@ class NodeResolver {
       metaMods: mods,
     );
 
-    // Gatekeeper of Tide (Water + Air aspects)
-    final baseTideHp = 50 + (difficultyLevel * 8);
-    final baseTideDamage = 6 + difficultyLevel;
+    // Gatekeeper of Tide (Water + Air aspects) - FAST CONTROLLER
+    final baseTideHp = 70 + (difficultyLevel * 10);
+    final baseTideDamage = 8 + difficultyLevel;
     final tideHp = DifficultyScaler.calculateFinalHP(
       baseHP: baseTideHp,
       depth: depth,
@@ -130,10 +155,12 @@ class NodeResolver {
       currentHP: pyreHp,
       maxHP: pyreHp,
       attackDamage: pyreDamage,
-      armorGain: 10,
-      modifiers: [EliteModifier.resistant],
+      armorGain: 12,
+      modifiers: [EliteModifier.resistant], // Removed empowered
       resistantElement: Element.fire, // Fire+Earth -> Fire resistant
       passives: PassiveDefinitions.gatekeeperPyrePassives(),
+      maxMana: 22,
+      spellLoadout: [SpellDefinitions.blazeStrike, SpellDefinitions.inferno],
     );
 
     final tideBoss = BossEnemy(
@@ -144,10 +171,12 @@ class NodeResolver {
       currentHP: tideHp,
       maxHP: tideHp,
       attackDamage: tideDamage,
-      armorGain: 5,
-      modifiers: [EliteModifier.resistant],
+      armorGain: 8,
+      modifiers: [EliteModifier.resistant], // Removed empowered
       resistantElement: Element.water, // Water+Air -> Water resistant
       passives: PassiveDefinitions.gatekeeperTidePassives(),
+      maxMana: 22,
+      spellLoadout: [SpellDefinitions.tidalWave, SpellDefinitions.frostArmor],
     );
 
     // Phase 7.9: Boss Phase Skip (Tier 4+)
@@ -345,15 +374,18 @@ class NodeResolver {
   static Map<String, dynamic> generateEliteRewards(
     int depth, {
     Element? startingElement,
+    Element? eliteElement,
   }) {
     // Generate 3 reward options, player chooses 1
     final rewards = <Map<String, dynamic>>[];
 
-    // Option 1: Guaranteed higher-tier spell of starting element (Phase 7.6.5)
+    // Option 1: Guaranteed higher-tier spell of elite's element (or starting element)
     Spell? guaranteedSpell;
-    if (startingElement != null) {
-      // Get uncommon or rare spells of the starting element
-      final elementSpells = SpellDefinitions.getByElement(startingElement)
+    final targetElement = eliteElement ?? startingElement;
+
+    if (targetElement != null) {
+      // Get uncommon or rare spells of the target element
+      final elementSpells = SpellDefinitions.getByElement(targetElement)
           .where(
             (s) =>
                 s.rarity == SpellRarity.uncommon ||
@@ -380,10 +412,10 @@ class NodeResolver {
       rewards.add({
         'type': 'spell',
         'name':
-            '${guaranteedSpell.displayName} (${startingElement!.displayName})',
+            '${guaranteedSpell.displayName} (${targetElement!.displayName})',
         'icon': guaranteedSpell.elementIcon,
         'description':
-            'A powerful ${startingElement.displayName} spell awaits you.',
+            'A powerful ${targetElement.displayName} spell awaits you.',
         'spell': guaranteedSpell,
         'isGuaranteed': true, // Mark as the guaranteed element reward
       });

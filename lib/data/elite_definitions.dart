@@ -5,12 +5,15 @@ import '../domain/enemy_passive.dart';
 import '../systems/meta_difficulty.dart';
 import '../systems/difficulty_scaler.dart';
 import 'passive_definitions.dart';
+import 'spell_definitions.dart';
 
 /// Pre-defined elite encounter templates for the game.
+/// Phase 7.10: Elite stats moderately increased for better challenge.
 class EliteDefinitions {
   EliteDefinitions._();
 
   // ==================== ELITE ENEMIES ====================
+  // Phase 7.10: Balanced elite stats - challenging but fair
 
   /// Burnward Colossus - Earth elite, resistant to Fire.
   /// Strategy: Use Air or Water control builds
@@ -18,15 +21,17 @@ class EliteDefinitions {
     id: 'burnwardColossus',
     name: 'Burnward Colossus',
     element: Element.earth,
-    currentHP: 80,
-    maxHP: 80,
-    attackDamage: 8,
-    attack: 8,
-    defense: 10,
+    currentHP: 100,
+    maxHP: 100,
+    attackDamage: 10,
+    attack: 10,
+    defense: 12,
     speed: 2,
-    armorGain: 12,
+    armorGain: 14,
     modifiers: [EliteModifier.resistant, EliteModifier.empowered],
     resistantElement: Element.fire,
+    maxMana: 18,
+    spellLoadout: [SpellDefinitions.earthquake, SpellDefinitions.stoneWall],
   );
 
   /// Tempest Twins - Air elite pair with bonus actions.
@@ -35,28 +40,32 @@ class EliteDefinitions {
     id: 'tempestTwinA',
     name: 'Tempest Twin (Storm)',
     element: Element.air,
-    currentHP: 45,
-    maxHP: 45,
-    attackDamage: 5,
-    attack: 10,
-    defense: 3,
+    currentHP: 55,
+    maxHP: 55,
+    attackDamage: 7,
+    attack: 11,
+    defense: 4,
     speed: 9,
-    armorGain: 4,
+    armorGain: 5,
     modifiers: [EliteModifier.relentless],
+    maxMana: 14,
+    spellLoadout: [SpellDefinitions.gust, SpellDefinitions.windSlash],
   );
 
   static EliteEnemy tempestTwinB() => EliteEnemy(
     id: 'tempestTwinB',
     name: 'Tempest Twin (Gale)',
     element: Element.air,
-    currentHP: 45,
-    maxHP: 45,
-    attackDamage: 5,
-    attack: 10,
-    defense: 3,
+    currentHP: 55,
+    maxHP: 55,
+    attackDamage: 7,
+    attack: 11,
+    defense: 4,
     speed: 9,
-    armorGain: 4,
+    armorGain: 5,
     modifiers: [EliteModifier.relentless],
+    maxMana: 14,
+    spellLoadout: [SpellDefinitions.hurricane, SpellDefinitions.windSlash],
   );
 
   /// Glacial Executioner - Water elite that freezes slowed targets.
@@ -65,14 +74,16 @@ class EliteDefinitions {
     id: 'glacialExecutioner',
     name: 'Glacial Executioner',
     element: Element.water,
-    currentHP: 60,
-    maxHP: 60,
-    attackDamage: 12,
-    attack: 12,
-    defense: 6,
+    currentHP: 75,
+    maxHP: 75,
+    attackDamage: 13,
+    attack: 13,
+    defense: 7,
     speed: 4,
-    armorGain: 6,
+    armorGain: 8,
     modifiers: [EliteModifier.empowered],
+    maxMana: 16,
+    spellLoadout: [SpellDefinitions.frostArmor, SpellDefinitions.tidalWave],
   );
 
   /// Infernal Warlord - Fire elite with adaptive resistance.
@@ -81,14 +92,16 @@ class EliteDefinitions {
     id: 'infernalWarlord',
     name: 'Infernal Warlord',
     element: Element.fire,
-    currentHP: 70,
-    maxHP: 70,
-    attackDamage: 10,
-    attack: 14,
-    defense: 5,
+    currentHP: 85,
+    maxHP: 85,
+    attackDamage: 12,
+    attack: 16,
+    defense: 6,
     speed: 5,
-    armorGain: 5,
+    armorGain: 6,
     modifiers: [EliteModifier.adaptive],
+    maxMana: 18,
+    spellLoadout: [SpellDefinitions.blazeStrike, SpellDefinitions.inferno],
   );
 
   /// Stone Sentinel - Earth elite with high armor.
@@ -97,15 +110,17 @@ class EliteDefinitions {
     id: 'stoneSentinel',
     name: 'Stone Sentinel',
     element: Element.earth,
-    currentHP: 90,
-    maxHP: 90,
-    attackDamage: 7,
-    attack: 7,
-    defense: 12,
+    currentHP: 110,
+    maxHP: 110,
+    attackDamage: 8,
+    attack: 8,
+    defense: 14,
     speed: 1,
-    armorGain: 15,
+    armorGain: 18,
     modifiers: [EliteModifier.resistant],
     resistantElement: Element.air,
+    maxMana: 14,
+    spellLoadout: [SpellDefinitions.stoneWall, SpellDefinitions.rockThrow],
   );
 
   /// Typhoon Herald - Air elite with relentless attacks.
@@ -114,14 +129,16 @@ class EliteDefinitions {
     id: 'typhoonHerald',
     name: 'Typhoon Herald',
     element: Element.air,
-    currentHP: 55,
-    maxHP: 55,
-    attackDamage: 9,
-    attack: 11,
-    defense: 4,
+    currentHP: 65,
+    maxHP: 65,
+    attackDamage: 10,
+    attack: 12,
+    defense: 5,
     speed: 8,
-    armorGain: 3,
+    armorGain: 4,
     modifiers: [EliteModifier.relentless, EliteModifier.adaptive],
+    maxMana: 20,
+    spellLoadout: [SpellDefinitions.hurricane, SpellDefinitions.gust],
   );
 
   /// All elite encounter generators.
@@ -236,7 +253,7 @@ class EliteDefinitions {
     final passiveCount = DifficultyScaler.getElitePassiveCount(depth, mods);
 
     return baseEncounter.map((elite) {
-      // Phase 7.9: Apply depth + meta scaling
+      // Phase 7.10: Apply depth + meta scaling to ALL stats
       final scaledHP = DifficultyScaler.calculateFinalHP(
         baseHP: elite.maxHP,
         depth: depth,
@@ -247,6 +264,23 @@ class EliteDefinitions {
         depth: depth,
         metaMods: mods,
       );
+      final scaledDefense = DifficultyScaler.calculateFinalDefense(
+        baseDefense: elite.defense,
+        depth: depth,
+        metaMods: mods,
+      );
+      final scaledAttack = DifficultyScaler.calculateFinalAttack(
+        baseAttack: elite.attack,
+        depth: depth,
+        metaMods: mods,
+      );
+      final scaledSpeed = DifficultyScaler.calculateFinalSpeed(
+        baseSpeed: elite.speed,
+        metaMods: mods,
+      );
+
+      // Scale armor gain with depth - reduced scaling for balance
+      final scaledArmorGain = elite.armorGain + (depth ~/ 3);
 
       // Phase 7.9: Handle extra passives
       var passives = PassiveDefinitions.getPassivesForEnemy(elite.id);
@@ -275,10 +309,15 @@ class EliteDefinitions {
         currentHP: scaledHP,
         maxHP: scaledHP,
         attackDamage: scaledDamage,
-        armorGain: elite.armorGain,
+        attack: scaledAttack,
+        defense: scaledDefense,
+        speed: scaledSpeed,
+        armorGain: scaledArmorGain,
         modifiers: elite.modifiers,
         resistantElement: elite.resistantElement,
         passives: passives, // Phase 7.9: Explicit passives with extras
+        spellLoadout: elite.spellLoadout,
+        maxMana: elite.maxMana,
       );
     }).toList();
   }

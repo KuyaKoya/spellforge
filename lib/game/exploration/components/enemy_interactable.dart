@@ -77,6 +77,8 @@ class EnemyInteractable extends InteractableComponent with GlowEffect {
         return '🛡️';
       case EnemyIntent.debuff:
         return '💀';
+      case EnemyIntent.spell:
+        return '✨';
     }
   }
 

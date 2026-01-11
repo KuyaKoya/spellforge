@@ -29,6 +29,7 @@ class EncounterGenerator {
   }
 
   /// Generates scaled enemies for a given depth.
+  /// Phase 7.10: Now scales ALL stats for proper difficulty progression.
   static List<Enemy> _generateScaledEnemies(int depth) {
     final minEnemies = DifficultyScaler.getMinEnemies(depth);
     final maxEnemies = DifficultyScaler.getMaxEnemies(depth);
@@ -41,10 +42,31 @@ class EncounterGenerator {
       difficultyLevel: 1,
     );
 
-    // Apply depth scaling
+    // Phase 7.10: Apply depth scaling to ALL stats
     return enemies.map((enemy) {
       final scaledHP = (enemy.maxHP * hpMultiplier).round();
       final scaledDamage = enemy.attackDamage + damageBonus;
+
+      // Scale defense with depth (15% per depth after 2)
+      double defenseMultiplier = 1.0;
+      if (depth >= 3) {
+        defenseMultiplier = 1.0 + ((depth - 2) * 0.15);
+      }
+      final scaledDefense = (enemy.defense * defenseMultiplier).round().clamp(
+        1,
+        50,
+      );
+
+      // Scale attack stat with depth (10% per depth after 4)
+      double attackMultiplier = 1.0;
+      if (depth >= 5) {
+        attackMultiplier = 1.0 + ((depth - 4) * 0.1);
+      }
+      final scaledAttack =
+          (enemy.attack * attackMultiplier).round() + damageBonus;
+
+      // Scale armor gain with depth
+      final scaledArmorGain = enemy.armorGain + (depth ~/ 2);
 
       return Enemy(
         id: enemy.id,
@@ -53,7 +75,12 @@ class EncounterGenerator {
         currentHP: scaledHP,
         maxHP: scaledHP,
         attackDamage: scaledDamage,
-        armorGain: enemy.armorGain,
+        attack: scaledAttack,
+        defense: scaledDefense,
+        speed: enemy.speed,
+        armorGain: scaledArmorGain,
+        spellLoadout: enemy.spellLoadout,
+        maxMana: enemy.maxMana,
       );
     }).toList();
   }
@@ -90,6 +117,7 @@ class EncounterGenerator {
   }
 
   /// Generates boss-level enemies.
+  /// Phase 7.10: Significantly buffed boss generation.
   static List<Enemy> _generateBossEnemies(int depth) {
     final baseEnemies = EnemyDefinitions.generateEncounter(
       minEnemies: 1,
@@ -97,15 +125,28 @@ class EncounterGenerator {
       difficultyLevel: 3,
     );
 
+    final hpMultiplier = DifficultyScaler.getHPMultiplier(depth);
+
     return baseEnemies.map((enemy) {
+      // Boss HP: Base × 2.5 × depth multiplier (was just × 2.0)
+      final scaledHP = (enemy.maxHP * 2.5 * hpMultiplier).round();
+      final scaledDamage = enemy.attackDamage + depth; // +1 damage per depth
+      final scaledDefense = (enemy.defense * 1.5).round() + (depth ~/ 2);
+      final scaledAttack = (enemy.attack * 1.3).round() + depth;
+
       return Enemy(
         id: '${enemy.id}_boss',
         name: '${enemy.name} Guardian',
         element: enemy.element,
-        currentHP: (enemy.maxHP * 2.0).round(),
-        maxHP: (enemy.maxHP * 2.0).round(),
-        attackDamage: enemy.attackDamage + 3,
-        armorGain: enemy.armorGain + 5,
+        currentHP: scaledHP,
+        maxHP: scaledHP,
+        attackDamage: scaledDamage,
+        attack: scaledAttack,
+        defense: scaledDefense,
+        speed: enemy.speed,
+        armorGain: enemy.armorGain + 8,
+        spellLoadout: enemy.spellLoadout,
+        maxMana: enemy.maxMana + 5,
       );
     }).toList();
   }

@@ -24,6 +24,8 @@ class BossEnemy extends EliteEnemy {
     required super.attackDamage,
     super.armorGain = 5,
     super.intent = EnemyIntent.attack,
+    super.spellLoadout = const [],
+    super.maxMana = 0,
     required super.modifiers,
     super.resistantElement,
     super.passives,

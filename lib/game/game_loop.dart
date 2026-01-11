@@ -4,7 +4,9 @@ import '../systems/node_resolver.dart';
 import '../systems/shop_system.dart';
 import '../systems/modifier_service.dart';
 import '../systems/audio_system.dart';
+import '../data/item_definitions.dart'; // For ConsumableEffectType
 import 'game_state.dart';
+import '../progression/spell_pool_manager.dart';
 
 /// Handles game logic for player actions.
 class GameLoop {
@@ -116,6 +118,54 @@ class GameLoop {
   /// Cancels target selection.
   void cancelTargetSelection() {
     state.cancelTargetSelection();
+  }
+
+  // ==================== INVENTORY ACTIONS ====================
+
+  /// Uses a consumable item from inventory.
+  /// Returns a description of the effect.
+  String useConsumable(String itemId) {
+    if (state.currentScreen != GameScreen.combat)
+      return 'Can only use items in combat';
+    if (state.mage == null) return 'No active mage';
+
+    final effect = state.inventory.useConsumable(itemId);
+    if (effect == null) return 'Failed to use item';
+
+    switch (effect.type) {
+      case ConsumableEffectType.heal:
+        // Phase 7.8: Apply healing multiplier
+        final healingMultiplier = ModifierService.getHealingMultiplier(
+          state.progression.getActiveModifiers(),
+        );
+        final healAmount = (effect.value * healingMultiplier).round();
+        final actual = state.mage!.heal(healAmount);
+        return 'Healed $actual HP';
+
+      case ConsumableEffectType.restoreMana:
+        state.mage!.restoreMana(effect.value);
+        return 'Restored ${effect.value} Mana';
+
+      case ConsumableEffectType.buffDamage:
+        state.temporaryBuffs.add(
+          TemporaryBuff(
+            name: 'Item Buff',
+            value: effect.value,
+            remainingNodes: effect.durationNodes,
+          ),
+        );
+        return 'Damage +${effect.value}% applied';
+
+      case ConsumableEffectType.buffDefense:
+        state.temporaryBuffs.add(
+          TemporaryBuff(
+            name: 'Item Defense',
+            value: effect.value,
+            remainingNodes: effect.durationNodes,
+          ),
+        );
+        return 'Defense +${effect.value} for ${effect.durationNodes} rooms';
+    }
   }
 
   /// Ends the player's turn in combat.
@@ -291,6 +341,7 @@ class GameLoop {
       case 'spell':
         final spell = reward['spell'] as Spell;
         if (state.mage!.learnSpell(spell)) {
+          SpellPoolManager.instance.markSpellDiscovered(spell.id);
           state.spellsLearned++;
         } else {
           state.progression.addFragments(50);
@@ -354,6 +405,7 @@ class GameLoop {
     }
 
     mage.learnSpell(spell);
+    SpellPoolManager.instance.markSpellDiscovered(spell.id);
     state.spellsLearned++;
     // Mark as completed but don't leave yet
     state.nodeInteractionCompleted = true;
@@ -441,40 +493,14 @@ class GameLoop {
     await state.progression.spendFragments(item.cost);
     state.currentShop!.purchaseItem(item);
     // Apply the item effect
-    switch (item.type) {
-      case ShopItemType.spellFragments:
-        state.progression.addFragments(item.value);
-        break;
-
-      case ShopItemType.spellCrystal:
-        state.progression.addCrystals(item.value);
-        break;
-
-      case ShopItemType.randomSpell:
-        if (item.spell != null && state.mage!.learnSpell(item.spell!)) {
-          state.spellsLearned++;
-        } else {}
-        break;
-
-      case ShopItemType.heal:
-        // Phase 7.8: Apply healing multiplier from elemental modifiers
-        final healingMultiplier = ModifierService.getHealingMultiplier(
-          state.progression.getActiveModifiers(),
-        );
-        final modifiedHealAmount = (item.value * healingMultiplier).round();
-        final actual = state.mage!.heal(modifiedHealAmount);
-        break;
-
-      case ShopItemType.tempBuff:
-        state.temporaryBuffs.add(
-          TemporaryBuff(
-            name: 'Power Surge',
-            value: item.value,
-            remainingNodes: 3,
-          ),
-        );
-        break;
-    }
+    // Apply the item effect using ShopSystem logic
+    ShopSystem.performPurchaseEffect(
+      item: item,
+      mage: state.mage!,
+      progression: state.progression,
+      onSpellLearned: () => state.spellsLearned++,
+      onBuffAdded: (buff) => state.temporaryBuffs.add(buff),
+    );
 
     // Show remaining items
     if (state.currentShop!.availableItems.isNotEmpty) {
@@ -610,6 +636,8 @@ class GameLoop {
             state.currentDepth,
           );
           if (spells.isNotEmpty && state.mage!.learnSpell(spells.first)) {
+            SpellPoolManager.instance.markSpellDiscovered(spells.first.id);
+            state.spellsLearned++;
           } else {}
         } else {}
         break;
@@ -620,6 +648,38 @@ class GameLoop {
     }
 
     state.currentRandomEvent = null;
+    state.completeNode();
+  }
+
+  /// Completes the elite reward phase (New API).
+  void completeEliteReward(Spell? selectedSpell) {
+    if (state.currentRewardResult == null) return;
+
+    final result = state.currentRewardResult!;
+
+    // Apply currency
+    if (result.fragments > 0) {
+      state.progression.addFragments(result.fragments);
+    }
+    if (result.crystals > 0) {
+      state.progression.addCrystals(result.crystals);
+    }
+
+    // Apply healing
+    if (result.healPercent > 0) {
+      final healAmount = (state.mage!.maxHP * result.healPercent).round();
+      state.mage!.heal(healAmount);
+    }
+
+    // Apply spell selection
+    if (selectedSpell != null) {
+      state.mage!.learnSpell(selectedSpell);
+      SpellPoolManager.instance.markSpellDiscovered(selectedSpell.id);
+      state.spellsLearned++;
+    }
+
+    state.currentRewardResult = null;
+    state.currentEliteRewards = null;
     state.completeNode();
   }
 

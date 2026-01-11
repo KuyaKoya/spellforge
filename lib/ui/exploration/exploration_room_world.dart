@@ -78,9 +78,7 @@ class ExplorationRoomWorld extends FlameGame {
 
     // Enemy
     if (roomConfig.hasEnemy && roomConfig.enemy != null) {
-      _enemyAnchor = _EnemyAnchorComponent(
-        enemy: roomConfig.enemy!,
-      );
+      _enemyAnchor = _EnemyAnchorComponent(enemy: roomConfig.enemy!);
       add(_enemyAnchor!);
     }
 
@@ -157,11 +155,7 @@ class _RoomBackground extends PositionComponent with HasGameReference {
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: const [
-        Color(0xFF0a0e12),
-        Color(0xFF0d1117),
-        Color(0xFF131920),
-      ],
+      colors: const [Color(0xFF0a0e12), Color(0xFF0d1117), Color(0xFF131920)],
     );
 
     canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
@@ -175,10 +169,7 @@ class _RoomBackground extends PositionComponent with HasGameReference {
 
     for (var x = 0.0; x < game.size.x; x += tileSize) {
       for (var y = game.size.y * 0.5; y < game.size.y; y += tileSize) {
-        canvas.drawRect(
-          Rect.fromLTWH(x, y, tileSize, tileSize),
-          tilePaint,
-        );
+        canvas.drawRect(Rect.fromLTWH(x, y, tileSize, tileSize), tilePaint);
       }
     }
   }
@@ -190,7 +181,12 @@ class _RoomBounds extends PositionComponent with HasGameReference {
   void render(Canvas canvas) {
     final margin = 40.0;
     final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(margin, margin, game.size.x - margin * 2, game.size.y - margin * 2),
+      Rect.fromLTWH(
+        margin,
+        margin,
+        game.size.x - margin * 2,
+        game.size.y - margin * 2,
+      ),
       const Radius.circular(16),
     );
 
@@ -225,10 +221,9 @@ class _DoorComponent extends PositionComponent with HasGameReference {
   final VoidCallback? onEnter;
   double _pulseTimer = 0;
 
-  _DoorComponent({
-    required DoorPosition position,
-    this.onEnter,
-  }) : doorPosition = position, super(size: Vector2(60, 60));
+  _DoorComponent({required DoorPosition position, this.onEnter})
+    : doorPosition = position,
+      super(size: Vector2(60, 60));
 
   @override
   Future<void> onLoad() async {
@@ -272,10 +267,7 @@ class _DoorComponent extends PositionComponent with HasGameReference {
     );
 
     // Door background
-    canvas.drawRRect(
-      rrect,
-      Paint()..color = const Color(0xFF21262d),
-    );
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF21262d));
 
     // Door border
     canvas.drawRRect(
@@ -294,7 +286,10 @@ class _DoorComponent extends PositionComponent with HasGameReference {
     textPainter.layout();
     textPainter.paint(
       canvas,
-      Offset((size.x - textPainter.width) / 2, (size.y - textPainter.height) / 2),
+      Offset(
+        (size.x - textPainter.width) / 2,
+        (size.y - textPainter.height) / 2,
+      ),
     );
 
     // Direction indicator
@@ -317,7 +312,10 @@ class _DoorComponent extends PositionComponent with HasGameReference {
       textDirection: TextDirection.ltr,
     );
     dirPainter.layout();
-    dirPainter.paint(canvas, Offset((size.x - dirPainter.width) / 2, size.y - 14));
+    dirPainter.paint(
+      canvas,
+      Offset((size.x - dirPainter.width) / 2, size.y - 14),
+    );
   }
 }
 
@@ -328,9 +326,7 @@ class _EnemyAnchorComponent extends PositionComponent with HasGameReference {
   double _flashTimer = 0;
   bool _isFlashing = false;
 
-  _EnemyAnchorComponent({
-    required this.enemy,
-  }) : super(size: Vector2(80, 90));
+  _EnemyAnchorComponent({required this.enemy}) : super(size: Vector2(80, 90));
 
   @override
   Future<void> onLoad() async {
@@ -470,6 +466,7 @@ class _EnemyAnchorComponent extends PositionComponent with HasGameReference {
       EnemyIntent.attack => '⚔️',
       EnemyIntent.defend => '🛡️',
       EnemyIntent.debuff => '💀',
+      EnemyIntent.spell => '✨',
     };
 
     final intentPainter = TextPainter(
@@ -477,10 +474,7 @@ class _EnemyAnchorComponent extends PositionComponent with HasGameReference {
       textDirection: TextDirection.ltr,
     );
     intentPainter.layout();
-    intentPainter.paint(
-      canvas,
-      Offset(size.x - 20, breathOffset - 5),
-    );
+    intentPainter.paint(canvas, Offset(size.x - 20, breathOffset - 5));
   }
 }
 
@@ -489,10 +483,8 @@ class _PlayerComponent extends PositionComponent with HasGameReference {
   final String element;
   double _idleTimer = 0;
 
-  _PlayerComponent({
-    required this.element,
-    required Vector2 initialPosition,
-  }) : super(position: initialPosition, size: Vector2(50, 60));
+  _PlayerComponent({required this.element, required Vector2 initialPosition})
+    : super(position: initialPosition, size: Vector2(50, 60));
 
   Color get _elementColor {
     switch (element) {
@@ -557,10 +549,7 @@ class _PlayerComponent extends PositionComponent with HasGameReference {
     );
 
     // Body
-    canvas.drawRRect(
-      rrect,
-      Paint()..color = const Color(0xFF21262d),
-    );
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF21262d));
 
     canvas.drawRRect(
       rrect,
@@ -590,9 +579,6 @@ class _PlayerComponent extends PositionComponent with HasGameReference {
       textDirection: TextDirection.ltr,
     );
     elemPainter.layout();
-    elemPainter.paint(
-      canvas,
-      Offset(size.x - 14, breathOffset),
-    );
+    elemPainter.paint(canvas, Offset(size.x - 14, breathOffset));
   }
 }

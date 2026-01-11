@@ -93,25 +93,25 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
 
     setState(() => _upgradingIndex = index);
 
-    // Phase 7.6.2: Play shrine upgrade sound when actually upgrading
-    AudioManager.instance.playShrineUpgrade();
-
-    // Play visual flair
-    await _upgradeBurstController.forward(from: 0.0);
-
-    // Get the selected path
+    // Get the selected path BEFORE calling upgrade
     final spell = widget.mage.spellLoadout[index];
     final upgradePath = _getUpgradePathFor(index, spell);
 
-    await widget.onUpgrade(index, upgradePath);
+    // Register the upgrade FIRST (non-blocking) to prevent deadlock
+    widget.onUpgrade(index, upgradePath);
 
-    setState(() {
-      _upgradingIndex = null;
-      _selectedSpellIndex = null;
-      _upgradePathChoices.remove(
-        index,
-      ); // Clear choice after upgrade so next level gets new roll
-    });
+    // Phase 7.6.2: Play shrine upgrade sound when actually upgrading
+    AudioManager.instance.playShrineUpgrade();
+
+    // Play visual flair (non-blocking)
+    _upgradeBurstController.forward(from: 0.0);
+
+    // Auto-close after 2 seconds
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (mounted) {
+      widget.onLeave();
+    }
   }
 
   @override
@@ -175,21 +175,25 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
 
             const SizedBox(height: 16),
 
-            // Leave Button
+            // Leave Button (disabled while action in progress)
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: TextButton.icon(
-                onPressed: widget.onLeave,
+                onPressed: _upgradingIndex != null ? null : widget.onLeave,
                 icon: Icon(
                   Icons.exit_to_app,
-                  color: Colors.grey.shade500,
+                  color: _upgradingIndex != null
+                      ? Colors.grey.shade700
+                      : Colors.grey.shade500,
                   size: 18,
                 ),
                 label: Text(
-                  'Leave Shrine',
+                  _upgradingIndex != null ? 'Enhancing...' : 'Leave Shrine',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: Colors.grey.shade500,
+                    color: _upgradingIndex != null
+                        ? Colors.grey.shade700
+                        : Colors.grey.shade500,
                     fontSize: 14,
                   ),
                 ),
@@ -1069,6 +1073,8 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
         return Colors.blue;
       case SpellRarity.signature:
         return Colors.amber;
+      case SpellRarity.legendary:
+        return const Color(0xFFbc8cff); // Purple
     }
   }
 }

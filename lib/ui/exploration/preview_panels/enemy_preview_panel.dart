@@ -82,6 +82,8 @@ class EnemyPreviewPanel extends PreviewPanel {
         return '🛡️';
       case EnemyIntent.debuff:
         return '💀';
+      case EnemyIntent.spell:
+        return '✨';
     }
   }
 

@@ -259,20 +259,33 @@ class _TextGameWidgetState extends State<TextGameWidget> {
             ),
 
           // Overlay: Elite Reward
-          if (widget.game.currentScreen == GameScreen.eliteReward &&
-              widget.game.gameState.currentEliteRewards != null)
-            Container(
-              color: Colors.black54,
-              child: EliteRewardOverlay(
-                rewards:
-                    widget.game.gameState.currentEliteRewards!['rewards']
-                        as List,
-                onSelect: (index) {
-                  widget.game.gameLoop.selectEliteReward(index);
-                  _onGameStateChanged();
-                },
+          if (widget.game.currentScreen == GameScreen.eliteReward)
+            if (widget.game.gameState.currentRewardResult != null)
+              Container(
+                color: Colors.black54,
+                child: EliteRewardOverlay(
+                  rewardResult: widget.game.gameState.currentRewardResult,
+                  currentHP: widget.game.gameState.mage?.currentHP ?? 0,
+                  maxHP: widget.game.gameState.mage?.maxHP ?? 100,
+                  onComplete: (spell) {
+                    widget.game.gameLoop.completeEliteReward(spell);
+                    _onGameStateChanged();
+                  },
+                ),
+              )
+            else if (widget.game.gameState.currentEliteRewards != null)
+              Container(
+                color: Colors.black54,
+                child: EliteRewardOverlay(
+                  rewards:
+                      widget.game.gameState.currentEliteRewards!['rewards']
+                          as List,
+                  onSelect: (index) {
+                    widget.game.gameLoop.selectEliteReward(index);
+                    _onGameStateChanged();
+                  },
+                ),
               ),
-            ),
 
           // Overlay: Random Event
           if (widget.game.currentScreen == GameScreen.randomEvent &&
@@ -314,6 +327,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
           _onGameStateChanged();
         },
         onInput: (input) => widget.game.handleInput(input),
+        gameLoop: widget.game.gameLoop,
       );
     }
 
@@ -403,7 +417,55 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       return;
     }
 
-    // Case: During a run -> Show Pause Menu
+    // Case: Overlay screens -> Return to Exploration
+    // These screens are on top of exploration, so back should close them
+    if (screen == GameScreen.rest) {
+      if (gameState.nodeInteractionCompleted) {
+        widget.game.gameLoop.leaveCurrentNode();
+      } else {
+        widget.game.gameLoop.skipRest();
+      }
+      _onGameStateChanged();
+      return;
+    }
+
+    if (screen == GameScreen.enhancementShrine) {
+      if (gameState.nodeInteractionCompleted) {
+        if (_currentRoomConfig != null) {
+          _currentRoomConfig = _currentRoomConfig!.withInteractionCompleted();
+        }
+        widget.game.gameLoop.leaveCurrentNode();
+      } else {
+        widget.game.gameLoop.skipEnhancement();
+      }
+      _onGameStateChanged();
+      return;
+    }
+
+    if (screen == GameScreen.spellLearn) {
+      if (gameState.nodeInteractionCompleted) {
+        if (_currentRoomConfig != null) {
+          _currentRoomConfig = _currentRoomConfig!.withInteractionCompleted();
+        }
+        widget.game.gameLoop.leaveCurrentNode();
+      } else {
+        widget.game.gameLoop.skipSpellLearn();
+      }
+      _onGameStateChanged();
+      return;
+    }
+
+    if (screen == GameScreen.shop) {
+      if (_currentRoomConfig != null) {
+        _currentRoomConfig = _currentRoomConfig!.withInteractionCompleted();
+      }
+      widget.game.gameLoop.leaveShop();
+      _onGameStateChanged();
+      return;
+    }
+
+    // Case: Exploration (home during run) or Combat -> Show Pause Menu
+    // Elite Reward and Random Event cannot be exited via back (must complete)
     _showPauseMenu();
   }
 
@@ -732,6 +794,7 @@ class _TextGameWidgetState extends State<TextGameWidget> {
       totalDepths: gameState.nodeMapSystem.totalDepths,
       temporaryBuffs: gameState.temporaryBuffs,
       characterProgress: widget.game.progressionSystem.characterProgress,
+      inventory: gameState.inventory,
       runNumber: 1,
       onEngageEnemy: (enemy, isElite) async {
         // Phase 7.7: Check if we should show narrative dialogue

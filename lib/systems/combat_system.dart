@@ -227,6 +227,8 @@ class CombatSystem {
         // Phase 7.9.3.1: Apply passive effects to game state
         _applyPassiveResults(results, enemy);
       }
+      // Phase 7.9.5: Choose initial intent (allows spell intent from turn 1)
+      enemy.chooseNextIntent();
     }
     combatLog.add('');
 
@@ -285,11 +287,17 @@ class CombatSystem {
   String _getIntentDescription(Enemy enemy) {
     switch (enemy.intent) {
       case EnemyIntent.attack:
-        return '⚔️  Attack (${enemy.getEffectiveDamage()} damage)';
+        return '⚔️ Attack (${enemy.getEffectiveDamage()} damage)';
       case EnemyIntent.defend:
-        return '🛡️  Defend (+${enemy.armorGain} armor)';
+        return '🛡️ Defend (+${enemy.armorGain} armor)';
       case EnemyIntent.debuff:
         return '💀 Debuff (Weaken -15%)';
+      case EnemyIntent.spell:
+        final spell = enemy.pendingSpell;
+        if (spell != null) {
+          return '✨ Cast ${spell.name} (${spell.manaCost} mana)';
+        }
+        return '✨ Casting spell...';
     }
   }
 
@@ -512,6 +520,53 @@ class CombatSystem {
         );
         combatLog.add('  💀 Weakens ${mage.name}! (-15% damage for 2 turns)');
         statusApplied = 'weaken';
+        break;
+
+      case EnemyIntent.spell:
+        final spell = enemy.pendingSpell ?? enemy.getAffordableSpell();
+        if (spell != null && enemy.currentMana >= spell.manaCost) {
+          enemy.consumeMana(spell.manaCost);
+          // Cast spell at player - apply damage with elemental typing
+          final spellDamage = spell.baseDamage;
+          // Apply elemental weakness/resistance
+          final multiplier = spell.element.getMultiplierAgainst(
+            mage.primaryElement,
+          );
+          final finalDamage = (spellDamage * multiplier).round();
+          damageDealt = mage.takeDamage(finalDamage);
+          combatLog.add('  ✨ Casts ${spell.name}!');
+          if (multiplier > 1.0) {
+            combatLog.add('  It\'s super effective!');
+          } else if (multiplier < 1.0) {
+            combatLog.add('  It\'s not very effective...');
+          }
+          combatLog.add('  ⚔️ ${mage.name} takes $damageDealt damage!');
+          combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+          // Apply any status effects from the spell
+          for (final effect in spell.effects) {
+            if (effect.isStatusEffect) {
+              if (effect.targetRule == TargetRule.self) {
+                // Self-targeting effects apply to the casting enemy
+                enemy.applyStatusEffect(effect);
+                statusApplied = effect.type.name;
+                combatLog.add(
+                  '  ${effect.type.displayName} applied to ${enemy.name}!',
+                );
+              } else {
+                // Other effects apply to the player
+                mage.applyStatusEffect(effect);
+                statusApplied = effect.type.name;
+                combatLog.add(
+                  '  ${effect.type.displayName} applied to ${mage.name}!',
+                );
+              }
+            }
+          }
+        } else {
+          // Fallback to basic attack if can't cast
+          damageDealt = mage.takeDamage(enemy.getEffectiveDamage());
+          combatLog.add('  ⚔️ Attacks ${mage.name} for $damageDealt damage!');
+        }
         break;
     }
 
@@ -749,6 +804,58 @@ class CombatSystem {
         );
         combatLog.add('  💀 Weakens ${mage.name}! (-15% damage for 2 turns)');
         onStateChanged?.call();
+        break;
+
+      case EnemyIntent.spell:
+        final spell = enemy.pendingSpell ?? enemy.getAffordableSpell();
+        if (spell != null && enemy.currentMana >= spell.manaCost) {
+          AudioSystem.playSpellSound(spell.id);
+          await Future.delayed(const Duration(milliseconds: 400));
+
+          enemy.consumeMana(spell.manaCost);
+          final spellDamage = spell.baseDamage;
+          final multiplier = spell.element.getMultiplierAgainst(
+            mage.primaryElement,
+          );
+          final finalDamage = (spellDamage * multiplier).round();
+          final actualDamage = mage.takeDamage(finalDamage);
+
+          combatLog.add('  ✨ Casts ${spell.name}!');
+          if (multiplier > 1.0) {
+            combatLog.add('  It\'s super effective!');
+          } else if (multiplier < 1.0) {
+            combatLog.add('  It\'s not very effective...');
+          }
+          combatLog.add('  ⚔️ ${mage.name} takes $actualDamage damage!');
+          combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+
+          for (final effect in spell.effects) {
+            if (effect.isStatusEffect) {
+              if (effect.targetRule == TargetRule.self) {
+                // Self-targeting effects apply to the casting enemy
+                enemy.applyStatusEffect(effect);
+                combatLog.add(
+                  '  ${effect.type.displayName} applied to ${enemy.name}!',
+                );
+              } else {
+                // Other effects apply to the player
+                mage.applyStatusEffect(effect);
+                combatLog.add(
+                  '  ${effect.type.displayName} applied to ${mage.name}!',
+                );
+              }
+            }
+          }
+          onStateChanged?.call();
+        } else {
+          // Fallback to basic attack
+          AudioSystem.playEnemyAttack();
+          await Future.delayed(const Duration(milliseconds: 400));
+          final actualDamage = mage.takeDamage(enemy.getEffectiveDamage());
+          combatLog.add('  ⚔️ Attacks ${mage.name} for $actualDamage damage!');
+          combatLog.add('  → ${mage.name} HP: ${mage.currentHP}/${mage.maxHP}');
+          onStateChanged?.call();
+        }
         break;
     }
 

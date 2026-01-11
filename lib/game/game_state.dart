@@ -14,6 +14,10 @@ import '../director/director_system.dart';
 import '../systems/audio_manager.dart';
 import '../systems/save_manager.dart';
 import '../progression/run_save_data.dart';
+import '../systems/reward_resolver.dart';
+import '../progression/spell_pool_manager.dart';
+import '../progression/bestiary_manager.dart';
+import '../systems/inventory_system.dart';
 
 /// The current screen/mode of the game.
 enum GameScreen {
@@ -41,6 +45,7 @@ class GameState {
   final ProgressionSystem progression;
   final NodeMapSystem nodeMapSystem;
   final DirectorSystem director;
+  final InventorySystem inventory;
 
   /// Callback for UI updates
   Future<void> Function()? onStateChanged;
@@ -71,6 +76,7 @@ class GameState {
 
   // Elite reward state
   Map<String, dynamic>? currentEliteRewards;
+  RewardResult? currentRewardResult;
   int? selectedRewardIndex;
 
   // Run statistics
@@ -87,8 +93,10 @@ class GameState {
     required this.progression,
     NodeMapSystem? nodeMapSystem,
     DirectorSystem? director,
+    InventorySystem? inventory,
   }) : nodeMapSystem = nodeMapSystem ?? NodeMapSystem(),
        director = director ?? DirectorSystem(),
+       inventory = inventory ?? InventorySystem(progression),
        currentScreen = GameScreen.mainMenu;
 
   /// Whether the player is alive.
@@ -160,6 +168,7 @@ class GameState {
     ).where((s) => s.rarity == SpellRarity.common).toList();
     if (startingSpells.isNotEmpty) {
       mage!.learnSpell(startingSpells.first);
+      SpellPoolManager.instance.markSpellDiscovered(startingSpells.first.id);
     }
     // Go directly to exploration mode
     // First room is empty - just doors to choose first node
@@ -216,6 +225,7 @@ class GameState {
     ).where((s) => s.rarity == SpellRarity.common).toList();
     if (startingSpells.isNotEmpty) {
       mage!.learnSpell(startingSpells.first);
+      SpellPoolManager.instance.markSpellDiscovered(startingSpells.first.id);
     }
 
     // Record starting element for Director influence
@@ -461,6 +471,9 @@ class GameState {
     currentEnemies = enemies;
     isEliteCombat = isElite;
 
+    // Discover enemies and their passives for the catalog
+    BestiaryManager.instance.discoverEnemies(enemies);
+
     // Transition to appropriate combat music
     final isBoss = nodeMapSystem.currentNode?.type == NodeType.bossCombat;
     if (isBoss) {
@@ -553,10 +566,29 @@ class GameState {
   /// Shows elite reward selection.
   /// Phase 7.6.5: Passes starting element for guaranteed element-matched spell.
   void showEliteRewards() {
+    Element? eliteElement;
+    String eliteId = 'unknown';
+
+    if (currentEnemies != null && currentEnemies!.isNotEmpty) {
+      eliteElement = currentEnemies!.first.element;
+      eliteId = currentEnemies!.first.id;
+    }
+
+    // Legacy backup (persisted)
     currentEliteRewards = NodeResolver.generateEliteRewards(
       currentDepth,
       startingElement: _startingElement,
+      eliteElement: eliteElement,
     );
+
+    // Phase 7.9.5: Use RewardResolver for modernized rewards (Primary)
+    currentRewardResult = RewardResolver.resolveEliteRewards(
+      mage: mage!,
+      depth: currentDepth,
+      eliteId: eliteId,
+      preferElement: eliteElement,
+    );
+
     currentScreen = GameScreen.eliteReward;
   }
 
@@ -737,6 +769,11 @@ class GameState {
       spellsUpgraded: spellsUpgraded,
       fragmentsEarnedThisRun: progression.runFragments,
       crystalsEarnedThisRun: progression.runCrystals,
+      currentFragments: progression.currentFragments,
+      currentCrystals: progression.currentCrystals,
+      consumables: progression.consumables,
+      ownedRelics: progression.ownedRelics,
+      equippedRelics: progression.equippedRelics,
       rngSeed: DateTime.now().millisecondsSinceEpoch,
       totalRunDepth: nodeMapSystem.totalDepths,
       shownEliteDialogues: _shownEliteDialogues.toList(),
@@ -770,6 +807,15 @@ class GameState {
 
       // Restore mage state
       mage!.currentHP = saveData.playerHP;
+
+      // Restore inventory
+      progression.restoreInventory(
+        fragments: saveData.currentFragments,
+        crystals: saveData.currentCrystals,
+        consumables: saveData.consumables,
+        ownedRelics: saveData.ownedRelics,
+        equippedRelics: saveData.equippedRelics,
+      );
       // Phase 7.9.4: Restore level and rebuild stats from growth table
       mage!.level = saveData.playerLevel;
       mage!.currentExp = saveData.playerExp;

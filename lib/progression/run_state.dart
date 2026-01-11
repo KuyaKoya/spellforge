@@ -40,6 +40,21 @@ class RunState {
   /// Crystals earned this run.
   int crystalsEarnedThisRun = 0;
 
+  /// Current spell fragments available to spend.
+  int currentFragments = 0;
+
+  /// Current crystals available to spend.
+  int currentCrystals = 0;
+
+  /// Inventory: Consumable Item IDs.
+  final List<String> consumables = [];
+
+  /// Inventory: Owned Relic IDs.
+  final List<String> ownedRelics = [];
+
+  /// Inventory: Equipped Relic IDs (Max 4).
+  final List<String> equippedRelics = [];
+
   // ==================== TEMPORARY EFFECTS ====================
 
   /// Temporary buffs active during this run.
@@ -68,6 +83,13 @@ class RunState {
     spellsUpgraded = 0;
     fragmentsEarnedThisRun = 0;
     crystalsEarnedThisRun = 0;
+    fragmentsEarnedThisRun = 0;
+    crystalsEarnedThisRun = 0;
+    currentFragments = 0;
+    currentCrystals = 0;
+    consumables.clear();
+    ownedRelics.clear();
+    equippedRelics.clear();
     temporaryBuffs.clear();
   }
 
@@ -85,7 +107,9 @@ class RunState {
   }) {
     combatsWon++;
     if (isElite) elitesDefeated++;
+    if (isElite) elitesDefeated++;
     fragmentsEarnedThisRun += fragments;
+    currentFragments += fragments;
     experienceThisRun += experience;
   }
 
@@ -102,12 +126,84 @@ class RunState {
   /// Adds fragments earned this run.
   void addFragments(int amount) {
     fragmentsEarnedThisRun += amount;
+    currentFragments += amount;
   }
 
   /// Adds crystals earned this run.
   void addCrystals(int amount) {
     crystalsEarnedThisRun += amount;
+    currentCrystals += amount;
   }
+
+  /// Spends fragments if available.
+  bool spendFragments(int amount) {
+    if (currentFragments >= amount) {
+      currentFragments -= amount;
+      return true;
+    }
+    return false;
+  }
+
+  /// Spends crystals if available.
+  bool spendCrystals(int amount) {
+    if (currentCrystals >= amount) {
+      currentCrystals -= amount;
+      return true;
+    }
+    return false;
+  }
+
+  // ==================== INVENTORY ====================
+
+  /// Adds a consumable to inventory.
+  void addConsumable(String itemId) {
+    consumables.add(itemId);
+  }
+
+  /// Removes a consumable from inventory.
+  bool removeConsumable(String itemId) {
+    return consumables.remove(itemId);
+  }
+
+  /// Adds a relic to owned collection.
+  void addRelic(String relicId) {
+    if (!ownedRelics.contains(relicId)) {
+      ownedRelics.add(relicId);
+    }
+  }
+
+  /// Equips a relic in the specified slot (0-3).
+  bool equipRelic(int slotIndex, String relicId) {
+    if (slotIndex < 0 || slotIndex >= 4) return false;
+    if (!ownedRelics.contains(relicId)) return false;
+
+    // Ensure list has enough slots filled with empty strings if needed
+    while (equippedRelics.length <= slotIndex) {
+      equippedRelics.add('');
+    }
+
+    // Check if already equipped elsewhere
+    if (equippedRelics.contains(relicId)) {
+      final existingIndex = equippedRelics.indexOf(relicId);
+      equippedRelics[existingIndex] = ''; // Unequip from old slot
+    }
+
+    equippedRelics[slotIndex] = relicId;
+    return true;
+  }
+
+  /// Unequips a relic from the specified slot.
+  void unequipRelic(int slotIndex) {
+    if (slotIndex >= 0 && slotIndex < equippedRelics.length) {
+      equippedRelics[slotIndex] = '';
+    }
+  }
+
+  /// Checks if a relic is owned.
+  bool hasRelic(String relicId) => ownedRelics.contains(relicId);
+
+  /// Checks if a relic is equipped.
+  bool isRelicEquipped(String relicId) => equippedRelics.contains(relicId);
 
   // ==================== TEMPORARY BUFFS ====================
 
@@ -160,6 +256,13 @@ class RunState {
     spellsUpgraded = 0;
     fragmentsEarnedThisRun = 0;
     crystalsEarnedThisRun = 0;
+    fragmentsEarnedThisRun = 0;
+    crystalsEarnedThisRun = 0;
+    currentFragments = 0;
+    currentCrystals = 0;
+    consumables.clear();
+    ownedRelics.clear();
+    equippedRelics.clear();
     temporaryBuffs.clear();
   }
 
@@ -177,6 +280,11 @@ class RunState {
     'spellsUpgraded': spellsUpgraded,
     'fragmentsEarnedThisRun': fragmentsEarnedThisRun,
     'crystalsEarnedThisRun': crystalsEarnedThisRun,
+    'currentFragments': currentFragments,
+    'currentCrystals': currentCrystals,
+    'consumables': consumables,
+    'ownedRelics': ownedRelics,
+    'equippedRelics': equippedRelics,
     'temporaryBuffs': temporaryBuffs.map((b) => b.toJson()).toList(),
   };
 
@@ -194,6 +302,16 @@ class RunState {
     spellsUpgraded = json['spellsUpgraded'] as int;
     fragmentsEarnedThisRun = json['fragmentsEarnedThisRun'] as int;
     crystalsEarnedThisRun = json['crystalsEarnedThisRun'] as int;
+    currentFragments = json['currentFragments'] as int? ?? 0;
+    currentCrystals = json['currentCrystals'] as int? ?? 0;
+    consumables.clear();
+    consumables.addAll((json['consumables'] as List?)?.cast<String>() ?? []);
+    ownedRelics.clear();
+    ownedRelics.addAll((json['ownedRelics'] as List?)?.cast<String>() ?? []);
+    equippedRelics.clear();
+    equippedRelics.addAll(
+      (json['equippedRelics'] as List?)?.cast<String>() ?? [],
+    );
     temporaryBuffs.clear();
     for (final buffJson in (json['temporaryBuffs'] as List?) ?? []) {
       temporaryBuffs.add(

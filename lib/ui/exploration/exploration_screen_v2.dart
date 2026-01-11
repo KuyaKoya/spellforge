@@ -14,6 +14,7 @@ import '../battle/director_subtitle_overlay.dart';
 import 'exploration_hud.dart';
 import 'preview_panels/preview_panels.dart';
 import '../../progression/character_progress.dart';
+import '../../systems/inventory_system.dart';
 
 /// Simplified tap-based exploration screen.
 ///
@@ -59,6 +60,9 @@ class ExplorationScreenV2 extends StatefulWidget {
   /// Callback when player completes a non-combat interaction.
   final void Function()? onInteractionCompleted;
 
+  /// Inventory system (passed to HUD for relic management).
+  final InventorySystem? inventory;
+
   const ExplorationScreenV2({
     super.key,
     required this.roomConfig,
@@ -74,6 +78,7 @@ class ExplorationScreenV2 extends StatefulWidget {
     this.onInteractableTapped,
     this.onEnemyDefeated,
     this.onInteractionCompleted,
+    this.inventory,
   });
 
   @override
@@ -308,6 +313,7 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
                 directorActive: _controller.directorMessage != null,
                 temporaryBuffs: widget.temporaryBuffs,
                 characterProgress: widget.characterProgress,
+                inventory: widget.inventory,
               ),
             ),
 

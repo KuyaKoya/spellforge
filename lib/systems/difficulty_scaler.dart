@@ -19,9 +19,22 @@ class DifficultyScaler {
   // ==================== DEPTH-BASED SCALING ====================
 
   /// Gets the enemy HP multiplier for a given depth.
+  /// Phase 7.10: Updated scaling for harder progression.
+  /// Early (1-3): +15% per depth
+  /// Mid (4-6): +25% per depth (enemies get tankier)
+  /// Late (7+): +35% per depth (significant HP walls)
   static double getHPMultiplier(int depth) {
-    // Gradual HP scaling: +10% per depth after 1
-    return 1.0 + ((depth - 1) * 0.1);
+    if (depth <= 1) return 1.0;
+    if (depth <= 3) {
+      // Early game: 1.0, 1.15, 1.30
+      return 1.0 + ((depth - 1) * 0.15);
+    } else if (depth <= 6) {
+      // Mid game: 1.55, 1.80, 2.05
+      return 1.30 + ((depth - 3) * 0.25);
+    } else {
+      // Late game: 2.40, 2.75, 3.10, ...
+      return 2.05 + ((depth - 6) * 0.35);
+    }
   }
 
   /// Gets the max number of enemies for a given depth.
@@ -39,10 +52,12 @@ class DifficultyScaler {
   }
 
   /// Gets the enemy damage bonus for a given depth.
-  /// Damage scaling is conservative to avoid spike deaths.
+  /// Phase 7.10: Increased scaling to make enemies more threatening.
+  /// Now +1 per depth (was +1 per 2 depths).
   static int getDamageBonus(int depth) {
-    // +1 damage per 2 depths
-    return (depth - 1) ~/ 2;
+    if (depth <= 1) return 0;
+    // +1 damage per depth starting from depth 2
+    return depth - 1;
   }
 
   /// Gets the difficulty tier for a depth.
@@ -78,6 +93,7 @@ class DifficultyScaler {
   // ==================== PHASE 7.9: META DIFFICULTY INTEGRATION ====================
 
   /// Calculates the final enemy HP with depth and meta scaling.
+  /// Phase 7.10: Added minimum HP floor scaling with depth.
   ///
   /// Formula: BaseHP × DepthMultiplier × MetaHPMultiplier
   static int calculateFinalHP({
@@ -87,11 +103,16 @@ class DifficultyScaler {
     double elementModifier = 1.0,
   }) {
     final depthMultiplier = getHPMultiplier(depth);
-    return (baseHP * elementModifier * depthMultiplier * metaMods.hpMultiplier)
-        .round();
+    final scaledHP =
+        (baseHP * elementModifier * depthMultiplier * metaMods.hpMultiplier)
+            .round();
+    // Ensure minimum HP scales with depth to prevent trivial encounters
+    final minHP = 10 + (depth * 5);
+    return scaledHP > minHP ? scaledHP : minHP;
   }
 
   /// Calculates the final enemy attack with depth and meta scaling.
+  /// Phase 7.10: Attack now also gets a percentage boost at higher depths.
   static int calculateFinalAttack({
     required int baseAttack,
     required int depth,
@@ -99,18 +120,40 @@ class DifficultyScaler {
     double elementModifier = 1.0,
   }) {
     final depthBonus = getDamageBonus(depth);
+    // Add percentage scaling at higher depths
+    double depthMultiplier = 1.0;
+    if (depth >= 5) {
+      depthMultiplier = 1.0 + ((depth - 4) * 0.1); // +10% per depth after 4
+    }
     final scaledBase =
-        (baseAttack * elementModifier * metaMods.attackMultiplier).round();
+        (baseAttack *
+                elementModifier *
+                metaMods.attackMultiplier *
+                depthMultiplier)
+            .round();
     return scaledBase + depthBonus;
   }
 
-  /// Calculates the final enemy defense with meta scaling.
+  /// Calculates the final enemy defense with meta and depth scaling.
+  /// Phase 7.10: Defense now scales with depth to reduce damage taken.
   static int calculateFinalDefense({
     required int baseDefense,
+    required int depth,
     required MetaDifficultyModifiers metaMods,
     double elementModifier = 1.0,
   }) {
-    return (baseDefense * elementModifier * metaMods.defenseMultiplier).round();
+    // Defense scales more aggressively at higher depths
+    double depthMultiplier = 1.0;
+    if (depth >= 3) {
+      depthMultiplier = 1.0 + ((depth - 2) * 0.15); // +15% per depth after 2
+    }
+    final scaledDefense =
+        (baseDefense *
+                elementModifier *
+                metaMods.defenseMultiplier *
+                depthMultiplier)
+            .round();
+    return scaledDefense.clamp(0, 50); // Cap at 50 to prevent invincibility
   }
 
   /// Calculates the final enemy speed with meta scaling.
