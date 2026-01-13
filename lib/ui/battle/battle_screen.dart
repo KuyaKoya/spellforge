@@ -22,6 +22,8 @@ import 'battle_scene.dart';
 import 'status_bars.dart';
 import 'battle_action_menu.dart';
 import 'floating_damage.dart';
+
+import '../utils/game_colors.dart';
 import 'sprite_overlay.dart';
 
 /// Configurable timing delays for battle flow.
@@ -556,15 +558,15 @@ class _BattleScreenState extends State<BattleScreen> {
       bool bossDead = false, eliteDead = false;
       for (final e in widget.enemies) {
         if (!e.isAlive) {
-          if (e is BossEnemy)
+          if (e is BossEnemy) {
             bossDead = true;
-          else if (e is EliteEnemy)
+          } else if (e is EliteEnemy)
             eliteDead = true;
         }
       }
-      if (bossDead)
+      if (bossDead) {
         AudioManager.instance.playSfx('boss_death');
-      else if (eliteDead)
+      } else if (eliteDead)
         AudioManager.instance.playSfx('elite_death');
       else
         AudioManager.instance.playEnemyDeath();
@@ -658,9 +660,9 @@ class _BattleScreenState extends State<BattleScreen> {
 
       for (final enemy in widget.enemies) {
         if (!enemy.isAlive) {
-          if (enemy is BossEnemy)
+          if (enemy is BossEnemy) {
             bossDead = true;
-          else if (enemy is EliteEnemy)
+          } else if (enemy is EliteEnemy)
             eliteDead = true;
         }
       }
@@ -1498,7 +1500,7 @@ class _BattleScreenState extends State<BattleScreen> {
             color: canCast ? null : const Color(0xFF161b22),
             border: Border.all(
               color: canCast
-                  ? _getElementColor(spell.element.name)
+                  ? GameColors.getElementColorFromString(spell.element.name)
                   : const Color(0xFF30363d),
               width: canCast ? 2 : 1,
             ),
@@ -1553,21 +1555,6 @@ class _BattleScreenState extends State<BattleScreen> {
     if (hasWeak && !hasStrong) return const Color(0xFFf85149); // Red
     if (hasStrong && hasWeak) return const Color(0xFFe3b341); // Yellow
     return const Color(0xFFc9d1d9); // White
-  }
-
-  Color _getElementColor(String element) {
-    switch (element) {
-      case 'fire':
-        return const Color(0xFFf85149);
-      case 'water':
-        return const Color(0xFF58a6ff);
-      case 'earth':
-        return const Color(0xFF7c6f4a);
-      case 'air':
-        return const Color(0xFF79c0ff);
-      default:
-        return const Color(0xFF6e7681);
-    }
   }
 
   Widget _buildEmptySlot() {
@@ -1625,12 +1612,16 @@ class _BattleScreenState extends State<BattleScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              _getElementColor(enemy.element.name).withValues(alpha: 0.3),
-              _getElementColor(enemy.element.name).withValues(alpha: 0.1),
+              GameColors.getElementColorFromString(
+                enemy.element.name,
+              ).withValues(alpha: 0.3),
+              GameColors.getElementColorFromString(
+                enemy.element.name,
+              ).withValues(alpha: 0.1),
             ],
           ),
           border: Border.all(
-            color: _getElementColor(enemy.element.name),
+            color: GameColors.getElementColorFromString(enemy.element.name),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(8),

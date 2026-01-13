@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../domain/spell.dart';
 import '../../../systems/reward_resolver.dart';
+import '../../utils/game_colors.dart';
 
 /// Stylish overlay displayed after defeating an elite enemy.
 ///
@@ -483,7 +484,7 @@ class _EliteRewardOverlayState extends State<EliteRewardOverlay>
 
   Widget _buildSpellCard(Spell spell, int index) {
     final isSelected = _selectedSpellIndex == index;
-    final rarityColor = _getRarityColor(spell.rarity);
+    final rarityColor = GameColors.getRarityColor(spell.rarity);
 
     return Material(
       color: Colors.transparent,
@@ -510,7 +511,9 @@ class _EliteRewardOverlayState extends State<EliteRewardOverlay>
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _getElementColor(spell.element).withValues(alpha: 0.2),
+                  color: GameColors.getElementColorDynamic(
+                    spell.element,
+                  ).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
@@ -651,37 +654,5 @@ class _EliteRewardOverlayState extends State<EliteRewardOverlay>
       selectedSpell = result.spellChoices[_selectedSpellIndex!];
     }
     widget.onComplete!(selectedSpell);
-  }
-
-  Color _getRarityColor(SpellRarity rarity) {
-    switch (rarity) {
-      case SpellRarity.common:
-        return Colors.grey.shade400;
-      case SpellRarity.uncommon:
-        return Colors.green;
-      case SpellRarity.rare:
-        return Colors.blue;
-      case SpellRarity.signature:
-        return Colors.amber;
-      case SpellRarity.legendary:
-        return const Color(0xFFbc8cff);
-      case SpellRarity.fusion:
-        return const Color(0xFF00d4aa);
-    }
-  }
-
-  Color _getElementColor(dynamic element) {
-    switch (element.toString().split('.').last) {
-      case 'fire':
-        return Colors.orange;
-      case 'water':
-        return Colors.blue;
-      case 'earth':
-        return Colors.brown;
-      case 'air':
-        return Colors.cyan;
-      default:
-        return Colors.grey;
-    }
   }
 }

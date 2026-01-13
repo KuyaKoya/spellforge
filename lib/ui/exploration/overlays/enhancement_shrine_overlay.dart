@@ -4,6 +4,7 @@ import '../../../domain/mage.dart';
 import '../../../domain/spell.dart';
 import '../../../systems/node_resolver.dart';
 import '../../../systems/audio_manager.dart';
+import '../../utils/game_colors.dart';
 
 class EnhancementShrineOverlay extends StatefulWidget {
   final Mage mage;
@@ -414,17 +415,17 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              _getElementColor(
+                              GameColors.getElementColorDynamic(
                                 spell.element,
                               ).withValues(alpha: 0.3),
-                              _getElementColor(
+                              GameColors.getElementColorDynamic(
                                 spell.element,
                               ).withValues(alpha: 0.1),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: _getElementColor(
+                            color: GameColors.getElementColorDynamic(
                               spell.element,
                             ).withValues(alpha: 0.5),
                           ),
@@ -481,7 +482,7 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _getRarityColor(
+                                  color: GameColors.getRarityColor(
                                     spell.rarity,
                                   ).withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(4),
@@ -491,7 +492,9 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     fontSize: 10,
-                                    color: _getRarityColor(spell.rarity),
+                                    color: GameColors.getRarityColor(
+                                      spell.rarity,
+                                    ),
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -1046,38 +1049,6 @@ class _EnhancementShrineOverlayState extends State<EnhancementShrineOverlay>
         ),
       ),
     );
-  }
-
-  Color _getElementColor(dynamic element) {
-    switch (element.toString().split('.').last) {
-      case 'fire':
-        return Colors.orange;
-      case 'water':
-        return Colors.blue;
-      case 'earth':
-        return Colors.brown;
-      case 'air':
-        return Colors.cyan;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Color _getRarityColor(SpellRarity rarity) {
-    switch (rarity) {
-      case SpellRarity.common:
-        return Colors.grey.shade400;
-      case SpellRarity.uncommon:
-        return Colors.green;
-      case SpellRarity.rare:
-        return Colors.blue;
-      case SpellRarity.signature:
-        return Colors.amber;
-      case SpellRarity.legendary:
-        return const Color(0xFFbc8cff); // Purple
-      case SpellRarity.fusion:
-        return const Color(0xFF00d4aa); // Cyan/Teal
-    }
   }
 }
 

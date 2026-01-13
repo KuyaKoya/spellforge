@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../domain/mage.dart';
 import '../../domain/enemy.dart';
 import '../../domain/element.dart' as game_element;
+import '../utils/game_colors.dart';
 import '../../game/exploration/exploration_controller.dart';
 import '../../game/exploration/components/components.dart';
 import '../../nodes/nodes.dart';
-import '../../nodes/node_map_system.dart';
 import '../../systems/audio_manager.dart';
 import '../../systems/shop_system.dart';
 import '../components/node_breadcrumbs.dart';
@@ -459,7 +459,7 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
   Widget _buildEnemyWidget() {
     final enemy = widget.roomConfig.enemy!;
     final isElite = widget.roomConfig.isEliteEnemy;
-    final elementColor = _getElementColor(enemy.element);
+    final elementColor = GameColors.getElementColor(enemy.element);
 
     return GestureDetector(
       onTap: _onEnemyTapped,
@@ -798,19 +798,6 @@ class _ExplorationScreenV2State extends State<ExplorationScreenV2>
             style: const TextStyle(color: Colors.white),
           ),
         );
-    }
-  }
-
-  Color _getElementColor(game_element.Element element) {
-    switch (element) {
-      case game_element.Element.fire:
-        return const Color(0xFFf85149);
-      case game_element.Element.water:
-        return const Color(0xFF58a6ff);
-      case game_element.Element.earth:
-        return const Color(0xFF7c6f4a);
-      case game_element.Element.air:
-        return const Color(0xFF79c0ff);
     }
   }
 

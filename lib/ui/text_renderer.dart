@@ -8,7 +8,6 @@ import '../game/game_state.dart';
 import '../game/exploration/exploration_controller.dart';
 import '../game/exploration/components/door_interactable.dart';
 import '../nodes/nodes.dart';
-import '../narrative/journey_log.dart';
 import 'battle/battle.dart';
 import 'exploration/exploration_screen_v2.dart';
 import 'exploration/overlays/rest_overlay.dart';

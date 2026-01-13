@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../domain/element.dart' as game_element;
+import '../../utils/game_colors.dart';
 import '../../../systems/audio_manager.dart';
 
 class ElementSelectionOverlay extends StatefulWidget {
@@ -31,19 +32,6 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  Color _getElementColor(game_element.Element element) {
-    switch (element) {
-      case game_element.Element.fire:
-        return Colors.deepOrange;
-      case game_element.Element.water:
-        return Colors.blue;
-      case game_element.Element.earth:
-        return Colors.lightGreen;
-      case game_element.Element.air:
-        return Colors.cyan;
-    }
   }
 
   IconData _getElementIcon(game_element.Element element) {
@@ -163,7 +151,7 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _selectedElement != null
-                        ? _getElementColor(_selectedElement!)
+                        ? GameColors.getElementColor(_selectedElement!)
                         : Colors.grey.shade800,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 20),
@@ -199,7 +187,7 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
         Icon(
           _getElementIcon(element),
           size: 48,
-          color: _getElementColor(element),
+          color: GameColors.getElementColor(element),
         ),
         const SizedBox(height: 8),
         Text(
@@ -208,7 +196,7 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
             fontFamily: 'monospace',
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: _getElementColor(element),
+            color: GameColors.getElementColor(element),
             letterSpacing: 2,
           ),
         ),
@@ -238,7 +226,7 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
             fontFamily: 'monospace',
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: _getElementColor(target),
+            color: GameColors.getElementColor(target),
           ),
         ),
       ],
@@ -288,14 +276,16 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
             shape: BoxShape.circle,
             border: Border.all(
               color: isSelected
-                  ? _getElementColor(element)
+                  ? GameColors.getElementColor(element)
                   : Colors.grey.shade800,
               width: isSelected ? 3 : 1,
             ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: _getElementColor(element).withValues(alpha: 0.4),
+                      color: GameColors.getElementColor(
+                        element,
+                      ).withValues(alpha: 0.4),
                       blurRadius: 20,
                       spreadRadius: 5,
                     ),
@@ -304,7 +294,9 @@ class _ElementSelectionOverlayState extends State<ElementSelectionOverlay>
           ),
           child: Icon(
             _getElementIcon(element),
-            color: isSelected ? _getElementColor(element) : Colors.grey,
+            color: isSelected
+                ? GameColors.getElementColor(element)
+                : Colors.grey,
             size: isSelected ? 32 : 24,
           ),
         ),

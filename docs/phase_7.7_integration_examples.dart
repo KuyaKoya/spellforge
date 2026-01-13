@@ -3,6 +3,7 @@
 /// This file demonstrates how to integrate the narrative system
 /// into the existing SpellForge flow. Copy the relevant sections
 /// into your actual implementation files.
+library;
 
 // ============================================================
 // EXAMPLE 1: Intro Lore on First Launch

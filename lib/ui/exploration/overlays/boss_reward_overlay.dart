@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../domain/spell.dart';
 import '../../../systems/reward_resolver.dart';
+import '../../utils/game_colors.dart';
 
 /// Celebratory overlay displayed after defeating a boss.
 ///
@@ -397,7 +398,7 @@ class _BossRewardOverlayState extends State<BossRewardOverlay>
   Widget _buildSpellCard(Spell spell, int index) {
     final isSelected = _selectedSpellIndex == index;
     final isLegendary = spell.rarity == SpellRarity.legendary;
-    final rarityColor = _getRarityColor(spell.rarity);
+    final rarityColor = GameColors.getRarityColor(spell.rarity);
 
     return Material(
       color: Colors.transparent,
@@ -446,7 +447,9 @@ class _BossRewardOverlayState extends State<BossRewardOverlay>
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: _getElementColor(spell.element).withValues(alpha: 0.2),
+                  color: GameColors.getElementColorDynamic(
+                    spell.element,
+                  ).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                   border: isLegendary
                       ? Border.all(color: Colors.purple.withValues(alpha: 0.5))
@@ -674,38 +677,6 @@ class _BossRewardOverlayState extends State<BossRewardOverlay>
       selectedSpell = widget.rewardResult.spellChoices[_selectedSpellIndex!];
     }
     widget.onComplete(selectedSpell);
-  }
-
-  Color _getRarityColor(SpellRarity rarity) {
-    switch (rarity) {
-      case SpellRarity.common:
-        return Colors.grey.shade400;
-      case SpellRarity.uncommon:
-        return Colors.green;
-      case SpellRarity.rare:
-        return Colors.blue;
-      case SpellRarity.signature:
-        return Colors.amber;
-      case SpellRarity.legendary:
-        return const Color(0xFFbc8cff);
-      case SpellRarity.fusion:
-        return const Color(0xFF00d4aa);
-    }
-  }
-
-  Color _getElementColor(dynamic element) {
-    switch (element.toString().split('.').last) {
-      case 'fire':
-        return Colors.orange;
-      case 'water':
-        return Colors.blue;
-      case 'earth':
-        return Colors.brown;
-      case 'air':
-        return Colors.cyan;
-      default:
-        return Colors.grey;
-    }
   }
 }
 

@@ -125,8 +125,9 @@ class GameLoop {
   /// Uses a consumable item from inventory.
   /// Returns a description of the effect.
   String useConsumable(String itemId) {
-    if (state.currentScreen != GameScreen.combat)
+    if (state.currentScreen != GameScreen.combat) {
       return 'Can only use items in combat';
+    }
     if (state.mage == null) return 'No active mage';
 
     final effect = state.inventory.useConsumable(itemId);

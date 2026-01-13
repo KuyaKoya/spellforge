@@ -194,8 +194,9 @@ class Mage {
     logs.add('+${growth.hp} Max HP (now $maxHP)');
     logs.add('+${growth.mana} Max Mana (now $maxMana)');
     if (growth.attack > 0) logs.add('+${growth.attack} Attack (now $attack)');
-    if (growth.defense > 0)
+    if (growth.defense > 0) {
       logs.add('+${growth.defense} Defense (now $defense)');
+    }
     if (growth.speed > 0) logs.add('+${growth.speed} Speed (now $speed)');
 
     logs.add('');

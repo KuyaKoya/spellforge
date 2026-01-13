@@ -9,6 +9,7 @@ import 'core_path_view.dart';
 import '../../../systems/inventory_system.dart';
 import '../../../systems/relic_effect_service.dart';
 import '../../../data/item_definitions.dart'; // For ItemRegistry
+import '../../utils/game_colors.dart';
 // domain/element.dart is already imported as domain at line 2
 
 /// The Character tab showing elemental ascension paths.
@@ -421,7 +422,7 @@ class _CharacterTabState extends State<CharacterTab>
     required int maxNodes,
     required double progress,
   }) {
-    final color = _getElementColor(element);
+    final color = GameColors.getElementColor(element);
     final canAffordNext = widget.progressionSystem.characterProgress
         .canUnlockNext(element, widget.progressionSystem.spellCrystals);
 
@@ -876,7 +877,7 @@ class _CharacterTabState extends State<CharacterTab>
         final element = entry.key;
         final count = entry.value;
         final isComplete = count >= 4;
-        final color = _getElementColor(element);
+        final color = GameColors.getElementColor(element);
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -907,18 +908,5 @@ class _CharacterTabState extends State<CharacterTab>
         );
       }).toList(),
     );
-  }
-
-  Color _getElementColor(domain.Element element) {
-    switch (element) {
-      case domain.Element.fire:
-        return Colors.orange;
-      case domain.Element.water:
-        return Colors.blue;
-      case domain.Element.earth:
-        return Colors.brown;
-      case domain.Element.air:
-        return Colors.teal;
-    }
   }
 }

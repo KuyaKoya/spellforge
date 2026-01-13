@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../domain/spell.dart';
-import '../domain/element.dart' as game_element;
+import 'utils/game_colors.dart';
 
 /// Screen for selecting a starting spell before the run begins.
 class SpellSelectionScreen extends StatefulWidget {
@@ -107,7 +107,7 @@ class _SpellSelectionScreenState extends State<SpellSelectionScreen> {
           color: const Color(0xFF161b22),
           border: Border.all(
             color: isSelected
-                ? _getElementColor(spell.element)
+                ? GameColors.getElementColor(spell.element)
                 : const Color(0xFF30363d),
             width: isSelected ? 2 : 1,
           ),
@@ -131,7 +131,7 @@ class _SpellSelectionScreenState extends State<SpellSelectionScreen> {
                           fontFamily: 'monospace',
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: _getElementColor(spell.element),
+                          color: GameColors.getElementColor(spell.element),
                         ),
                       ),
                       Text(
@@ -226,18 +226,5 @@ class _SpellSelectionScreenState extends State<SpellSelectionScreen> {
         ),
       ],
     );
-  }
-
-  Color _getElementColor(game_element.Element element) {
-    switch (element) {
-      case game_element.Element.fire:
-        return const Color(0xFFf85149);
-      case game_element.Element.water:
-        return const Color(0xFF58a6ff);
-      case game_element.Element.earth:
-        return const Color(0xFF7c6f4a);
-      case game_element.Element.air:
-        return const Color(0xFF79c0ff);
-    }
   }
 }

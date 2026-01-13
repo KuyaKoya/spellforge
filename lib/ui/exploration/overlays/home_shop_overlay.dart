@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/item_definitions.dart';
 import '../../../systems/progression_system.dart';
 import '../../../systems/shop_rotation.dart';
+import '../../utils/game_colors.dart';
 
 class HomeShopOverlay extends StatefulWidget {
   final ProgressionSystem progressionSystem;
@@ -334,7 +335,7 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
   Widget _buildRelicCard(RelicItem item) {
     final cost = ShopRotation.getRelicCost(item);
     final canAfford = widget.progressionSystem.spellCrystals >= cost;
-    final rarityColor = _getRarityColor(item.rarity);
+    final rarityColor = GameColors.getRarityColorFromInt(item.rarity);
 
     return Container(
       decoration: BoxDecoration(
@@ -425,19 +426,6 @@ class _HomeShopOverlayState extends State<HomeShopOverlay> {
         ),
       ),
     );
-  }
-
-  Color _getRarityColor(int rarity) {
-    switch (rarity) {
-      case 1:
-        return Colors.grey.shade400;
-      case 2:
-        return Colors.greenAccent;
-      case 3:
-        return Colors.amber;
-      default:
-        return Colors.white;
-    }
   }
 
   String _getRarityLabel(int rarity) {

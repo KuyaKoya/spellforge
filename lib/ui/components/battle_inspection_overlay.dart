@@ -7,6 +7,7 @@ import '../../domain/boss_enemy.dart';
 import '../../domain/effect.dart';
 import '../../domain/spell.dart';
 import 'passive_inspection_widget.dart';
+import '../utils/game_colors.dart';
 
 /// Battle inspection overlay with tabs for Player and Enemy details.
 ///
@@ -322,7 +323,9 @@ class _BattleInspectionOverlayState extends State<BattleInspectionOverlay>
 
   Widget _buildSpellCard(Spell spell) {
     final canCast = widget.mage.canCast(spell);
-    final elementColor = _getElementColor(spell.element.name);
+    final elementColor = GameColors.getElementColorFromString(
+      spell.element.name,
+    );
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -449,7 +452,9 @@ class _BattleInspectionOverlayState extends State<BattleInspectionOverlay>
   }
 
   Widget _buildEnemyCard(Enemy enemy) {
-    final elementColor = _getElementColor(enemy.element.name);
+    final elementColor = GameColors.getElementColorFromString(
+      enemy.element.name,
+    );
     final isElite = enemy is EliteEnemy;
     final isBoss = enemy is BossEnemy;
 
@@ -667,21 +672,6 @@ class _BattleInspectionOverlayState extends State<BattleInspectionOverlay>
         ),
       ),
     );
-  }
-
-  Color _getElementColor(String element) {
-    switch (element) {
-      case 'fire':
-        return const Color(0xFFf85149);
-      case 'water':
-        return const Color(0xFF58a6ff);
-      case 'earth':
-        return const Color(0xFF7c6f4a);
-      case 'air':
-        return const Color(0xFF79c0ff);
-      default:
-        return const Color(0xFF6e7681);
-    }
   }
 
   Color _getEffectColor(EffectType type) {

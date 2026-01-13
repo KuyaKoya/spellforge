@@ -4,6 +4,7 @@ import '../../../domain/boss_enemy.dart';
 import '../../../domain/elite_enemy.dart';
 import '../../../domain/enemy.dart';
 import '../../../domain/element.dart' as game_element;
+import '../../utils/game_colors.dart';
 import '../../components/passive_inspection_widget.dart';
 import 'preview_panel.dart';
 
@@ -44,7 +45,7 @@ class EnemyPreviewPanel extends PreviewPanel {
          ),
          confirmLabel: 'ENGAGE',
          cancelLabel: 'BACK',
-         accentColor: _getElementColor(enemy.element),
+         accentColor: GameColors.getElementColor(enemy.element),
          riskHint: isElite ? 'Elite encounter - Defeat means run ends!' : null,
        );
 
@@ -58,19 +59,6 @@ class EnemyPreviewPanel extends PreviewPanel {
         return '🪨';
       case game_element.Element.air:
         return '💨';
-    }
-  }
-
-  static Color _getElementColor(game_element.Element element) {
-    switch (element) {
-      case game_element.Element.fire:
-        return const Color(0xFFf85149);
-      case game_element.Element.water:
-        return const Color(0xFF58a6ff);
-      case game_element.Element.earth:
-        return const Color(0xFF7c6f4a);
-      case game_element.Element.air:
-        return const Color(0xFF79c0ff);
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../domain/element.dart' as game_element;
+import '../utils/game_colors.dart';
 
 /// Controller for floating damage numbers.
 ///
@@ -279,7 +280,7 @@ class _FloatingNumberState extends State<_FloatingNumber>
       case DamageType.direct:
         // Element-based color if provided
         if (widget.data.element != null) {
-          return _getElementColor(widget.data.element!);
+          return GameColors.getElementColor(widget.data.element!);
         }
         return const Color(0xFFf85149); // Default red
       case DamageType.burn:
@@ -288,19 +289,6 @@ class _FloatingNumberState extends State<_FloatingNumber>
         return const Color(0xFF3fb950); // Green
       case DamageType.shieldAbsorb:
         return const Color(0xFF58a6ff); // Blue
-    }
-  }
-
-  Color _getElementColor(game_element.Element element) {
-    switch (element) {
-      case game_element.Element.fire:
-        return const Color(0xFFf85149);
-      case game_element.Element.water:
-        return const Color(0xFF58a6ff);
-      case game_element.Element.earth:
-        return const Color(0xFF7c6f4a);
-      case game_element.Element.air:
-        return const Color(0xFF79c0ff);
     }
   }
 

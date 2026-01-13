@@ -114,11 +114,17 @@ class CombatSystem {
   List<Enemy> get livingEnemies => enemies.where((e) => e.isAlive).toList();
 
   /// Whether the player can still take actions.
+  /// Returns true if it's player's turn and they have actions remaining.
+  /// Note: This does NOT check if spells are castable - player can always
+  /// end their turn via the End Turn button, even without sufficient mana.
   bool get canPlayerAct {
     if (!isPlayerTurn) return false;
     if (mage.actionsRemaining <= 0) return false;
+    return true;
+  }
 
-    // Check if any spell can be cast
+  /// Whether the player can cast any spell (has enough mana for at least one).
+  bool get canCastAnySpell {
     for (final spell in mage.spellLoadout) {
       if (mage.canCast(spell)) return true;
     }
